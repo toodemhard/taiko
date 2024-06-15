@@ -1,8 +1,0 @@
-IndentWidth: 4
-BinPackArguments: false
-BinPackParameters: false
-AlignAfterOpenBracket: BlockIndent
-AllowAllParametersOfDeclarationOnNextLine: false
-AllowShortFunctionsOnASingleLine: Empty
-PointerAlignment: Left
-ColumnLimit: 100
