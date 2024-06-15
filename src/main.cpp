@@ -1,10 +1,14 @@
 #include <algorithm>
+#include <functional>
 #include <format>
 #include <iostream>
 #include <string>
 #include <codecvt>
 #include <chrono>
 #include <filesystem>
+
+#include "vec.h"
+#include "ui.h"
 #include "raylib.h"
 
 using namespace std::chrono_literals;
@@ -24,38 +28,6 @@ struct Note {
     NoteType type;
 };
 
-struct Vec2 {
-    float x;
-    float y;
-
-    Vec2 operator+(const Vec2& other) {
-        return Vec2{x + other.x, y + other.y};
-    }
-
-    Vec2 operator+(const float& other) {
-        return Vec2{x + other, y + other};
-    }
-    
-    Vec2 operator-(const Vec2& other) {
-        return Vec2{x - other.x, y - other.y};
-    }
-
-    Vec2 operator*(const float& other) {
-        return Vec2{x * other, y * other};
-    }
-
-    Vec2 operator/(const float& other) {
-        return Vec2{x / other, y / other};
-    }
-
-    Vec2 operator/(const Vec2& other) {
-        return Vec2{x / other.x, y / other.y};
-    }
-
-    Vec2 operator*(const Vec2& other) {
-        return Vec2{x * other.x, y * other.y};
-    }
-};
 
 class Cam {
 public:
@@ -227,10 +199,10 @@ enum class EditorMode {
     insert,
 };
 
-class App {
+class Editor {
 public:
-    void Update(std::chrono::duration<double> delta_time);
-    void Init();
+    void update_editor(std::chrono::duration<double> delta_time);
+    void init();
 private:
     Cam cam = {{0,0}, {2,3}};
 
@@ -249,13 +221,15 @@ private:
 
     int current_note = -1;
 
+    UI ui;
+
     Music music;
 
     Sound don_sound = LoadSound("don.wav");
     Sound kat_sound = LoadSound("kat.wav");
 };
 
-void App::Init() {
+void Editor::init() {
     music = LoadMusicStream("kinoko.mp3");
     SetMusicVolume(music, 0.2f);
 
@@ -263,8 +237,6 @@ void App::Init() {
     offset = std::chrono::duration<double>(0.994);
 
     PauseMusicStream(music);
-
-    SeekMusicStream(music, 0.0f);
 }
 
 void add_note(std::vector<Note>& map, Note note) {
@@ -272,11 +244,8 @@ void add_note(std::vector<Note>& map, Note note) {
     map.insert(std::upper_bound(map.begin(), map.end(), note, cmp), note);
 }
 
-void App::Update(std::chrono::duration<double> delta_time) {
+void Editor::update_editor(std::chrono::duration<double> delta_time) {
     UpdateMusicStream(music);
-    BeginDrawing();
-    
-    ClearBackground(BLACK);
 
     float elapsed = GetMusicTimePlayed(music);
 
@@ -313,29 +282,6 @@ void App::Update(std::chrono::duration<double> delta_time) {
         }
     }
 
-    for (int i = 0; i < 500; i++) {
-        float x = offset.count() + i * quarter_interval;
-
-        float height;
-        Color color;
-        if (i % 4 == 0) {
-            height = 0.2;
-            color = WHITE;
-        } else {
-            height = 0.1;
-            color = RED;
-        }
-        
-        Vec2 p1 = cam.WorldToScreen({x, 0});
-        Vec2 p2 = cam.WorldToScreen({x, height});
-
-        DrawLine(p1.x, p1.y, p2.x, p2.y, color);
-    }
-
-    Vec2 p1 = cam.WorldToScreen(cam.m_Position);
-    Vec2 p2 = cam.WorldToScreen(cam.m_Position + Vec2{0,0.6});
-
-    DrawLine(p1.x, p1.y, p2.x, p2.y, YELLOW);
 
 
     if (IsKeyPressed(KEY_SPACE)) {
@@ -388,14 +334,116 @@ void App::Update(std::chrono::duration<double> delta_time) {
         // current_note = std::upper_bound(map.begin(), map.end(), elapsed, cmp) - map.begin();
         std::cout << current_note << '\n';
     }
+    
+    if (IsKeyPressed(KEY_K)) {
+        int x = 0;
+    }
+
+    ui.input();
+
+    ui.begin_group();
+    std::string time = std::to_string(cam.m_Position.x);
+    auto frame_time = std::to_string(((float)std::chrono::duration_cast<std::chrono::microseconds>(delta_time).count()) / 1000) + "ms";
+    ui.rect(time.data());
+    ui.rect(frame_time.data());
+
+    ui.end_group();
+
+
+    BeginDrawing();
+    ClearBackground(BLACK);
+
+    for (int i = 0; i < 500; i++) {
+        float x = offset.count() + i * quarter_interval;
+
+        float height;
+        Color color;
+        if (i % 4 == 0) {
+            height = 0.2;
+            color = WHITE;
+        } else {
+            height = 0.1;
+            color = RED;
+        }
+        
+        Vec2 p1 = cam.WorldToScreen({x, 0});
+        Vec2 p2 = cam.WorldToScreen({x, height});
+
+        DrawLine(p1.x, p1.y, p2.x, p2.y, color);
+    }
+
+    Vec2 p1 = cam.WorldToScreen(cam.m_Position);
+    Vec2 p2 = cam.WorldToScreen(cam.m_Position + Vec2{0,0.6});
+
+    DrawLine(p1.x, p1.y, p2.x, p2.y, YELLOW);
 
     render_map(map, cam, current_note);
 
 
-    DrawText(std::to_string(cam.m_Position.x).data(), 0, 0, 24, WHITE);
-    DrawText((std::to_string(((float) std::chrono::duration_cast<std::chrono::microseconds>(delta_time).count()) / 1000) + "ms").data(), 100, 100, 24, WHITE);
+    ui.draw();
+    //DrawText(, 0, 0, 24, WHITE);
+    //DrawText(, 100, 100, 24, WHITE);
     EndDrawing();
 }
+
+
+enum class View {
+    main,
+    map_select,
+};
+
+class MainMenu {
+public:
+    void update(std::function<void()> callback);
+
+private:
+    UI ui;
+    View current_view = View::main;
+};
+
+void MainMenu::update(std::function<void()> callback) {
+    if (IsKeyPressed(KEY_ONE)) {
+        callback();
+        std::cout << "fskadfh\n";
+        return;
+    }
+
+    ui.input();
+
+
+    switch (current_view) {
+        case View::main:
+            ui.begin_group();
+            ui.button("Play", [&]() {
+                current_view = View::map_select;
+                std::cout << "kfsahdfhj\n";
+			});
+            ui.rect("Settings");
+            ui.rect("Exit");
+
+            ui.end_group();
+            break;
+        case View::map_select:
+            ui.rect("askjldhf");
+            if (IsKeyPressed(KEY_ESCAPE)) {
+                current_view = View::main;
+            }
+            break;
+    }
+
+    BeginDrawing();
+    ClearBackground(BLACK);
+    DrawText("editor", 400, 300, 24, WHITE);
+
+    ui.draw();
+    EndDrawing();
+}
+
+
+enum class Context {
+    Menu,
+    Editor
+};
 
 void run() {
     InitWindow(1280, 960, "taiko");
@@ -403,23 +451,37 @@ void run() {
     auto last_frame = std::chrono::high_resolution_clock::now();
     
     InitAudioDevice();
+    SetExitKey(KEY_NULL);
     
     float pos = 400;
     auto start = std::chrono::high_resolution_clock::now();
 
-    GameState game_state;
+    MainMenu menu;
 
-    App app;
+    Editor app;
 
-    app.Init();
+    app.init();
+
+    Context context = Context::Editor;
+
+    auto to_editor = [&]() {
+        context = Context::Editor;
+    };
 
     using namespace std::chrono;
     
     while (!WindowShouldClose()) {
         auto now = high_resolution_clock::now();
         duration<double> delta_time = now - last_frame;
-        app.Update(delta_time);
 
+        switch (context) {
+            case Context::Menu:
+                menu.update(to_editor);
+                break;
+            case Context::Editor:
+                app.update_editor(delta_time);
+                break;
+        }
 
         last_frame = now;
     }
@@ -428,5 +490,6 @@ void run() {
 }
 
 int main() {
+    std::cout << std::filesystem::current_path();
     run();
 }
