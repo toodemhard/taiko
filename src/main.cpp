@@ -13,8 +13,8 @@
 
 using namespace std::chrono_literals;
 
-const int window_width = 800;
-const int window_height = 600;
+const int window_width = 1280;
+const int window_height = 960;
 
 const std::chrono::duration<double> hit_range = 100ms;
 const std::chrono::duration<double> perfecct_range = 30ms;
@@ -169,7 +169,7 @@ Game::Game() {
     }
 }
 
-const float input_indicator_duration = 0.05f;
+const float input_indicator_duration = 0.1f;
 
 void Game::update(std::chrono::duration<double> delta_time) {
     auto now = std::chrono::high_resolution_clock::now();
@@ -187,14 +187,14 @@ void Game::update(std::chrono::duration<double> delta_time) {
         pressed.push_back(NoteType::don);
     }
 
-    if (IsKeyPressed(KEY_Z)) {
+    if (IsKeyPressed(KEY_PERIOD)) {
         PlaySound(don_sound);
         inputs.push_back(InputRecord{ Input::don_right, (float)elapsed.count() });
 
         pressed.push_back(NoteType::don);
     }
 
-    if (IsKeyPressed(KEY_PERIOD)) {
+    if (IsKeyPressed(KEY_Z)) {
         inputs.push_back(InputRecord{ Input::kat_left, (float)elapsed.count() });
         PlaySound(kat_sound);
 
@@ -222,7 +222,7 @@ void Game::update(std::chrono::duration<double> delta_time) {
         }
 
         if (elapsed > map[current_note].time - (hit_range / 2)) {
-            PlaySound(don_sound);
+            //PlaySound(don_sound);
             particles.push_back(Particle{ Vec2{(float)elapsed.count(), 0}, {0,1}, 1, map[current_note].type, elapsed });
             current_note++;
         }
@@ -255,7 +255,6 @@ void Game::update(std::chrono::duration<double> delta_time) {
     ClearBackground(BLANK);
     DrawRectangle(0, 0, 1280, 960, BLACK);
 
-
     float x = elapsed.count();
     Vec2 p1 = cam.world_to_screen({ x, 0.5f });
     Vec2 p2 = cam.world_to_screen({ x, -0.5f });
@@ -263,6 +262,12 @@ void Game::update(std::chrono::duration<double> delta_time) {
 
     ui.draw();
 
+    Vector2 drum_pos = { 0, (window_height - inner_drum.height) / 2};
+    Vector2 right_pos = drum_pos;
+    right_pos.x += inner_drum.width;
+	Rectangle rect{ 0, 0, inner_drum.width, inner_drum.height };
+    Rectangle flipped_rect = rect;
+    flipped_rect.width *= -1;
 
     for (int i = inputs.size() - 1; i >= 0; i--) {
         const InputRecord& input = inputs[i];
@@ -272,15 +277,16 @@ void Game::update(std::chrono::duration<double> delta_time) {
 
         switch (input.type) {
         case Input::don_left:
-			DrawTexture(inner_drum, 500, 500, WHITE);
+            DrawTextureRec(inner_drum, rect, drum_pos, WHITE);
             break;
         case Input::don_right:
-
+            DrawTextureRec(inner_drum, flipped_rect, right_pos, WHITE);
             break;
         case Input::kat_left:
-			DrawTexture(outer_drum, 500, 500, WHITE);
+			DrawTextureRec(outer_drum, flipped_rect, drum_pos, WHITE);
             break;
         case Input::kat_right:
+			DrawTextureRec(outer_drum, rect, right_pos, WHITE);
             break;
         }
     }
@@ -594,7 +600,7 @@ enum class Context {
 };
 
 void run() {
-    InitWindow(1280, 960, "taiko");
+    InitWindow(window_width, window_height, "taiko");
     
     auto last_frame = std::chrono::high_resolution_clock::now();
     
