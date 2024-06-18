@@ -16,7 +16,14 @@ using namespace std::chrono_literals;
 const int window_width = 800;
 const int window_height = 600;
 
-const std::chrono::duration<double> hit_range = 300ms;
+const std::chrono::duration<double> hit_range = 100ms;
+const std::chrono::duration<double> perfecct_range = 30ms;
+
+const float circle_radius = 0.1f;
+const float circle_outer_radius = 0.11f;
+
+Texture2D inner_drum;
+Texture2D outer_drum;
 
 enum class NoteType {
     kat,
@@ -31,17 +38,17 @@ struct Note {
 
 class Cam {
 public:
-    Vec2 m_Position;
-    Vec2 m_Bounds;
+    Vec2 position;
+    Vec2 bounds;
     
-    Vec2 WorldToScreen(Vec2 pos) const;
-    float world_to_screen(float length) const;
+    Vec2 world_to_screen(Vec2 pos) const;
+    float world_to_screen_scale(float length) const;
     Vec2 screen_to_world(Vec2 pos) const;
 };
 
-Vec2 Cam::WorldToScreen(Vec2 pos) const {
-    Vec2 temp = {pos.x - m_Position.x, m_Position.y - pos.y};
-    Vec2 normalized = temp / m_Bounds + 0.5;
+Vec2 Cam::world_to_screen(Vec2 pos) const {
+    Vec2 temp = {pos.x - position.x, position.y - pos.y};
+    Vec2 normalized = temp / bounds + 0.5;
         
     return Vec2 {
         normalized.x * (float)GetScreenWidth(),
@@ -49,115 +56,248 @@ Vec2 Cam::WorldToScreen(Vec2 pos) const {
     };
 }
 
-float Cam::world_to_screen(float length) const {
-    return length / m_Bounds.y * GetScreenHeight();
+float Cam::world_to_screen_scale(float length) const {
+    return length / bounds.y * GetScreenHeight();
 
 }
 
 Vec2 Cam::screen_to_world(Vec2 pos) const {
     Vec2 normalized = {pos.x / GetScreenWidth(), pos.y / GetScreenHeight()};
-    Vec2 offset = (normalized - Vec2{0.5, 0.5}) * m_Bounds;
-    return {offset.x + m_Position.x, m_Position.y - offset.y};
+    Vec2 offset = (normalized - Vec2{0.5, 0.5}) * bounds;
+    return {offset.x + position.x, position.y - offset.y};
 }
 
+void draw_map(const std::vector<Note>& map, const Cam& cam, int current_note) {
+    if (map.size() == 0) {
+        return;
+    }
 
-class GameState {
+    int right = map.size() - 1;
+    constexpr float circle_padding = 0.2f;
+    float right_bound = cam.position.x + cam.bounds.x / 2 + circle_padding;
+
+    for (int i = current_note; i < map.size(); i++) {
+        if (map[i].time.count() >= right_bound) {
+            right = i - 1;
+            break;
+        }
+    }
+
+    for(int i = right; i >= current_note; i--) {
+        const Note& note = map[i];
+        Vec2 circle_pos = cam.world_to_screen({(float)note.time.count(), 0});
+        Color color = (note.type == NoteType::don) ? RED : BLUE;
+
+        DrawCircle(circle_pos.x, circle_pos.y, cam.world_to_screen_scale(circle_outer_radius), WHITE);
+        DrawCircle(circle_pos.x, circle_pos.y, cam.world_to_screen_scale(circle_radius), color);
+    }
+}
+
+const float particle_duration = 1.0f;
+
+struct Particle {
+    Vec2 position;
+    Vec2 velocity;
+    float scale;
+    NoteType type;
+    std::chrono::duration<double> start;
+};
+
+void draw_particles(const Cam& cam, const std::vector<Particle>& particles, std::chrono::duration<double> now) {
+    float outer_radius = cam.world_to_screen_scale(circle_outer_radius);
+    float inner_radius = cam.world_to_screen_scale(circle_radius);
+    for (auto& p : particles) {
+        Vec2 pos = cam.world_to_screen(p.position);
+
+        Color color;
+
+        if (p.type == NoteType::don) {
+            color = RED;
+        } else {
+            color = BLUE;
+        }
+
+        uint8_t alpha = (p.start - now).count() / particle_duration * 255;
+        color.a = alpha;
+
+        //DrawCircle(pos.x, pos.y, outer_radius, Color{255,255,255,alpha});
+        DrawCircle(pos.x, pos.y, inner_radius, color);
+    }
+}
+
+enum class Input {
+    don_left,
+    don_right,
+    kat_left,
+    kat_right,
+};
+
+struct InputRecord {
+    Input type;
+    float time;
+};
+
+
+class Game {
 public:
-    GameState();
-    void Update(std::chrono::duration<double> delta_time);
+    Game();
+    void update(std::chrono::duration<double> delta_time);
 private:
     Sound don_sound = LoadSound("don.wav");
     Sound kat_sound = LoadSound("kat.wav");
     
     Cam cam = {{0,0}, {4,3}};
 
-    std::vector<Vec2> circles;
-    std::vector<Color> colors;
-
-    std::vector<int> stuff {0,1,2,3,4,5};
-
     std::vector<Note> map{};
     int current_note = 0;
 
+    std::vector<Particle> particles;
+
+    int score = 0;
+
     std::chrono::time_point<std::chrono::steady_clock> start = std::chrono::high_resolution_clock::now();
+
+    std::vector<InputRecord> inputs;
 };
 
-GameState::GameState() {
+Game::Game() {
     for (int i = 0; i < 100; i++) {
         map.push_back({
-            0.0681s * i,
+            (0.2371s / 2) * i + 0.4743s,
             NoteType::don
         });
     }
-
-    for (int i = 0; i < map.size(); i++) {
-        auto& note = map[i];
-        Vec2 pos = {1 * (float)note.time.count(), 0};
-        circles.push_back(pos);
-
-
-        if (note.type == NoteType::don) {
-            colors.push_back(RED);
-        } else {
-            colors.push_back(BLUE);
-        }
-
-    }
 }
 
-void GameState::Update(std::chrono::duration<double> delta_time) {
+const float input_indicator_duration = 0.05f;
+
+void Game::update(std::chrono::duration<double> delta_time) {
     auto now = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed = now - start;
 
+    //bool inputs[4] = { false, false, false, false };
+    //std::array<bool, 4> inputs = { false, false, false, false };
     std::vector<NoteType> pressed;
+
 
     if (IsKeyPressed(KEY_X)) {
         PlaySound(don_sound);
+        inputs.push_back(InputRecord{ Input::don_left, (float) elapsed.count() });
+
+        pressed.push_back(NoteType::don);
+    }
+
+    if (IsKeyPressed(KEY_Z)) {
+        PlaySound(don_sound);
+        inputs.push_back(InputRecord{ Input::don_right, (float)elapsed.count() });
 
         pressed.push_back(NoteType::don);
     }
 
     if (IsKeyPressed(KEY_PERIOD)) {
-        PlaySound(don_sound);
-
-        pressed.push_back(NoteType::don);
-    }
-
-    if (IsKeyPressed(KEY_Z) || IsKeyPressed(KEY_SLASH)) {
+        inputs.push_back(InputRecord{ Input::kat_left, (float)elapsed.count() });
         PlaySound(kat_sound);
+
+        pressed.push_back(NoteType::kat);
     }
 
-    for (auto& note : pressed) {
-        if ((elapsed - map[current_note].time) / hit_range + 0.5 < 1) {
-            if (map[current_note].type == note) {
-                current_note++;
+    if (IsKeyPressed(KEY_SLASH)) {
+        inputs.push_back(InputRecord{ Input::kat_right, (float)elapsed.count() });
+        PlaySound(kat_sound);
+
+        pressed.push_back(NoteType::kat);
+    }
+
+    if (current_note < map.size()) {
+        for (auto& note : pressed) {
+            double hit_normalized = (elapsed - map[current_note].time) / hit_range + 0.5;
+            if (hit_normalized >= 0 && hit_normalized < 1) {
+                if (map[current_note].type == note) {
+                    score += 300;
+                    //particles.push_back(Particle{ Vec2{(float)elapsed.count(), 0}, {0,1},1, note.type, elapsed });
+                    current_note++;
+                }
             }
+
         }
 
+        if (elapsed > map[current_note].time - (hit_range / 2)) {
+            PlaySound(don_sound);
+            particles.push_back(Particle{ Vec2{(float)elapsed.count(), 0}, {0,1}, 1, map[current_note].type, elapsed });
+            current_note++;
+        }
     }
 
-    if ((elapsed > map[current_note].time)) {
-        PlaySound(don_sound);
-        current_note++;
-    }
-    
-    cam.m_Position.x += 1 * delta_time.count();
+    cam.position.x = elapsed.count();
 
-    for (int i = current_note; i < circles.size(); i++) {
-        Vec2 screen_pos = cam.WorldToScreen(circles[i]);
-        DrawCircle(screen_pos.x, screen_pos.y, 20, colors[i]);
+    for (int i = particles.size() - 1; i >= 0; i--) {
+        Particle& p = particles[i];
+        p.position += p.velocity * delta_time.count();
+
+        if (elapsed - p.start > 1s) {
+            particles.erase(particles.begin() + i);
+        }
     }
-    
+
+    UI ui;
+
+    Style style{};
+    style.anchor = { 1,0 };
+    ui.begin_group(style);
+    std::string score_text = std::to_string(score);
+    ui.rect(score_text.data());
+    ui.end_group();
+
+
 
     BeginDrawing();
-    
-    ClearBackground(BLACK);
-    DrawText((std::to_string(((float) std::chrono::duration_cast<std::chrono::microseconds>(delta_time).count()) / 1000) + "ms").data(), 100, 100, 24, WHITE);
+
+    ClearBackground(BLANK);
+    DrawRectangle(0, 0, 1280, 960, BLACK);
+
+
+    float x = elapsed.count();
+    Vec2 p1 = cam.world_to_screen({ x, 0.5f });
+    Vec2 p2 = cam.world_to_screen({ x, -0.5f });
+    DrawLine(p1.x, p1.y, p2.x, p2.y, YELLOW);
+
+    ui.draw();
+
+
+    for (int i = inputs.size() - 1; i >= 0; i--) {
+        const InputRecord& input = inputs[i];
+        if (elapsed.count() - input.time > input_indicator_duration) {
+            break;
+        }
+
+        switch (input.type) {
+        case Input::don_left:
+			DrawTexture(inner_drum, 500, 500, WHITE);
+            break;
+        case Input::don_right:
+
+            break;
+        case Input::kat_left:
+			DrawTexture(outer_drum, 500, 500, WHITE);
+            break;
+        case Input::kat_right:
+            break;
+        }
+    }
+
+
+    Vec2 target = cam.world_to_screen(cam.position);
+    DrawCircle(target.x, target.y, 50, WHITE);
+    DrawText((std::to_string(delta_time.count() * 1000) + " ms").data(), 100, 100, 24, WHITE);
+    draw_map(map, cam, current_note);
+
+    draw_particles(cam, particles, elapsed);
+
     EndDrawing();
 
 }
 
-void render_map(const std::vector<Note>& map, const Cam& cam, int current_note) {
+void draw_map_editor(const std::vector<Note>& map, const Cam& cam, int current_note) {
     if (map.size() == 0) {
         return;
     }
@@ -165,8 +305,8 @@ void render_map(const std::vector<Note>& map, const Cam& cam, int current_note) 
     int right = map.size() - 1;
     int left = 0;
     constexpr float circle_padding = 0.2f;
-    float right_bound = cam.m_Position.x + cam.m_Bounds.x / 2 + circle_padding;
-    float left_bound = cam.m_Position.x - (cam.m_Bounds.x / 2 + circle_padding);
+    float right_bound = cam.position.x + cam.bounds.x / 2 + circle_padding;
+    float left_bound = cam.position.x - (cam.bounds.x / 2 + circle_padding);
 
     for (int i = current_note; i < map.size(); i++) {
         if (map[i].time.count() >= right_bound) {
@@ -186,11 +326,11 @@ void render_map(const std::vector<Note>& map, const Cam& cam, int current_note) 
 
     for(int i = right; i >= left; i--) {
         const Note& note = map[i];
-        Vec2 circle_pos = cam.WorldToScreen({(float)note.time.count(), 0});
+        Vec2 circle_pos = cam.world_to_screen({(float)note.time.count(), 0});
         Color color = (note.type == NoteType::don) ? RED : BLUE;
 
-        DrawCircle(circle_pos.x, circle_pos.y, cam.world_to_screen(0.11), WHITE);
-        DrawCircle(circle_pos.x, circle_pos.y, cam.world_to_screen(0.1), color);
+        DrawCircle(circle_pos.x, circle_pos.y, cam.world_to_screen_scale(circle_outer_radius), WHITE);
+        DrawCircle(circle_pos.x, circle_pos.y, cam.world_to_screen_scale(circle_radius), color);
     }
 }
 
@@ -282,8 +422,6 @@ void Editor::update_editor(std::chrono::duration<double> delta_time) {
         }
     }
 
-
-
     if (IsKeyPressed(KEY_SPACE)) {
         if (paused) {
             ResumeMusicStream(music);
@@ -312,7 +450,7 @@ void Editor::update_editor(std::chrono::duration<double> delta_time) {
         std::cout << GetMusicTimePlayed(music) << '\n';
     }
 
-    cam.m_Position.x = elapsed;
+    cam.position.x = elapsed;
 
     float wheel = GetMouseWheelMove();
     if (wheel != 0) {
@@ -334,27 +472,38 @@ void Editor::update_editor(std::chrono::duration<double> delta_time) {
         // current_note = std::upper_bound(map.begin(), map.end(), elapsed, cmp) - map.begin();
         std::cout << current_note << '\n';
     }
-    
-    if (IsKeyPressed(KEY_K)) {
-        int x = 0;
-    }
 
-    ui.input();
+    //ui.input();
 
-    ui.begin_group();
-    std::string time = std::to_string(cam.m_Position.x);
-    auto frame_time = std::to_string(((float)std::chrono::duration_cast<std::chrono::microseconds>(delta_time).count()) / 1000) + "ms";
-    ui.rect(time.data());
-    ui.rect(frame_time.data());
+    //ui.begin_group(Style{ {0,1} });
+    //std::string time = std::to_string(cam.position.x) + " s";
+    //ui.rect(time.data());
+    //ui.slider(elapsed / GetMusicTimeLength(music), [&](float fraction) {
+    //    SeekMusicStream(music, fraction * GetMusicTimeLength(music));
+    //});
 
-    ui.end_group();
+    //ui.end_group();
 
+    //ui.begin_group(Style{ {1,1} });
+    //auto frame_time = std::to_string(((float)std::chrono::duration_cast<std::chrono::microseconds>(delta_time).count()) / 1000) + " ms";
+    //ui.rect(frame_time.data());
+    //ui.end_group();
 
     BeginDrawing();
     ClearBackground(BLACK);
 
-    for (int i = 0; i < 500; i++) {
+	float right_bound = cam.position.x + cam.bounds.x / 2;
+	float left_bound = cam.position.x - cam.bounds.x / 2;
+
+    int start = (left_bound - offset.count()) / quarter_interval + 2;
+    int end = (right_bound - offset.count()) / quarter_interval - 1;
+
+    for (int i = start; i < end; i++) {
         float x = offset.count() + i * quarter_interval;
+
+        if (x > right_bound) {
+            break;
+        }
 
         float height;
         Color color;
@@ -366,23 +515,21 @@ void Editor::update_editor(std::chrono::duration<double> delta_time) {
             color = RED;
         }
         
-        Vec2 p1 = cam.WorldToScreen({x, 0});
-        Vec2 p2 = cam.WorldToScreen({x, height});
+        Vec2 p1 = cam.world_to_screen({x, 0});
+        Vec2 p2 = cam.world_to_screen({x, height});
 
         DrawLine(p1.x, p1.y, p2.x, p2.y, color);
     }
 
-    Vec2 p1 = cam.WorldToScreen(cam.m_Position);
-    Vec2 p2 = cam.WorldToScreen(cam.m_Position + Vec2{0,0.6});
+    Vec2 p1 = cam.world_to_screen(cam.position);
+    Vec2 p2 = cam.world_to_screen(cam.position + Vec2{0,0.6});
 
     DrawLine(p1.x, p1.y, p2.x, p2.y, YELLOW);
 
-    render_map(map, cam, current_note);
+    draw_map_editor(map, cam, current_note);
 
 
-    ui.draw();
-    //DrawText(, 0, 0, 24, WHITE);
-    //DrawText(, 100, 100, 24, WHITE);
+    //ui.draw();
     EndDrawing();
 }
 
@@ -413,11 +560,11 @@ void MainMenu::update(std::function<void()> callback) {
 
     switch (current_view) {
         case View::main:
-            ui.begin_group();
+            ui.begin_group({});
             ui.button("Play", [&]() {
                 current_view = View::map_select;
                 std::cout << "kfsahdfhj\n";
-			});
+            });
             ui.rect("Settings");
             ui.rect("Exit");
 
@@ -442,7 +589,8 @@ void MainMenu::update(std::function<void()> callback) {
 
 enum class Context {
     Menu,
-    Editor
+    Editor,
+    Game,
 };
 
 void run() {
@@ -452,6 +600,11 @@ void run() {
     
     InitAudioDevice();
     SetExitKey(KEY_NULL);
+
+    SetMasterVolume(0.5f);
+
+    inner_drum = LoadTexture("drum-inner.png");
+    outer_drum = LoadTexture("drum-outer.png");
     
     float pos = 400;
     auto start = std::chrono::high_resolution_clock::now();
@@ -459,10 +612,12 @@ void run() {
     MainMenu menu;
 
     Editor app;
+    
+    Game game;
 
     app.init();
 
-    Context context = Context::Editor;
+    Context context = Context::Game;
 
     auto to_editor = [&]() {
         context = Context::Editor;
@@ -471,6 +626,15 @@ void run() {
     using namespace std::chrono;
     
     while (!WindowShouldClose()) {
+
+        //BeginDrawing();
+        //ClearBackground(BLACK);
+
+        //DrawCircle(600, 500, 100, Color{ 0, 0, 255, 128 });
+        //DrawCircle(500, 500, 100, Color{ 255, 0, 0, 128 });
+
+        //EndDrawing();
+
         auto now = high_resolution_clock::now();
         duration<double> delta_time = now - last_frame;
 
@@ -481,6 +645,9 @@ void run() {
             case Context::Editor:
                 app.update_editor(delta_time);
                 break;
+            case Context::Game:
+                game.update(delta_time);
+                break;
         }
 
         last_frame = now;
@@ -490,6 +657,5 @@ void run() {
 }
 
 int main() {
-    std::cout << std::filesystem::current_path();
     run();
 }
