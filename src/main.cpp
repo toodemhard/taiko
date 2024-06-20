@@ -22,19 +22,35 @@ const std::chrono::duration<double> perfecct_range = 30ms;
 const float circle_radius = 0.1f;
 const float circle_outer_radius = 0.11f;
 
-Texture2D inner_drum;
-Texture2D outer_drum;
+struct Textures {
+	Texture2D circle;
+	Texture2D circle_overlay;
+	Texture2D big_circle;
+	Texture2D big_circle_overlay;
 
-enum class NoteType {
-    kat,
-    don,
+	Texture2D inner_drum;
+	Texture2D outer_drum;
+};
+
+Textures textures;
+
+
+enum NoteFlagBits : uint8_t {
+    don_or_kat = 1 << 0, // true = don | false = kat
+    normal_or_big = 1 << 1,
+};
+
+using NoteFlags = uint8_t;
+
+enum class NoteType : uint8_t {
+    don = 0,
+    kat = 1,
 };
 
 struct Note {
     std::chrono::duration<double> time;
     NoteType type;
 };
-
 
 class Cam {
 public:
@@ -137,10 +153,26 @@ struct InputRecord {
     float time;
 };
 
+class Map {
+public:
+    void insert_note(float time, NoteFlags flags);
+    
+    std::vector<float> times;
+    std::vector<NoteFlags> flags_vec;
+};
+
+void Map::insert_note(float time, NoteFlags flags) {
+    int i = std::upper_bound(times.begin(), times.end(), time) - times.begin();
+    times.insert(times.begin() + i, time);
+    flags_vec.insert(flags_vec.begin() + i, flags);
+}
+
+
 
 class Game {
 public:
     Game();
+    void run();
     void update(std::chrono::duration<double> delta_time);
 private:
     Sound don_sound = LoadSound("don.wav");
@@ -167,6 +199,10 @@ Game::Game() {
             NoteType::don
         });
     }
+}
+
+void Game::run() {
+
 }
 
 const float input_indicator_duration = 0.1f;
@@ -262,10 +298,10 @@ void Game::update(std::chrono::duration<double> delta_time) {
 
     ui.draw();
 
-    Vector2 drum_pos = { 0, (window_height - inner_drum.height) / 2};
+    Vector2 drum_pos = { 0, (window_height - textures.inner_drum.height) / 2};
     Vector2 right_pos = drum_pos;
-    right_pos.x += inner_drum.width;
-	Rectangle rect{ 0, 0, inner_drum.width, inner_drum.height };
+    right_pos.x += textures.inner_drum.width;
+	Rectangle rect{ 0, 0, textures.inner_drum.width, textures.inner_drum.height };
     Rectangle flipped_rect = rect;
     flipped_rect.width *= -1;
 
@@ -277,16 +313,16 @@ void Game::update(std::chrono::duration<double> delta_time) {
 
         switch (input.type) {
         case Input::don_left:
-            DrawTextureRec(inner_drum, rect, drum_pos, WHITE);
+            DrawTextureRec(textures.inner_drum, rect, drum_pos, WHITE);
             break;
         case Input::don_right:
-            DrawTextureRec(inner_drum, flipped_rect, right_pos, WHITE);
+            DrawTextureRec(textures.inner_drum, flipped_rect, right_pos, WHITE);
             break;
         case Input::kat_left:
-			DrawTextureRec(outer_drum, flipped_rect, drum_pos, WHITE);
+			DrawTextureRec(textures.outer_drum, flipped_rect, drum_pos, WHITE);
             break;
         case Input::kat_right:
-			DrawTextureRec(outer_drum, rect, right_pos, WHITE);
+			DrawTextureRec(textures.outer_drum, rect, right_pos, WHITE);
             break;
         }
     }
@@ -303,40 +339,44 @@ void Game::update(std::chrono::duration<double> delta_time) {
 
 }
 
-void draw_map_editor(const std::vector<Note>& map, const Cam& cam, int current_note) {
-    if (map.size() == 0) {
+void draw_map_editor(const Map& map, const Cam& cam, int current_note) {
+    if (map.times.size() == 0) {
         return;
     }
 
-    int right = map.size() - 1;
+    int right = map.times.size() - 1;
     int left = 0;
     constexpr float circle_padding = 0.2f;
     float right_bound = cam.position.x + cam.bounds.x / 2 + circle_padding;
     float left_bound = cam.position.x - (cam.bounds.x / 2 + circle_padding);
 
-    for (int i = current_note; i < map.size(); i++) {
-        if (map[i].time.count() >= right_bound) {
+    for (int i = current_note; i < map.times.size(); i++) {
+        if (map.times[i] >= right_bound) {
             right = i - 1;
             break;
         }
     }
     for (int i = current_note; i >= 0; i--) {
-        if (i >= map.size()) {
+        if (i >= map.times.size()) {
             continue;
         }
-        if (map[i].time.count() <= left_bound) {
+        if (map.times[i] <= left_bound) {
             left = i + 1;
             break;
         }
     }
 
     for(int i = right; i >= left; i--) {
-        const Note& note = map[i];
-        Vec2 circle_pos = cam.world_to_screen({(float)note.time.count(), 0});
-        Color color = (note.type == NoteType::don) ? RED : BLUE;
+        Vec2 circle_pos = cam.world_to_screen({map.times[i], 0});
+        float scale = (map.flags_vec[i] & NoteFlagBits::normal_or_big) ? 0.9f : 1.4f;
+        circle_pos.x -= textures.circle.width / 2 * scale;
+        circle_pos.y -= textures.circle.height / 2 * scale;
+        Color color = (map.flags_vec[i] & NoteFlagBits::don_or_kat) ? RED : BLUE;
 
-        DrawCircle(circle_pos.x, circle_pos.y, cam.world_to_screen_scale(circle_outer_radius), WHITE);
-        DrawCircle(circle_pos.x, circle_pos.y, cam.world_to_screen_scale(circle_radius), color);
+        DrawTextureEx(textures.circle, { circle_pos.x, circle_pos.y }, 0, scale, color);
+        DrawTextureEx(textures.circle_overlay, { circle_pos.x, circle_pos.y }, 0, scale, WHITE);
+        //DrawCircle(circle_pos.x, circle_pos.y, cam.world_to_screen_scale(circle_outer_radius), WHITE);
+        //DrawCircle(circle_pos.x, circle_pos.y, cam.world_to_screen_scale(circle_radius), color);
     }
 }
 
@@ -347,16 +387,20 @@ enum class EditorMode {
 
 class Editor {
 public:
-    void update_editor(std::chrono::duration<double> delta_time);
+    void update(std::chrono::duration<double> delta_time);
     void init();
 private:
     Cam cam = {{0,0}, {2,3}};
 
     EditorMode mode;
     std::vector<int> selected;
-    NoteType note_type;
 
-    std::vector<Note> map;
+    NoteFlags insert_flags = NoteFlagBits::don_or_kat | NoteFlagBits::normal_or_big;
+    //NoteType note_type;
+
+
+    Map map;
+    //std::vector<Note> map;
     std::chrono::duration<double> offset;
     float bpm = 253;
 
@@ -390,21 +434,48 @@ void add_note(std::vector<Note>& map, Note note) {
     map.insert(std::upper_bound(map.begin(), map.end(), note, cmp), note);
 }
 
-void Editor::update_editor(std::chrono::duration<double> delta_time) {
+void Editor::update(std::chrono::duration<double> delta_time) {
     UpdateMusicStream(music);
 
     float elapsed = GetMusicTimePlayed(music);
 
-    if (IsMouseButtonPressed(0)) {
+    ui.input();
+
+    ui.begin_group(Style{ {0,0.5} }); {
+        const char* note_color = (insert_flags & NoteFlagBits::don_or_kat) ? "Don" : "Kat";
+        ui.rect(note_color);
+        ui.button(note_color, [&]() {
+            insert_flags = insert_flags ^ NoteFlagBits::don_or_kat;
+            });
+
+        ui.rect("aksjhdfkj");
+    }
+    ui.end_group();
+
+    ui.begin_group(Style{ {0,1} }); {
+		std::string time = std::to_string(cam.position.x) + " s";
+		ui.rect(time.data());
+		ui.slider(elapsed / GetMusicTimeLength(music), [&](float fraction) {
+			SeekMusicStream(music, fraction * GetMusicTimeLength(music));
+		});
+    }
+    ui.end_group();
+
+    ui.begin_group(Style{ {1,1} });
+    auto frame_time = std::to_string(((float)std::chrono::duration_cast<std::chrono::microseconds>(delta_time).count()) / 1000) + " ms";
+    ui.rect(frame_time.data());
+    ui.end_group();
+
+    if (!ui.clicked && IsMouseButtonPressed(0)) {
         Vec2 cursor_pos = cam.screen_to_world({(float)GetMouseX(), (float)GetMouseY()});
 
         int i = std::round((cursor_pos.x - offset.count()) / quarter_interval);
-        auto time = std::chrono::duration<double>(offset.count() + i * quarter_interval);
+        float time = offset.count() + i * quarter_interval;
 
         bool collision = false;
         double diff;
-        for (int i = 0; i < map.size(); i++) {
-            diff = std::abs((map[i].time - time).count());
+        for (int i = 0; i < map.times.size(); i++) {
+            diff = std::abs((map.times[i] - time));
             if (diff < collision_range) {
                 collision = true;
                 break;
@@ -412,27 +483,31 @@ void Editor::update_editor(std::chrono::duration<double> delta_time) {
         }
 
         if (!collision) {
-            add_note(map, Note{time, note_type});
+            map.insert_note(time, insert_flags);
 
-            if (time.count() < elapsed) {
+            if (time < elapsed) {
                 current_note++;
             }
         }
     }
 
+    if (IsKeyPressed(KEY_F5)) {
+        Game game{};
+        game.run();
+    }
+
+    if (IsKeyPressed(KEY_E)) {
+        insert_flags = insert_flags ^ NoteFlagBits::normal_or_big;
+    }
+
     if (IsKeyPressed(KEY_R)) {
-        if (note_type == NoteType::don) {
-            note_type = NoteType::kat;
-        } else {
-            note_type = NoteType::don;
-        }
+        insert_flags = insert_flags ^ NoteFlagBits::don_or_kat;
     }
 
     if (IsKeyPressed(KEY_SPACE)) {
         if (paused) {
             ResumeMusicStream(music);
-            auto cmp = [](float current_time, Note& note) { return current_time < note.time.count(); };
-            current_note = std::upper_bound(map.begin(), map.end(), elapsed, cmp) - map.begin();
+            current_note = std::upper_bound(map.times.begin(), map.times.end(), elapsed) - map.times.begin();
             std::cout << current_note << '\n';
         } else {
             PauseMusicStream(music);
@@ -441,8 +516,8 @@ void Editor::update_editor(std::chrono::duration<double> delta_time) {
         paused = !paused;
     }
 
-    if (!paused && current_note < map.size() && elapsed >= map[current_note].time.count()) {
-        if (map[current_note].type == NoteType::don) {
+    if (!paused && current_note < map.times.size() && elapsed >= map.times[current_note]) {
+        if (map.flags_vec[current_note] & NoteFlagBits::don_or_kat) {
             PlaySound(don_sound);
         } else {
             PlaySound(kat_sound);
@@ -451,10 +526,6 @@ void Editor::update_editor(std::chrono::duration<double> delta_time) {
         current_note++;
     }
 
-    if (IsKeyPressed(KEY_A) && GetMusicTimePlayed(music) != 0.0f) {
-        SeekMusicStream(music, 1.0f);
-        std::cout << GetMusicTimePlayed(music) << '\n';
-    }
 
     cam.position.x = elapsed;
 
@@ -479,21 +550,7 @@ void Editor::update_editor(std::chrono::duration<double> delta_time) {
         std::cout << current_note << '\n';
     }
 
-    //ui.input();
 
-    //ui.begin_group(Style{ {0,1} });
-    //std::string time = std::to_string(cam.position.x) + " s";
-    //ui.rect(time.data());
-    //ui.slider(elapsed / GetMusicTimeLength(music), [&](float fraction) {
-    //    SeekMusicStream(music, fraction * GetMusicTimeLength(music));
-    //});
-
-    //ui.end_group();
-
-    //ui.begin_group(Style{ {1,1} });
-    //auto frame_time = std::to_string(((float)std::chrono::duration_cast<std::chrono::microseconds>(delta_time).count()) / 1000) + " ms";
-    //ui.rect(frame_time.data());
-    //ui.end_group();
 
     BeginDrawing();
     ClearBackground(BLACK);
@@ -532,10 +589,13 @@ void Editor::update_editor(std::chrono::duration<double> delta_time) {
 
     DrawLine(p1.x, p1.y, p2.x, p2.y, YELLOW);
 
+    if (IsKeyPressed(KEY_A)) {
+        int asdf = 0;
+    }
     draw_map_editor(map, cam, current_note);
 
 
-    //ui.draw();
+    ui.draw();
     EndDrawing();
 }
 
@@ -609,21 +669,25 @@ void run() {
 
     SetMasterVolume(0.5f);
 
-    inner_drum = LoadTexture("drum-inner.png");
-    outer_drum = LoadTexture("drum-outer.png");
+    textures.inner_drum = LoadTexture("drum-inner.png");
+    textures.outer_drum = LoadTexture("drum-outer.png");
+    textures.circle = LoadTexture("circle.png");
+    textures.circle_overlay = LoadTexture("circle-overlay.png");
+    textures.big_circle = LoadTexture("big-circle.png");
+    textures.big_circle_overlay = LoadTexture("big-circle-overlay.png");
     
     float pos = 400;
     auto start = std::chrono::high_resolution_clock::now();
 
     MainMenu menu;
 
-    Editor app;
+    Editor editor;
     
     Game game;
 
-    app.init();
+    editor.init();
 
-    Context context = Context::Game;
+    Context context = Context::Editor;
 
     auto to_editor = [&]() {
         context = Context::Editor;
@@ -649,7 +713,7 @@ void run() {
                 menu.update(to_editor);
                 break;
             case Context::Editor:
-                app.update_editor(delta_time);
+                editor.update(delta_time);
                 break;
             case Context::Game:
                 game.update(delta_time);
