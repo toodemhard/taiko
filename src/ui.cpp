@@ -129,6 +129,7 @@ void UI::draw() {
 
     rects.clear();
     sliders.clear();
+    buttons.clear();
     groups.clear();
 
     clicked = false;
