@@ -7,12 +7,6 @@ void UI::begin_group(Style style) {
     in_group = true;
 }
 
-//Element UI::get_element(ElementHandle handle) {
-//    switch (handle.type) {
-//        case 
-//    }
-//}
-
 void UI::end_group() {
     in_group = false;
 
@@ -50,6 +44,7 @@ void UI::end_group() {
 
 			if (mouse_zero && mouse_pos.x > p1.x && mouse_pos.y > p1.y && mouse_pos.x < p2.x && mouse_pos.y < p2.y) {
                 slider.callback((mouse_pos.x - start.x) / slider.scale.x);
+                clicked = true;
 			}
 
 			start.x += slider.scale.x + 50;
@@ -66,6 +61,7 @@ void UI::end_group() {
 
 			if (mouse_zero && mouse_pos.x > p1.x && mouse_pos.y > p1.y && mouse_pos.x < p2.x && mouse_pos.y < p2.y) {
                 button.callback();
+                clicked = true;
 			}
 
 			start.x += button.scale.x + 50;
@@ -120,6 +116,11 @@ void UI::draw() {
         DrawText(e.text, e.position.x, e.position.y, font_size, WHITE);
     }
 
+    for (auto& e : buttons) {
+        DrawRectangle(e.position.x, e.position.y, e.scale.x, e.scale.y, GRAY);
+        DrawText(e.text, e.position.x, e.position.y, font_size, WHITE);
+    }
+
     for (auto& e : sliders) {
         DrawRectangle(e.position.x, e.position.y, e.scale.x, e.scale.y, GRAY);
         float x = e.position.x + e.scale.x * e.fraction;
@@ -129,4 +130,6 @@ void UI::draw() {
     rects.clear();
     sliders.clear();
     groups.clear();
+
+    clicked = false;
 }

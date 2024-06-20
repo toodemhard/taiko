@@ -63,6 +63,8 @@ public:
     void begin_group(Style style);
     void end_group();
 
+    bool clicked;
+
 private:
     const int font_size = 36;
     std::vector<Button> buttons;
