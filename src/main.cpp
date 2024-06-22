@@ -23,15 +23,15 @@ const float circle_radius = 0.1f;
 const float circle_outer_radius = 0.11f;
 
 struct Textures {
-	Texture2D circle;
-	Texture2D circle_overlay;
-	Texture2D big_circle;
-	Texture2D big_circle_overlay;
+    Texture2D circle;
+    Texture2D circle_overlay;
+    Texture2D big_circle;
+    Texture2D big_circle_overlay;
 
     Texture2D select_circle;
 
-	Texture2D inner_drum;
-	Texture2D outer_drum;
+    Texture2D inner_drum;
+    Texture2D outer_drum;
 };
 
 Textures textures;
@@ -309,7 +309,7 @@ void Game::update(std::chrono::duration<double> delta_time) {
     Vector2 drum_pos = { 0, (window_height - textures.inner_drum.height) / 2};
     Vector2 right_pos = drum_pos;
     right_pos.x += textures.inner_drum.width;
-	Rectangle rect{ 0, 0, textures.inner_drum.width, textures.inner_drum.height };
+    Rectangle rect{ 0, 0, textures.inner_drum.width, textures.inner_drum.height };
     Rectangle flipped_rect = rect;
     flipped_rect.width *= -1;
 
@@ -327,10 +327,10 @@ void Game::update(std::chrono::duration<double> delta_time) {
             DrawTextureRec(textures.inner_drum, flipped_rect, right_pos, WHITE);
             break;
         case Input::kat_left:
-			DrawTextureRec(textures.outer_drum, flipped_rect, drum_pos, WHITE);
+            DrawTextureRec(textures.outer_drum, flipped_rect, drum_pos, WHITE);
             break;
         case Input::kat_right:
-			DrawTextureRec(textures.outer_drum, rect, right_pos, WHITE);
+            DrawTextureRec(textures.outer_drum, rect, right_pos, WHITE);
             break;
         }
     }
@@ -347,15 +347,15 @@ void Game::update(std::chrono::duration<double> delta_time) {
 
 }
 
-const Vec2 note_hitbox = { 0.5, 0.5 };
+const Vec2 note_hitbox = { 0.25, 0.25 };
 
 std::vector<int> note_box_intersection(const Map& map, Vec2 start_pos, Vec2 end_pos) {
-	if (end_pos.x < start_pos.x) {
-		float temp = start_pos.x;
-		start_pos.x = end_pos.x;
-		end_pos.x = temp;
-	}
-	
+    if (end_pos.x < start_pos.x) {
+        float temp = start_pos.x;
+        start_pos.x = end_pos.x;
+        end_pos.x = temp;
+    }
+    
     if (end_pos.y > start_pos.y) {
         float temp = start_pos.y;
         start_pos.y = end_pos.y;
@@ -446,19 +446,19 @@ void draw_map_editor(const Map& map, const Cam& cam, int current_note) {
         Vec2 circle_pos = center_pos;
         circle_pos.x -= textures.circle.width / 2 * scale;
         circle_pos.y -= textures.circle.height / 2 * scale;
-        Color color = (map.flags_vec[i] & NoteFlagBits::don_or_kat) ? RED : BLUE;
+        Color color = (map.flags_vec[i] & NoteFlagBits::don_or_kat) ? Color{ 231, 73, 33, 192 } : Color{55, 151, 202, 192};
 
         Vec2 select_pos = { center_pos.x - textures.select_circle.width / 2, center_pos.y - textures.select_circle.height / 2};
 
         DrawTextureEx(textures.circle, { circle_pos.x, circle_pos.y }, 0, scale, color);
-        DrawTextureEx(textures.circle_overlay, { circle_pos.x, circle_pos.y }, 0, scale, WHITE);
+        DrawTextureEx(textures.circle_overlay, { circle_pos.x, circle_pos.y }, 0, scale, {255, 255, 255, 192});
 
         Vec2 hitbox_bounds = cam.world_to_screen_scale(note_hitbox);
         Vec2 hitbox_pos = center_pos - (hitbox_bounds / 2.0f);
         draw_wire_box(hitbox_pos, hitbox_bounds, RED);
 
         if (map.selected[i]) {
-			DrawTextureEx(textures.select_circle, { select_pos.x, select_pos.y }, 0, 1, WHITE);
+            DrawTextureEx(textures.select_circle, { select_pos.x, select_pos.y }, 0, 1, WHITE);
         }
     }
 }
@@ -473,7 +473,7 @@ public:
     void update(std::chrono::duration<double> delta_time);
     void init();
 private:
-    Cam cam = {{0,0}, {4,3}};
+    Cam cam = {{0,0}, {2,1.5f}};
 
     EditorMode editor_mode = EditorMode::select;
     std::vector<int> selected;
@@ -486,11 +486,11 @@ private:
 
     Map map;
     //std::vector<Note> map;
-    std::chrono::duration<double> offset;
-    float bpm = 60;
+    float offset = 4.390f;
+    float bpm = 190;
 
-    double quarter_interval = 60 / bpm / 4;
-    double collision_range = quarter_interval / 2;
+    float quarter_interval = 60 / bpm / 4;
+    float collision_range = quarter_interval / 2;
 
     bool paused = true;
 
@@ -505,11 +505,10 @@ private:
 };
 
 void Editor::init() {
-    music = LoadMusicStream("kinoko.mp3");
-    SetMusicVolume(music, 0.2f);
+    music = LoadMusicStream("audio.mp3");
+    SetMusicVolume(music, 0.25f);
 
     PlayMusicStream(music);
-    offset = std::chrono::duration<double>(0);
 
     PauseMusicStream(music);
 }
@@ -523,6 +522,7 @@ void Editor::update(std::chrono::duration<double> delta_time) {
     UpdateMusicStream(music);
 
     float elapsed = GetMusicTimePlayed(music);
+    //float elapsed = cam.position.x;
 
     ui.input();
 
@@ -548,24 +548,24 @@ void Editor::update(std::chrono::duration<double> delta_time) {
             else {
                 editor_mode = EditorMode::insert;
             }
-		});
+        });
 
         ui.button(note_size_text, [&]() {
             insert_flags = insert_flags ^ NoteFlagBits::normal_or_big;
-		});
+        });
 
         ui.button(note_color_text, [&]() {
             insert_flags = insert_flags ^ NoteFlagBits::don_or_kat;
-		});
+        });
     }
     ui.end_group();
 
     ui.begin_group(Style{ {0,1} }); {
-		std::string time = std::to_string(cam.position.x) + " s";
-		ui.rect(time.data());
-		ui.slider(elapsed / GetMusicTimeLength(music), [&](float fraction) {
-			SeekMusicStream(music, fraction * GetMusicTimeLength(music));
-		});
+        std::string time = std::to_string(cam.position.x) + " s";
+        ui.rect(time.data());
+        ui.slider(elapsed / GetMusicTimeLength(music), [&](float fraction) {
+            SeekMusicStream(music, fraction * GetMusicTimeLength(music));
+        });
     }
     ui.end_group();
 
@@ -574,7 +574,7 @@ void Editor::update(std::chrono::duration<double> delta_time) {
     ui.rect(frame_time.data());
     ui.end_group();
 
-	Vec2 cursor_pos = cam.screen_to_world({ (float)GetMouseX(), (float)GetMouseY() });
+    Vec2 cursor_pos = cam.screen_to_world({ (float)GetMouseX(), (float)GetMouseY() });
 
     if (IsKeyPressed(KEY_A)) {
         int asdf = 0;
@@ -583,7 +583,6 @@ void Editor::update(std::chrono::duration<double> delta_time) {
     switch (editor_mode) {
     case EditorMode::select:
         if (!ui.clicked && IsMouseButtonPressed(0)) {
-            std::cout << cursor_pos.x << '\n';
             std::optional<int> to_select = note_point_intersection(map, cursor_pos, current_note);
 
             if (to_select.has_value()) {
@@ -598,7 +597,7 @@ void Editor::update(std::chrono::duration<double> delta_time) {
                 auto hits = note_box_intersection(map, box_select_begin.value(), cursor_pos);
 
                 std::fill(map.selected.begin(), map.selected.end(), false);
-				for (auto& i : hits) {
+                for (auto& i : hits) {
                     map.selected[i] = true;
                 }
             }
@@ -611,30 +610,30 @@ void Editor::update(std::chrono::duration<double> delta_time) {
 
         break;
     case EditorMode::insert:
-		if (!ui.clicked && IsMouseButtonPressed(0)) {
-			Vec2 cursor_pos = cam.screen_to_world({(float)GetMouseX(), (float)GetMouseY()});
+        if (!ui.clicked && IsMouseButtonPressed(0)) {
+            Vec2 cursor_pos = cam.screen_to_world({(float)GetMouseX(), (float)GetMouseY()});
 
-			int i = std::round((cursor_pos.x - offset.count()) / quarter_interval);
-			float time = offset.count() + i * quarter_interval;
+            int i = std::round((cursor_pos.x - offset) / quarter_interval);
+            float time = offset + i * quarter_interval;
 
-			bool collision = false;
-			double diff;
-			for (int i = 0; i < map.times.size(); i++) {
-				diff = std::abs((map.times[i] - time));
-				if (diff < collision_range) {
-					collision = true;
-					break;
-				}
-			}
+            bool collision = false;
+            double diff;
+            for (int i = 0; i < map.times.size(); i++) {
+                diff = std::abs((map.times[i] - time));
+                if (diff < collision_range) {
+                    collision = true;
+                    break;
+                }
+            }
 
-			if (!collision) {
-				map.insert_note(time, insert_flags);
+            if (!collision) {
+                map.insert_note(time, insert_flags);
 
-				if (time < elapsed) {
-					current_note++;
-				}
-			}
-		}
+                if (time < elapsed) {
+                    current_note++;
+                }
+            }
+        }
         break;
     }
 
@@ -664,7 +663,6 @@ void Editor::update(std::chrono::duration<double> delta_time) {
         if (paused) {
             ResumeMusicStream(music);
             current_note = std::upper_bound(map.times.begin(), map.times.end(), elapsed) - map.times.begin();
-            std::cout << current_note << '\n';
         } else {
             PauseMusicStream(music);
         }
@@ -683,42 +681,29 @@ void Editor::update(std::chrono::duration<double> delta_time) {
     }
 
 
-    cam.position.x = elapsed;
-
     float wheel = GetMouseWheelMove();
     if (wheel != 0) {
-        float seek = std::clamp(elapsed - wheel * 0.4f, 0.0f, GetMusicTimeLength(music));
+        std::cout << wheel << '\n';
+		int i = std::round((elapsed - offset) / quarter_interval);
+		float time = offset + (i - wheel) * quarter_interval;
+        float seek = std::clamp(time, 0.0f, GetMusicTimeLength(music));
         SeekMusicStream(music, seek);
         elapsed = GetMusicTimePlayed(music);
-
-        // if (map.size() > 0 && elapsed < map[current_note].time.count()) {
-        //     for (int i = current_note - 1; i >= 0; i--) {
-        //         if (elapsed > map[i].time.count()) {
-        //             current_note = i + 1;
-        //             break;
-        //         }
-        //     }
-        // } else {
-
-        // }
-        // auto cmp = [](float current_time, Note& note) { return current_time < note.time.count(); };
-        // current_note = std::upper_bound(map.begin(), map.end(), elapsed, cmp) - map.begin();
-        //std::cout << current_note << '\n';
+        //elapsed = seek;
     }
-
-
+    cam.position.x = elapsed;
 
     BeginDrawing();
     ClearBackground(BLACK);
 
-	float right_bound = cam.position.x + cam.bounds.x / 2;
-	float left_bound = cam.position.x - cam.bounds.x / 2;
+    float right_bound =cam.position.x + cam.bounds.x / 2;
+    float left_bound = cam.position.x - cam.bounds.x / 2;
 
-    int start = (left_bound - offset.count()) / quarter_interval + 2;
-    int end = (right_bound - offset.count()) / quarter_interval - 1;
+    int start = (left_bound - offset) / quarter_interval + 2;
+    int end = (right_bound - offset) / quarter_interval - 1;
 
     for (int i = start; i < end; i++) {
-        float x = offset.count() + i * quarter_interval;
+        float x = offset + i * quarter_interval;
 
         if (x > right_bound) {
             break;
@@ -877,15 +862,15 @@ void run() {
         duration<double> delta_time = now - last_frame;
 
         switch (context) {
-		case Context::Menu:
-			menu.update(to_editor);
-			break;
-		case Context::Editor:
-			editor.update(delta_time);
-			break;
-		case Context::Game:
-			game.update(delta_time);
-			break;
+        case Context::Menu:
+            menu.update(to_editor);
+            break;
+        case Context::Editor:
+            editor.update(delta_time);
+            break;
+        case Context::Game:
+            game.update(delta_time);
+            break;
         }
 
         last_frame = now;
