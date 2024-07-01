@@ -1,0 +1,15 @@
+[submodule "lib/sdl3"]
+	path = lib/sdl3
+	url = https://github.com/libsdl-org/SDL.git
+[submodule "lib/sdl-mixer"]
+	path = lib/sdl-mixer
+	url = https://github.com/libsdl-org/SDL_mixer.git
+[submodule "lib/sdl-image"]
+	path = lib/sdl-image
+	url = https://github.com/libsdl-org/SDL_image.git
+[submodule "lib/minimp3"]
+	path = lib/minimp3
+	url = https://github.com/lieff/minimp3.git
+[submodule "lib/sdl-ttf"]
+	path = lib/sdl-ttf
+	url = https://github.com/libsdl-org/SDL_ttf.git

@@ -1,14 +1,14 @@
-﻿#include <vector>
+﻿#pragma once
+
+#include <vector>
 #include <functional>
 #include <optional>
+
 #include "vec.h"
+#include "input.h"
 
-#pragma once
-
-
-class Element {
-    virtual Vec2 position() = 0;
-};
+#include <SDL3/SDL.h>
+#include <SDL3_ttf/SDL_ttf.h>
 
 struct Style {
     Vec2 anchor;
@@ -53,27 +53,29 @@ struct Group {
 
 class UI {
 public:
+    UI(const Input& _input, int _screen_width, int _screen_height);
     void button(const char* text, std::function<void()> on_click);
     void slider(float fraction, std::function<void(float)> on_input);
     void rect(const char* text);
 
-    void input();
-    void draw();
+    void draw(SDL_Renderer* renderer);
 
-    void begin_group(Style style);
+    void begin_group(const Style& style);
     void end_group();
 
     bool clicked;
 
 private:
+    const Input& input;
+    TTF_Font* font;
+
+    int screen_width;
+    int screen_height;
     const int font_size = 36;
     std::vector<Button> buttons;
     std::vector<Rect> rects;
     std::vector<Slider> sliders;
     std::vector<Group> groups;
-
-    bool mouse_zero;
-    Vec2 mouse_pos;
 
     bool in_group = false;
 };

@@ -1,8 +1,29 @@
 #include "ui.h"
-#include "raylib.h"
+#include <format>
 #include <iostream>
 
-void UI::begin_group(Style style) {
+UI::UI(const Input& _input, int _screen_width, int _screen_height)
+    : input{ _input }, screen_width{ _screen_width }, screen_height{ _screen_height } {
+
+    font = TTF_OpenFont("data/JetBrainsMonoNLNerdFont-Regular.ttf", 36);
+}
+
+void draw_text(SDL_Renderer* renderer, TTF_Font* font, const char* text, Vec2 position) {
+    auto surface = TTF_RenderText_Solid(font, text, SDL_Color{ 255, 255, 255, 255});
+    if (surface == NULL) {
+        return;
+    }
+
+    auto texture = SDL_CreateTextureFromSurface(renderer, surface);
+
+    auto rect = SDL_FRect{ position.x, position.y, (float)surface->w, (float)surface->h };
+    SDL_RenderTexture(renderer, texture, NULL, &rect);
+
+    SDL_DestroyTexture(texture);
+    SDL_DestroySurface(surface);
+}
+
+void UI::begin_group(const Style& style) {
     groups.push_back(Group{ {},  style });
     in_group = true;
 }
@@ -30,7 +51,7 @@ void UI::end_group() {
 
     float total_height = font_size;
 
-	Vec2 start = {((float)GetScreenWidth() - total_width) * group.style.anchor.x, ((float)GetScreenHeight() - total_height) * group.style.anchor.y};
+	Vec2 start = {(screen_width - total_width) * group.style.anchor.x, (screen_height - total_height) * group.style.anchor.y};
 
 	for (auto& e: group.children) {
         switch (e.type) {
@@ -42,8 +63,8 @@ void UI::end_group() {
 			const Vec2& p1 = slider.position;
 			Vec2 p2 = slider.position + slider.scale;
 
-			if (mouse_zero && mouse_pos.x > p1.x && mouse_pos.y > p1.y && mouse_pos.x < p2.x && mouse_pos.y < p2.y) {
-                slider.callback((mouse_pos.x - start.x) / slider.scale.x);
+			if (input.mouse_down(SDL_BUTTON_LEFT) && input.mouse_pos.x > p1.x && input.mouse_pos.y > p1.y && input.mouse_pos.x < p2.x && input.mouse_pos.y < p2.y) {
+                slider.callback((input.mouse_pos.x - start.x) / slider.scale.x);
                 clicked = true;
 			}
 
@@ -59,7 +80,7 @@ void UI::end_group() {
 			const Vec2& p1 = button.position;
 			Vec2 p2 = button.position + button.scale;
 
-			if (mouse_zero && mouse_pos.x > p1.x && mouse_pos.y > p1.y && mouse_pos.x < p2.x && mouse_pos.y < p2.y) {
+			if (input.mouse_down(SDL_BUTTON_LEFT) && input.mouse_pos.x > p1.x && input.mouse_pos.y > p1.y && input.mouse_pos.x < p2.x && input.mouse_pos.y < p2.y) {
                 button.callback();
                 clicked = true;
 			}
@@ -80,13 +101,12 @@ void UI::end_group() {
 	}
 }
 
-void UI::input() {
-    mouse_zero = IsMouseButtonPressed(0);
-    mouse_pos = {(float)GetMouseX(), (float)GetMouseY()};
-}
-
 void UI::rect(const char* text) {
-    rects.push_back(Rect{ Vec2{0, 0}, Vec2{(float)MeasureText(text, font_size), (float)font_size}, text});
+    int width;
+    TTF_MeasureUTF8(font, text, 9999, &width, NULL);
+
+    int height = TTF_FontHeight(font);
+    rects.push_back(Rect{ Vec2{0, 0}, Vec2{(float)width, (float)height}, text});
 
     if (in_group) {
         groups[groups.size() - 1].children.push_back(ElementHandle{ ElementType::rect, rects.size() - 1 });
@@ -103,29 +123,31 @@ void UI::slider(float fraction, std::function<void(float)> on_input) {
 }
 
 void UI::button(const char* text, std::function<void()> on_click) {
-    buttons.push_back( {Vec2{0, 0}, Vec2{(float)MeasureText(text, font_size), (float)font_size}, text, on_click});
+    int width;
+    TTF_MeasureUTF8(font, text, 9999, &width, NULL);
+
+    int height = TTF_FontHeight(font);
+    buttons.push_back( Button{ Vec2{0, 0}, Vec2{(float)width, (float)height}, text, on_click});
 
     if (in_group) {
         groups[groups.size() - 1].children.push_back({ ElementType::button, buttons.size() - 1 });
     }
 }
 
-void UI::draw() {
+void UI::draw(SDL_Renderer* renderer) {
     for (auto& e : rects) {
-        DrawRectangle(e.position.x, e.position.y, e.scale.x, e.scale.y, GRAY);
-        DrawText(e.text, e.position.x, e.position.y, font_size, WHITE);
+        draw_text(renderer, font, e.text, e.position);
     }
 
     for (auto& e : buttons) {
-        DrawRectangle(e.position.x, e.position.y, e.scale.x, e.scale.y, GRAY);
-        DrawText(e.text, e.position.x, e.position.y, font_size, WHITE);
+        draw_text(renderer, font, e.text, e.position);
     }
 
-    for (auto& e : sliders) {
-        DrawRectangle(e.position.x, e.position.y, e.scale.x, e.scale.y, GRAY);
-        float x = e.position.x + e.scale.x * e.fraction;
-        DrawLine(x, e.position.y, x, e.position.y + e.scale.y, YELLOW);
-    }
+    //for (auto& e : sliders) {
+    //    DrawRectangle(e.position.x, e.position.y, e.scale.x, e.scale.y, GRAY);
+    //    float x = e.position.x + e.scale.x * e.fraction;
+    //    DrawLine(x, e.position.y, x, e.position.y + e.scale.y, YELLOW);
+    //}
 
     rects.clear();
     sliders.clear();
