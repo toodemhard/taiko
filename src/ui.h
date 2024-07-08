@@ -63,7 +63,7 @@ public:
     void begin_group(const Style& style);
     void end_group();
 
-    bool clicked;
+    bool clicked = false;
 
 private:
     const Input& input;

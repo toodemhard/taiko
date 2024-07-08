@@ -1,3 +1,5 @@
+#include <tracy/Tracy.hpp>
+
 #include <algorithm>
 #include <functional>
 #include <format>
@@ -8,6 +10,7 @@
 #include <chrono>
 #include <filesystem>
 #include <array>
+
 
 #include <SDL3/SDL.h>
 #include <SDL3_image/SDL_image.h>
@@ -446,6 +449,8 @@ Image load_asset_tint(SDL_Renderer* renderer, const char* path, const Color& col
 //};
 
 void draw_map_editor(SDL_Renderer* renderer, const Map& map, const Cam& cam, int current_note) {
+    ZoneScoped;
+
     if (map.times.size() == 0) {
         return;
     }
@@ -590,6 +595,7 @@ void Editor::init() {
 }
 
 void Editor::update(std::chrono::duration<double> delta_time) {
+    ZoneScoped;
     //double elapsed = Mix_GetMusicPosition(music);
     double elapsed = audio.get_position();
 
@@ -634,18 +640,17 @@ void Editor::update(std::chrono::duration<double> delta_time) {
     }
     ui.end_group();
 
-    ui.begin_group(Style{ {0,1} }); {
+    ui.begin_group(Style{ {0,1} });
         std::string time = std::to_string(cam.position.x) + " s";
         ui.rect(time.data());
-        //ui.slider(elapsed / GetMusicTimeLength(music), [&](float fraction) {
-        //    SeekMusicStream(music, fraction * GetMusicTimeLength(music));
-        //});
-    }
+    //ui.slider(elapsed / GetMusicTimeLength(music), [&](float fraction) {
+    //    SeekMusicStream(music, fraction * GetMusicTimeLength(music));
+    //});
     ui.end_group();
 
-    ui.begin_group(Style{ {1,1} });
-    auto frame_time = std::to_string(((float)std::chrono::duration_cast<std::chrono::microseconds>(delta_time).count()) / 1000) + " ms";
-    ui.rect(frame_time.data());
+    ui.begin_group(Style{ {1,1} }); 
+        auto frame_time = std::to_string(((float)std::chrono::duration_cast<std::chrono::microseconds>(delta_time).count()) / 1000) + " ms";
+        ui.rect(frame_time.data());
     ui.end_group();
 
     Vec2 cursor_pos = cam.screen_to_world(input.mouse_pos);
@@ -909,6 +914,7 @@ int run() {
     SDL_Renderer* renderer;
 
     SDL_CreateWindowAndRenderer("", window_width, window_height, 0, &window, &renderer);
+    SDL_SetWindowFullscreen(window, true);
 
     auto start = std::chrono::high_resolution_clock::now();
 
@@ -924,7 +930,7 @@ int run() {
     //
     //Game game;
 
-    kat_circle = load_asset_tint(renderer, "data/circle.png", { 53, 171, 249, 255 });
+    kat_circle = load_asset_tint(renderer, "data/circle.png", { 60, 219, 226, 255 });
     don_circle = load_asset_tint(renderer, "data/circle.png", { 252, 78, 60, 255 });
     circle_overlay = load_asset(renderer, "data/circle-overlay.png");
     select_circle = load_asset(renderer, "data/circle-select.png");
@@ -960,8 +966,8 @@ int run() {
 
     Player player{ input, audio };
 
-
     while (1) {
+        ZoneScoped;
         auto now = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> delta_time = now - last_frame;
         last_frame = now;
@@ -971,21 +977,24 @@ int run() {
 
         SDL_Event event;
         bool quit = false;
-        while (SDL_PollEvent(&event)) {
-            if (event.type == SDL_EVENT_QUIT) {
-                quit = true;
-                break;
-            }
+        {
+            ZoneNamedN(thing, "Poll Input", true);
+            while (SDL_PollEvent(&event)) {
+                if (event.type == SDL_EVENT_QUIT) {
+                    quit = true;
+                    break;
+                }
 
-            if (event.type == SDL_EVENT_MOUSE_WHEEL) {
-                wheel += event.wheel.y;
-            }
+                if (event.type == SDL_EVENT_MOUSE_WHEEL) {
+                    wheel += event.wheel.y;
+                }
 
-            if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
-                int asdf = 0;
-            }
-            
-            if (event.type == SDL_EVENT_KEY_DOWN) {
+                if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
+                    int asdf = 0;
+                }
+                
+                if (event.type == SDL_EVENT_KEY_DOWN) {
+                }
             }
         }
 
@@ -995,7 +1004,7 @@ int run() {
 
         input.begin_frame(wheel);
 
-        input.mouse_down(SDL_BUTTON_LEFT);
+        //input.mouse_down(SDL_BUTTON_LEFT);
 
         
         //SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
@@ -1008,6 +1017,8 @@ int run() {
         editor.update(delta_time);
 
         input.end_frame();
+
+        FrameMark;
     }
 
 

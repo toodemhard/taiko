@@ -1,3 +1,5 @@
+#include <tracy/Tracy.hpp>
+
 #include "ui.h"
 #include <format>
 #include <iostream>
@@ -9,18 +11,37 @@ UI::UI(const Input& _input, int _screen_width, int _screen_height)
 }
 
 void draw_text(SDL_Renderer* renderer, TTF_Font* font, const char* text, Vec2 position) {
-    auto surface = TTF_RenderText_Solid(font, text, SDL_Color{ 255, 255, 255, 255});
+    ZoneScoped;
+
+    SDL_Surface* surface;
+    {
+        ZoneNamedN(var, "Render to surface", true);
+        surface = TTF_RenderText_Solid(font, text, SDL_Color{ 255, 255, 255, 255});
+
+    }
+
     if (surface == NULL) {
         return;
     }
 
-    auto texture = SDL_CreateTextureFromSurface(renderer, surface);
+    SDL_Texture* texture;
 
-    auto rect = SDL_FRect{ position.x, position.y, (float)surface->w, (float)surface->h };
-    SDL_RenderTexture(renderer, texture, NULL, &rect);
+    {
+        ZoneNamedN(var2, "Create texture", true);
+        texture = SDL_CreateTextureFromSurface(renderer, surface);
+    }
 
-    SDL_DestroyTexture(texture);
-    SDL_DestroySurface(surface);
+    {
+        ZoneNamedN(var2, "Render texture", true);
+        auto rect = SDL_FRect{ position.x, position.y, (float)surface->w, (float)surface->h };
+        SDL_RenderTexture(renderer, texture, NULL, &rect);
+    }
+
+    {
+        ZoneNamedN(var2, "Cleanup", true);
+        SDL_DestroyTexture(texture);
+        SDL_DestroySurface(surface);
+    }
 }
 
 void UI::begin_group(const Style& style) {
@@ -135,6 +156,8 @@ void UI::button(const char* text, std::function<void()> on_click) {
 }
 
 void UI::draw(SDL_Renderer* renderer) {
+    ZoneScoped;
+
     for (auto& e : rects) {
         draw_text(renderer, font, e.text, e.position);
     }

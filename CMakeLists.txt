@@ -1,31 +1,15 @@
-﻿cmake_minimum_required (VERSION 3.8)
+﻿cmake_minimum_required (VERSION 3.11)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 project (taiko LANGUAGES CXX)
 enable_language(ASM_NASM ASM)
 
-# # Dependencies
-# set(RAYLIB_VERSION 5.0)
-# find_package(raylib ${RAYLIB_VERSION} QUIET) # QUIET or REQUIRED
-# if (NOT raylib_FOUND) # If there's none, fetch and build raylib
-#   include(FetchContent)
-#   FetchContent_Declare(
-#     raylib
-#     DOWNLOAD_EXTRACT_TIMESTAMP OFF
-#     URL https://github.com/raysan5/raylib/archive/refs/tags/${RAYLIB_VERSION}.tar.gz
-#   )
-#   FetchContent_GetProperties(raylib)
-#   if (NOT raylib_POPULATED) # Have we downloaded raylib yet?
-#     set(FETCHCONTENT_QUIET NO)
-#     FetchContent_Populate(raylib)
-#     set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE) # don't build the supplied examples
-#     add_subdirectory(${raylib_SOURCE_DIR} ${raylib_BINARY_DIR})
-#   endif()
-# endif()
-set(DIST_DIR ${CMAKE_SOURCE_DIR}/dist)
-set (CMAKE_LIBRARY_OUTPUT_DIRECTORY ${DIST_DIR})
-set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${DIST_DIR})
+include(FetchContent)
+
+option(TRACY_ENABLE "" ON)
+option(TRACY_ON_DEMAND "" ON)
+add_subdirectory(lib/tracy)
 
 option(SDL3IMAGE_AVIF "Support loading AVIF images" OFF)
 option(SDL3IMAGE_BMP "Support loading BMP images" OFF)
@@ -49,19 +33,27 @@ add_subdirectory(lib/sdl3)
 add_subdirectory(lib/sdl-image)
 add_subdirectory(lib/sdl-mixer)
 add_subdirectory(lib/sdl-ttf)
-#set(CMAKE_BUILD_TYPE Debug)
-#add_compile_options(-Wall) #-Wextra -Wpedantic)
 
 set(SOURCE_DIRECTORY src)
 file(GLOB_RECURSE SOURCE_FILES CONFIGURE_DEPENDS ${SOURCE_DIRECTORY}/*.cpp)
 
 add_executable(${PROJECT_NAME} ${SOURCE_FILES})
-target_include_directories(${PROJECT_NAME} PRIVATE ${SOURCE_DIRECTORY})
-target_include_directories(${PROJECT_NAME} PRIVATE lib/minimp3)
 
 if(MSVC)
-  target_compile_options(${PROJECT_NAME} PUBLIC "/ZI")
+  target_compile_options(${PROJECT_NAME} PUBLIC "$<$<CONFIG:DEBUG>:/ZI>")
   target_link_options(${PROJECT_NAME} PUBLIC "/INCREMENTAL")
 endif()
 
-target_link_libraries(${PROJECT_NAME} PRIVATE SDL3::SDL3 SDL3_image::SDL3_image SDL3_mixer::SDL3_mixer SDL3_ttf::SDL3_ttf)
+target_link_libraries(${PROJECT_NAME} PUBLIC Tracy::TracyClient)
+
+target_link_libraries(${PROJECT_NAME} PRIVATE 
+    SDL3::SDL3
+    SDL3_image::SDL3_image
+    SDL3_mixer::SDL3_mixer
+    SDL3_ttf::SDL3_ttf
+)
+
+add_custom_target(copy_assets
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/data ${CMAKE_CURRENT_BINARY_DIR}/data
+)
+add_dependencies(${PROJECT_NAME} copy_assets)

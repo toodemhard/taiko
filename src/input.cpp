@@ -1,12 +1,17 @@
+#include <tracy/Tracy.hpp>
 #include "input.h"
 
 void Input::begin_frame(float& _wheel) {
+    ZoneScoped;
+
     current_mouse = SDL_GetMouseState(NULL, NULL);
     wheel = _wheel;
     SDL_GetMouseState(&mouse_pos.x, &mouse_pos.y);
 }
 
 void Input::end_frame() {
+    ZoneScoped;
+
     std::memcpy(last_keyboard.data(), current_keyboard, SDL_NUM_SCANCODES);
 
     last_mouse = current_mouse;

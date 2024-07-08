@@ -13,3 +13,6 @@
 [submodule "lib/sdl-ttf"]
 	path = lib/sdl-ttf
 	url = https://github.com/libsdl-org/SDL_ttf.git
+[submodule "lib/tracy"]
+	path = lib/tracy
+	url = https://github.com/wolfpld/tracy.git
