@@ -7,9 +7,18 @@ enable_language(ASM_NASM ASM)
 
 include(FetchContent)
 
-option(TRACY_ENABLE "" ON)
-option(TRACY_ON_DEMAND "" ON)
+set(TRACY_ENABLE OFF)
+
+if (CMAKE_BUILD_TYPE STREQUAL "Release")
+    option(TRACY_ENABLE "" ON)
+    option(TRACY_ON_DEMAND "" ON)
+else()
+    set(TRACY_ENABLE OFF)
+endif ()
+
 add_subdirectory(lib/tracy)
+
+add_subdirectory(lib/sdl3)
 
 option(SDL3IMAGE_AVIF "Support loading AVIF images" OFF)
 option(SDL3IMAGE_BMP "Support loading BMP images" OFF)
@@ -29,8 +38,10 @@ option(SDL3IMAGE_XCF "Support loading XCF images" OFF)
 option(SDL3IMAGE_XPM "Support loading XPM images" OFF)
 option(SDL3IMAGE_XV "Support loading XV images" OFF)
 
-add_subdirectory(lib/sdl3)
 add_subdirectory(lib/sdl-image)
+
+option(SDL3MIXER_OPUS "Enable Opus music" OFF)
+
 add_subdirectory(lib/sdl-mixer)
 add_subdirectory(lib/sdl-ttf)
 
@@ -43,6 +54,12 @@ if(MSVC)
   target_compile_options(${PROJECT_NAME} PUBLIC "$<$<CONFIG:DEBUG>:/ZI>")
   target_link_options(${PROJECT_NAME} PUBLIC "/INCREMENTAL")
 endif()
+
+#target_compile_definitions(${PROJECT_NAME} PUBLIC
+#    $<$<CONFIG:RELEASE>:TRACY_ENABLE>
+#)
+
+target_include_directories(${PROJECT_NAME} PRIVATE lib/stb)
 
 target_link_libraries(${PROJECT_NAME} PUBLIC Tracy::TracyClient)
 
