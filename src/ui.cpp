@@ -1,48 +1,37 @@
 #include <tracy/Tracy.hpp>
 
+#include "font.h"
 #include "ui.h"
 #include <format>
 #include <iostream>
 
-UI::UI(const Input& _input, int _screen_width, int _screen_height)
+UI::UI(const Input& _input, SDL_Renderer* renderer, int _screen_width, int _screen_height)
     : input{ _input }, screen_width{ _screen_width }, screen_height{ _screen_height } {
 
     font = TTF_OpenFont("data/JetBrainsMonoNLNerdFont-Regular.ttf", 36);
+    canvas = SDL_CreateSurface(screen_width, screen_height, SDL_PIXELFORMAT_ABGR8888);
+    canvas_texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STREAMING, screen_width, screen_height);
+    //SDL_Createtexu
 }
 
-void draw_text(SDL_Renderer* renderer, TTF_Font* font, const char* text, Vec2 position) {
-    ZoneScoped;
-
-    SDL_Surface* surface;
-    {
-        ZoneNamedN(var, "Render to surface", true);
-        surface = TTF_RenderText_Solid(font, text, SDL_Color{ 255, 255, 255, 255});
-
-    }
-
-    if (surface == NULL) {
-        return;
-    }
-
-    SDL_Texture* texture;
-
-    {
-        ZoneNamedN(var2, "Create texture", true);
-        texture = SDL_CreateTextureFromSurface(renderer, surface);
-    }
-
-    {
-        ZoneNamedN(var2, "Render texture", true);
-        auto rect = SDL_FRect{ position.x, position.y, (float)surface->w, (float)surface->h };
-        SDL_RenderTexture(renderer, texture, NULL, &rect);
-    }
-
-    {
-        ZoneNamedN(var2, "Cleanup", true);
-        SDL_DestroyTexture(texture);
-        SDL_DestroySurface(surface);
-    }
+UI::~UI() {
+    SDL_DestroySurface(canvas);
+    SDL_DestroyTexture(canvas_texture);
 }
+
+//void draw_text(SDL_Surface* surface, TTF_Font* font, const char* text, Vec2 position) {
+//    ZoneScoped;
+//    SDL_Surface* rendered_text = TTF_RenderText_Solid(font, text, SDL_Color{ 255, 255, 255, 255});
+//
+//    SDL_Rect dst_rect;
+//    dst_rect.x = position.x;
+//    dst_rect.y = position.y;
+//    dst_rect.w = rendered_text->w;
+//    dst_rect.h = rendered_text->h;
+//    SDL_BlitSurface(rendered_text, NULL, surface, &dst_rect);
+//
+//    SDL_DestroySurface(rendered_text);
+//}
 
 void UI::begin_group(const Style& style) {
     groups.push_back(Group{ {},  style });
@@ -159,11 +148,11 @@ void UI::draw(SDL_Renderer* renderer) {
     ZoneScoped;
 
     for (auto& e : rects) {
-        draw_text(renderer, font, e.text, e.position);
+        draw_text(renderer, e.text, e.position);
     }
 
     for (auto& e : buttons) {
-        draw_text(renderer, font, e.text, e.position);
+        draw_text(renderer, e.text, e.position);
     }
 
     //for (auto& e : sliders) {

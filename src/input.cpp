@@ -4,9 +4,8 @@
 void Input::begin_frame(float& _wheel) {
     ZoneScoped;
 
-    current_mouse = SDL_GetMouseState(NULL, NULL);
+    current_mouse = SDL_GetMouseState(&mouse_pos.x, &mouse_pos.y);
     wheel = _wheel;
-    SDL_GetMouseState(&mouse_pos.x, &mouse_pos.y);
 }
 
 void Input::end_frame() {
@@ -17,16 +16,16 @@ void Input::end_frame() {
     last_mouse = current_mouse;
 }
 
-bool Input::mouse_down(const SDL_MouseButtonFlags& button) const {
-    return (current_mouse & button) && !(last_mouse & button);
+bool Input::mouse_down(const SDL_MouseButtonFlags& button_mask) const {
+    return (current_mouse & button_mask) && !(last_mouse & button_mask);
 }
 
-bool Input::mouse_held(const SDL_MouseButtonFlags& button) const {
-    return (current_mouse & button);
+bool Input::mouse_held(const SDL_MouseButtonFlags& button_mask) const {
+    return (current_mouse & button_mask);
 }
 
-bool Input::mouse_up(const SDL_MouseButtonFlags& button) const {
-    return !(current_mouse & button) && (last_mouse & button);
+bool Input::mouse_up(const SDL_MouseButtonFlags& button_mask) const {
+    return !(current_mouse & button_mask) && (last_mouse & button_mask);
 }
 
 bool Input::key_down(const SDL_Scancode& scan_code) const {

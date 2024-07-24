@@ -20,6 +20,7 @@
 #include "vec.h"
 #include "ui.h"
 #include "audio.h"
+#include "font.h"
 
 using namespace std::chrono_literals;
 
@@ -147,6 +148,7 @@ Vec2 Cam::screen_to_world(const Vec2& point) const {
 class Map {
 public:
     void insert_note(double time, NoteFlags flags);
+    void remove_note(int i);
     
     std::vector<double> times;
     std::vector<NoteFlags> flags_vec;
@@ -158,6 +160,12 @@ void Map::insert_note(double time, NoteFlags flags) {
     times.insert(times.begin() + i, time);
     flags_vec.insert(flags_vec.begin() + i, flags);
     selected.insert(selected.begin() + i, false);
+}
+
+void Map::remove_note(int i) {
+    times.erase(times.begin() + i);
+    flags_vec.erase(flags_vec.begin() + i);
+    selected.erase(selected.begin() + i);
 }
 
 
@@ -363,7 +371,7 @@ std::optional<int> note_point_intersection(const Map& map, const Vec2& point, co
     Vec2 half_bounds = note_hitbox / 2;
     std::vector<int> hits;
     for (int i = 0; i < map.times.size(); i++) {
-        Vec2 center = { map.times[i], 0 };
+        Vec2 center = { static_cast<float>(map.times[i]), 0 };
         Vec2 top_left = { center.x - half_bounds.x, center.y + half_bounds.y };
         Vec2 bottom_right = { center.x + half_bounds.x, center.y - half_bounds.y };
 
@@ -562,7 +570,7 @@ private:
 };
 
 Editor::Editor(const Input& _input, Audio& _audio, SDL_Renderer* _renderer)
-    : input{ _input }, audio{ _audio }, renderer{ _renderer }, ui{ input, window_width, window_height } {}
+    : input{ _input }, audio{ _audio }, renderer{ _renderer }, ui{ input, renderer, window_width, window_height } {}
 
 Editor::~Editor() {
     //Mix_FreeMusic(music);
@@ -655,11 +663,23 @@ void Editor::update(std::chrono::duration<double> delta_time) {
 
     Vec2 cursor_pos = cam.screen_to_world(input.mouse_pos);
 
+    std::optional<int> to_select = note_point_intersection(map, cursor_pos, current_note);
+    if (input.mouse_down(SDL_BUTTON_RMASK) && to_select.has_value()) {
+        if (map.selected[to_select.value()]) {
+            for (int i = map.selected.size() - 1; i >= 0; i--) {
+                if (map.selected[i]) {
+                    map.remove_note(i);
+                }
+            }
+        }
+        else {
+            map.remove_note(to_select.value());
+        }
+    }
+
     switch (editor_mode) {
     case EditorMode::select:
-        if (!ui.clicked && input.mouse_down(SDL_BUTTON_LEFT)) {
-            std::optional<int> to_select = note_point_intersection(map, cursor_pos, current_note);
-
+        if (!ui.clicked && input.mouse_down(SDL_BUTTON_LMASK)) {
             if (to_select.has_value()) {
                 map.selected[to_select.value()] = !map.selected[to_select.value()];
             } else { 
@@ -667,11 +687,11 @@ void Editor::update(std::chrono::duration<double> delta_time) {
             }
         }
 
-        if (input.mouse_down(SDL_BUTTON_LEFT)) {
+        if (input.mouse_held(SDL_BUTTON_LMASK)) {
             if (box_select_begin.has_value()) {
                 auto hits = note_box_intersection(map, box_select_begin.value(), cursor_pos);
-
                 std::fill(map.selected.begin(), map.selected.end(), false);
+
                 for (auto& i : hits) {
                     map.selected[i] = true;
                 }
@@ -679,13 +699,13 @@ void Editor::update(std::chrono::duration<double> delta_time) {
 
         }
 
-        if (input.mouse_up(SDL_BUTTON_LEFT)) {
+        if (input.mouse_up(SDL_BUTTON_LMASK)) {
             box_select_begin = {};
         }
-
         break;
+
     case EditorMode::insert:
-        if (!ui.clicked && input.mouse_down(SDL_BUTTON_LEFT)) {
+        if (!ui.clicked && input.mouse_down(SDL_BUTTON_LMASK)) {
             int i = std::round((cursor_pos.x - offset) / quarter_interval);
             float time = offset + i * quarter_interval;
 
@@ -838,7 +858,10 @@ void Editor::update(std::chrono::duration<double> delta_time) {
 
     ui.draw(renderer);
 
-    SDL_RenderPresent(renderer);
+    {
+        ZoneNamedN(jksfdgjh, "Render Present", true);
+        SDL_RenderPresent(renderer);
+    }
 }
 
 //enum class View {
@@ -914,7 +937,7 @@ int run() {
     SDL_Renderer* renderer;
 
     SDL_CreateWindowAndRenderer("", window_width, window_height, 0, &window, &renderer);
-    SDL_SetWindowFullscreen(window, true);
+    //SDL_SetWindowFullscreen(window, true);
 
     auto start = std::chrono::high_resolution_clock::now();
 
@@ -966,10 +989,18 @@ int run() {
 
     Player player{ input, audio };
 
+    init_font(renderer);
+
     while (1) {
-        ZoneScoped;
         auto now = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> delta_time = now - last_frame;
+
+        if (delta_time < 1ms) {
+            continue;
+        }
+
+        ZoneNamedN(var, "update", true);
+
         last_frame = now;
 
         float wheel{};
@@ -978,8 +1009,9 @@ int run() {
         SDL_Event event;
         bool quit = false;
         {
-            ZoneNamedN(thing, "Poll Input", true);
+            ZoneNamedN(var, "poll input", true);
             while (SDL_PollEvent(&event)) {
+                ZoneNamedN(var, "event", true);
                 if (event.type == SDL_EVENT_QUIT) {
                     quit = true;
                     break;

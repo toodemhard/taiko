@@ -53,7 +53,8 @@ struct Group {
 
 class UI {
 public:
-    UI(const Input& _input, int _screen_width, int _screen_height);
+    UI(const Input& _input, SDL_Renderer* renderer, int _screen_width, int _screen_height);
+    ~UI();
     void button(const char* text, std::function<void()> on_click);
     void slider(float fraction, std::function<void(float)> on_input);
     void rect(const char* text);
@@ -76,6 +77,9 @@ private:
     std::vector<Rect> rects;
     std::vector<Slider> sliders;
     std::vector<Group> groups;
+
+    SDL_Surface* canvas;
+    SDL_Texture* canvas_texture;
 
     bool in_group = false;
 };

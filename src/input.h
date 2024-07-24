@@ -13,9 +13,9 @@ public:
     bool key_held(const SDL_Scancode& scan_code) const;
     bool key_up(const SDL_Scancode& scan_code) const;
 
-    bool mouse_down(const SDL_MouseButtonFlags& button) const;
-    bool mouse_held(const SDL_MouseButtonFlags& button) const;
-    bool mouse_up(const SDL_MouseButtonFlags& button) const;
+    bool mouse_down(const SDL_MouseButtonFlags& button_mask) const;
+    bool mouse_held(const SDL_MouseButtonFlags& button_mask) const;
+    bool mouse_up(const SDL_MouseButtonFlags& button_mask) const;
 
     Vec2 mouse_pos{};
     float wheel{};
