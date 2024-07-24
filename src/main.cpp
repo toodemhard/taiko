@@ -10,12 +10,16 @@
 #include <chrono>
 #include <filesystem>
 #include <array>
+#include <future>
 
 
 #include <SDL3/SDL.h>
 #include <SDL3_image/SDL_image.h>
 #include <SDL3_mixer/SDL_mixer.h>
 #include <SDL3_ttf/SDL_ttf.h>
+
+#include <cereal/archives/binary.hpp>
+#include <cereal/types/vector.hpp>
 
 #include "vec.h"
 #include "ui.h"
@@ -74,6 +78,7 @@ Vec2 Cam::screen_to_world(const Vec2& point) const {
     Vec2 relative_pos = (normalized - Vec2::one() * 0.5f) * bounds;
     return { relative_pos.x + position.x, position.y - relative_pos.y };
 }
+
 
 //void draw_map(const std::vector<Note>& map, const Cam& cam, int current_note) {
 //    if (map.size() == 0) {
@@ -149,6 +154,18 @@ class Map {
 public:
     void insert_note(double time, NoteFlags flags);
     void remove_note(int i);
+
+    template<class Archive>
+    void save(Archive& ar) const {
+        ar(times, flags_vec);
+    }
+
+    template<class Archive>
+    void load(Archive& ar) {
+        ar(times, flags_vec);
+
+        selected = std::vector<bool>(times.size(), false);
+    }
     
     std::vector<double> times;
     std::vector<NoteFlags> flags_vec;
@@ -169,6 +186,21 @@ void Map::remove_note(int i) {
 }
 
 
+void save_map(const Map& map) {
+    std::ofstream fout("map.tnt");
+
+    cereal::BinaryOutputArchive oarchive(fout);
+
+    oarchive(map);
+}
+
+void load_map(Map* map) {
+    std::ifstream fin("map.tnt");
+
+    cereal::BinaryInputArchive iarchive(fin);
+
+    iarchive(*map);
+}
 
 //class Game {
 //public:
@@ -677,6 +709,14 @@ void Editor::update(std::chrono::duration<double> delta_time) {
         }
     }
 
+    if (input.key_down(SDL_SCANCODE_S) && input.modifier(SDL_KMOD_LCTRL)) {
+        save_map(map);
+    }
+
+    if (input.key_down(SDL_SCANCODE_O) && input.modifier(SDL_KMOD_LCTRL)) {
+        load_map(&map);
+    }
+
     switch (editor_mode) {
     case EditorMode::select:
         if (!ui.clicked && input.mouse_down(SDL_BUTTON_LMASK)) {
@@ -923,6 +963,20 @@ enum class Context {
     Game,
 };
 
+
+void fake_loop() {
+    while (1) {
+        ZoneScoped;
+        int j;
+        for (int i = 0; i < 10000000; i++) {
+            j = i;
+        }
+
+        std::cout << "other frame\n";
+        FrameMarkNamed("other thread");
+    }
+}
+
 int run() {
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) < 0) {
         SDL_Log("SDL_Init failed (%s)", SDL_GetError());
@@ -990,6 +1044,8 @@ int run() {
     Player player{ input, audio };
 
     init_font(renderer);
+
+    //auto future = std::async(std::launch::async, fake_loop);
 
     while (1) {
         auto now = std::chrono::high_resolution_clock::now();

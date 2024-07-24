@@ -7,8 +7,6 @@ enable_language(ASM_NASM ASM)
 
 include(FetchContent)
 
-set(TRACY_ENABLE OFF)
-
 if (CMAKE_BUILD_TYPE STREQUAL "Release")
     option(TRACY_ENABLE "" ON)
     option(TRACY_ON_DEMAND "" ON)
@@ -59,7 +57,10 @@ endif()
 #    $<$<CONFIG:RELEASE>:TRACY_ENABLE>
 #)
 
-target_include_directories(${PROJECT_NAME} PRIVATE lib/stb)
+target_include_directories(${PROJECT_NAME} PRIVATE 
+    lib/stb
+    lib/cereal/include
+)
 
 target_link_libraries(${PROJECT_NAME} PUBLIC Tracy::TracyClient)
 
