@@ -12,7 +12,6 @@
 #include <array>
 #include <future>
 
-
 #include <SDL3/SDL.h>
 #include <SDL3_image/SDL_image.h>
 #include <SDL3_mixer/SDL_mixer.h>
@@ -25,6 +24,8 @@
 #include "ui.h"
 #include "audio.h"
 #include "font.h"
+#include "asset_loader.h"
+#include "color.h"
 
 using namespace std::chrono_literals;
 
@@ -36,6 +37,16 @@ const std::chrono::duration<double> perfect_range = 30ms;
 
 const float circle_radius = 0.1f;
 const float circle_outer_radius = 0.11f;
+
+Mix_Chunk* don_sound = Mix_LoadWAV("data/don.wav");
+Mix_Chunk* kat_sound = Mix_LoadWAV("data/kat.wav");
+Mix_Chunk* big_don_sound = Mix_LoadWAV("data/big-don.wav");
+Mix_Chunk* big_kat_sound = Mix_LoadWAV("data/big-kat.wav");
+
+class Assets;
+
+Assets assets;
+
 
 enum NoteFlagBits : uint8_t {
     don_or_kat = 1 << 0, // true = don | false = kat
@@ -59,7 +70,7 @@ Vec2 Cam::world_to_screen(const Vec2& point) const {
     Vec2 relative_pos = {point.x - position.x, position.y - point.y};
     Vec2 normalized = relative_pos / bounds + Vec2::one() * 0.5f; // 0 to 1
         
-    return Vec2 {	
+    return Vec2 {
         normalized.x * window_width,
         normalized.y * window_height
     };
@@ -138,17 +149,7 @@ Vec2 Cam::screen_to_world(const Vec2& point) const {
 //    }
 //}
 
-//enum class Input {
-//    don_left,
-//    don_right,
-//    kat_left,
-//    kat_right,
-//};
-//
-//struct InputRecord {
-//    Input type;
-//    float time;
-//};
+
 
 class Map {
 public:
@@ -202,175 +203,193 @@ void load_map(Map* map) {
     iarchive(*map);
 }
 
-//class Game {
-//public:
-//    Game();
-//    void run();
-//    void update(std::chrono::duration<double> delta_time);
-//private:
-//    Sound don_sound = LoadSound("don.wav");
-//    Sound kat_sound = LoadSound("kat.wav");
-//    
-//    Cam cam = {{0,0}, {4,3}};
+//using InputFlags = uint8_t;
 //
-//    std::vector<Note> map{};
-//    int current_note = 0;
-//
-//    std::vector<Particle> particles;
-//
-//    int score = 0;
-//
-//    std::chrono::time_point<std::chrono::steady_clock> start = std::chrono::high_resolution_clock::now();
-//
-//    std::vector<InputRecord> inputs;
+//enum InputFlagBits : InputFlags {
+//    left = 1 << 0,
+//    don = 1 << 1
 //};
-//
-//Game::Game() {
-//    for (int i = 0; i < 100; i++) {
-//        map.push_back({
-//            (0.2371s / 2) * i + 0.4743s,
-//            NoteType::don
-//        });
-//    }
-//}
-//
-//void Game::run() {
-//
-//}
-//
-//const float input_indicator_duration = 0.1f;
-//
-//void Game::update(std::chrono::duration<double> delta_time) {
-//    auto now = std::chrono::high_resolution_clock::now();
-//    std::chrono::duration<double> elapsed = now - start;
-//
-//    //bool inputs[4] = { false, false, false, false };
-//    //std::array<bool, 4> inputs = { false, false, false, false };
-//    std::vector<NoteType> pressed;
-//
-//
-//    if (IsKeyPressed(KEY_X)) {
-//        PlaySound(don_sound);
-//        inputs.push_back(InputRecord{ Input::don_left, (float) elapsed.count() });
-//
-//        pressed.push_back(NoteType::don);
-//    }
-//
-//    if (IsKeyPressed(KEY_PERIOD)) {
-//        PlaySound(don_sound);
-//        inputs.push_back(InputRecord{ Input::don_right, (float)elapsed.count() });
-//
-//        pressed.push_back(NoteType::don);
-//    }
-//
-//    if (IsKeyPressed(KEY_Z)) {
-//        inputs.push_back(InputRecord{ Input::kat_left, (float)elapsed.count() });
-//        PlaySound(kat_sound);
-//
-//        pressed.push_back(NoteType::kat);
-//    }
-//
-//    if (IsKeyPressed(KEY_SLASH)) {
-//        inputs.push_back(InputRecord{ Input::kat_right, (float)elapsed.count() });
-//        PlaySound(kat_sound);
-//
-//        pressed.push_back(NoteType::kat);
-//    }
-//
-//    if (current_note < map.size()) {
-//        for (auto& note : pressed) {
-//            double hit_normalized = (elapsed - map[current_note].time) / hit_range + 0.5;
-//            if (hit_normalized >= 0 && hit_normalized < 1) {
-//                if (map[current_note].type == note) {
-//                    score += 300;
-//                    //particles.push_back(Particle{ Vec2{(float)elapsed.count(), 0}, {0,1},1, note.type, elapsed });
-//                    current_note++;
-//                }
-//            }
-//
-//        }
-//
-//        if (elapsed > map[current_note].time - (hit_range / 2)) {
-//            //PlaySound(don_sound);
-//            particles.push_back(Particle{ Vec2{(float)elapsed.count(), 0}, {0,1}, 1, map[current_note].type, elapsed });
-//            current_note++;
-//        }
-//    }
-//
-//    cam.position.x = elapsed.count();
-//
-//    for (int i = particles.size() - 1; i >= 0; i--) {
-//        Particle& p = particles[i];
-//        p.position += p.velocity * delta_time.count();
-//
-//        if (elapsed - p.start > 1s) {
-//            particles.erase(particles.begin() + i);
-//        }
-//    }
-//
-//    UI ui;
-//
-//    Style style{};
-//    style.anchor = { 1,0 };
-//    ui.begin_group(style);
-//    std::string score_text = std::to_string(score);
-//    ui.rect(score_text.data());
-//    ui.end_group();
-//
-//
-//
-//    BeginDrawing();
-//
-//    ClearBackground(BLANK);
-//    DrawRectangle(0, 0, 1280, 960, BLACK);
-//
-//    float x = elapsed.count();
-//    Vec2 p1 = cam.world_to_screen({ x, 0.5f });
-//    Vec2 p2 = cam.world_to_screen({ x, -0.5f });
-//    DrawLine(p1.x, p1.y, p2.x, p2.y, YELLOW);
-//
-//    ui.draw();
-//
-//    Vector2 drum_pos = { 0, (window_height - textures.inner_drum.height) / 2};
-//    Vector2 right_pos = drum_pos;
-//    right_pos.x += textures.inner_drum.width;
-//    Rectangle rect{ 0, 0, textures.inner_drum.width, textures.inner_drum.height };
-//    Rectangle flipped_rect = rect;
-//    flipped_rect.width *= -1;
-//
-//    for (int i = inputs.size() - 1; i >= 0; i--) {
-//        const InputRecord& input = inputs[i];
-//        if (elapsed.count() - input.time > input_indicator_duration) {
-//            break;
-//        }
-//
-//        switch (input.type) {
-//        case Input::don_left:
-//            DrawTextureRec(textures.inner_drum, rect, drum_pos, WHITE);
-//            break;
-//        case Input::don_right:
-//            DrawTextureRec(textures.inner_drum, flipped_rect, right_pos, WHITE);
-//            break;
-//        case Input::kat_left:
-//            DrawTextureRec(textures.outer_drum, flipped_rect, drum_pos, WHITE);
-//            break;
-//        case Input::kat_right:
-//            DrawTextureRec(textures.outer_drum, rect, right_pos, WHITE);
-//            break;
-//        }
-//    }
-//
-//
-//    Vec2 target = cam.world_to_screen(cam.position);
-//    DrawCircle(target.x, target.y, 50, WHITE);
-//    DrawText((std::to_string(delta_time.count() * 1000) + " ms").data(), 100, 100, 24, WHITE);
-//    draw_map(map, cam, current_note);
-//
-//    draw_particles(cam, particles, elapsed);
-//
-//    EndDrawing();
-//
-//}
+
+
+enum class DrumInput {
+    don_left,
+    don_right,
+    kat_left,
+    kat_right,
+};
+
+struct InputRecord {
+    DrumInput type;
+    double time;
+};
+
+struct BigNoteHits {
+    bool left = false;
+    bool right = false;
+};
+
+class Game {
+public:
+    Game(const Input& _input, Audio& _audio, SDL_Renderer* _renderer);
+    void update(std::chrono::duration<double> delta_time);
+private:
+    const Input& input;
+    Audio& audio;
+    SDL_Renderer* renderer;
+    Cam cam = {{0,0}, {4,3}};
+
+    int current_note = 0;
+
+    int score = 0;
+
+    std::chrono::time_point<std::chrono::steady_clock> start = std::chrono::high_resolution_clock::now();
+
+    UI ui;
+
+    std::vector<InputRecord> input_history;
+
+    Map map{};
+    //std::vector<Particle> particles;
+
+    BigNoteHits current_big_note_status;
+};
+
+Game::Game(const Input& _input, Audio& _audio, SDL_Renderer* _renderer)
+    : input{ _input }, audio{ _audio }, renderer{ _renderer }, ui{ input, renderer, window_width, window_height } {}
+
+
+const float input_indicator_duration = 0.1f;
+
+void Game::update(std::chrono::duration<double> delta_time) {
+    //auto now = std::chrono::high_resolution_clock::now();
+    //std::chrono::duration<double> elapsed = now - start;
+
+    ////bool inputs[4] = { false, false, false, false };
+    ////std::array<bool, 4> inputs = { false, false, false, false };
+    //std::vector<DrumInput> inputs{};
+
+    //if (input.key_down(SDL_SCANCODE_X)) {
+    //    input_history.push_back(InputRecord{ DrumInput::don_left, elapsed.count() });
+    //    inputs.push_back(DrumInput::don_left);
+    //}
+
+    //if (input.key_down(SDL_SCANCODE_PERIOD)) {
+    //    input_history.push_back(InputRecord{ DrumInput::don_right, elapsed.count() });
+    //    inputs.push_back(DrumInput::don_right);
+    //}
+
+    //if (input.key_down(SDL_SCANCODE_Z)) {
+    //    input_history.push_back(InputRecord{ DrumInput::kat_left, elapsed.count() });
+    //    inputs.push_back(DrumInput::kat_left);
+    //}
+
+    //if (input.key_down(SDL_SCANCODE_SLASH)) {
+    //    input_history.push_back(InputRecord{ DrumInput::kat_right, elapsed.count() });
+    //    inputs.push_back(DrumInput::kat_right);
+    //}
+
+    //for (const auto& input : inputs) {
+    //    if ( input == DrumInput::don_left || input == DrumInput::don_right) {
+    //        Mix_PlayChannel(-1, don_sound, 0);
+    //    } else if (input == DrumInput::kat_left || input == DrumInput::kat_right) {
+    //        Mix_PlayChannel(-1, kat_sound, 0);
+    //    }
+    //}
+
+    //if (current_note < map.times.size()) {
+    //    for (const auto& input : inputs) {
+    //        double hit_normalized = (elapsed.count() - map.times[current_note]) / hit_range.count() + 0.5;
+    //        if (hit_normalized >= 0 && hit_normalized < 1) {
+    //            if (map.flags_vec[current_note] & NoteFlagBits::normal_or_big) {
+    //                if (map.flags_vec[current_note])
+    //                score += 300;
+    //                //particles.push_back(Particle{ Vec2{(float)elapsed.count(), 0}, {0,1},1, note.type, elapsed });
+    //                current_note++;
+    //            } else {
+    //                
+
+    //            }
+    //        }
+
+    //    }
+
+    //    //if (elapsed > map[current_note].time - (hit_range / 2)) {
+    //    //    //PlaySound(don_sound);
+    //    //    particles.push_back(Particle{ Vec2{(float)elapsed.count(), 0}, {0,1}, 1, map[current_note].type, elapsed });
+    //    //    current_note++;
+    //    //}
+    //}
+
+    //cam.position.x = elapsed.count();
+
+    ////for (int i = particles.size() - 1; i >= 0; i--) {
+    ////    Particle& p = particles[i];
+    ////    p.position += p.velocity * delta_time.count();
+
+    ////    if (elapsed - p.start > 1s) {
+    ////        particles.erase(particles.begin() + i);
+    ////    }
+    ////}
+
+
+    //Style style{};
+    //style.anchor = { 1,0 };
+    //ui.begin_group(style);
+    //std::string score_text = std::to_string(score);
+    //ui.rect(score_text.data());
+    //ui.end_group();
+
+    //SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
+    //SDL_RenderClear(renderer);
+
+    //float x = elapsed.count();
+    //Vec2 p1 = cam.world_to_screen({ x, 0.5f });
+    //Vec2 p2 = cam.world_to_screen({ x, -0.5f });
+
+    //SDL_SetRenderDrawColor(renderer, 255, 255, 0, SDL_ALPHA_OPAQUE);
+    //SDL_RenderLine(renderer, p1.x, p1.y, p2.x, p2.y);
+
+    //ui.draw();
+
+    //Vector2 drum_pos = { 0, (window_height - textures.inner_drum.height) / 2};
+    //Vector2 right_pos = drum_pos;
+    //right_pos.x += textures.inner_drum.width;
+    //Rectangle rect{ 0, 0, textures.inner_drum.width, textures.inner_drum.height };
+    //Rectangle flipped_rect = rect;
+    //flipped_rect.width *= -1;
+
+    //for (int i = inputs.size() - 1; i >= 0; i--) {
+    //    const InputRecord& input = inputs[i];
+    //    if (elapsed.count() - input.time > input_indicator_duration) {
+    //        break;
+    //    }
+
+    //    switch (input.type) {
+    //    case DrumInput::don_left:
+    //        DrawTextureRec(textures.inner_drum, rect, drum_pos, WHITE);
+    //        break;
+    //    case Input::don_right:
+    //        DrawTextureRec(textures.inner_drum, flipped_rect, right_pos, WHITE);
+    //        break;
+    //    case Input::kat_left:
+    //        DrawTextureRec(textures.outer_drum, flipped_rect, drum_pos, WHITE);
+    //        break;
+    //    case Input::kat_right:
+    //        DrawTextureRec(textures.outer_drum, rect, right_pos, WHITE);
+    //        break;
+    //    }
+    //}
+
+
+    //Vec2 target = cam.world_to_screen(cam.position);
+    //DrawCircle(target.x, target.y, 50, WHITE);
+    //DrawText((std::to_string(delta_time.count() * 1000) + " ms").data(), 100, 100, 24, WHITE);
+    //draw_map(map, cam, current_note);
+
+    //draw_particles(cam, particles, elapsed);
+
+    //EndDrawing();
+}
 
 const Vec2 note_hitbox = { 0.25, 0.25 };
 
@@ -442,51 +461,6 @@ void draw_wire_box(SDL_Renderer* renderer, const Vec2& pos, const Vec2& scale) {
     SDL_RenderLines(renderer, points, 5);
 }
 
-struct Image {
-    SDL_Texture* texture;
-    int w, h;
-};
-
-struct Color {
-    uint8_t r, g, b, a;
-};
-
-Image kat_circle;
-Image don_circle;
-Image circle_overlay;
-Image select_circle;
-
-Image load_asset(SDL_Renderer* renderer, const char* path) {
-    SDL_Surface* surface = IMG_Load(path);
-
-    Image image;
-    image.w = surface->w;
-    image.h = surface->h;
-    image.texture = SDL_CreateTextureFromSurface(renderer, surface);
-
-    SDL_DestroySurface(surface);
-
-    return image;
-}
-
-Image load_asset_tint(SDL_Renderer* renderer, const char* path, const Color& color) {
-    SDL_Surface* surface = IMG_Load(path);
-
-    SDL_SetSurfaceColorMod(surface, color.r, color.g, color.b);
-
-    Image image;
-    image.w = surface->w;
-    image.h = surface->h;
-    image.texture = SDL_CreateTextureFromSurface(renderer, surface);
-
-    SDL_DestroySurface(surface);
-
-    return image;
-}
-
-//struct Assets {
-//    std::unordered_map<const char*, Image> stuff;
-//};
 
 void draw_map_editor(SDL_Renderer* renderer, const Map& map, const Cam& cam, int current_note) {
     ZoneScoped;
@@ -521,11 +495,14 @@ void draw_map_editor(SDL_Renderer* renderer, const Map& map, const Cam& cam, int
         Vec2 center_pos = cam.world_to_screen({(float)map.times[i], 0});
 
         float scale = (map.flags_vec[i] & NoteFlagBits::normal_or_big) ? 0.9f : 1.4f;
-        Image& circle_image = (map.flags_vec[i] & NoteFlagBits::don_or_kat) ? don_circle : kat_circle;
+        Image circle_image = (map.flags_vec[i] & NoteFlagBits::don_or_kat) ? assets.get("don_circle") : assets.get("kat_circle");
+        Image circle_overlay = assets.get("circle_overlay");
+        Image select_circle = assets.get("select_circle");
 
         Vec2 circle_pos = center_pos;
         circle_pos.x -= circle_image.w / 2 * scale;
         circle_pos.y -= circle_image.h / 2 * scale;
+
 
         {
             SDL_FRect rect = { circle_pos.x, circle_pos.y, circle_image.w * scale, circle_image.h * scale };
@@ -536,6 +513,7 @@ void draw_map_editor(SDL_Renderer* renderer, const Map& map, const Cam& cam, int
         Vec2 hitbox_bounds = cam.world_to_screen_scale(note_hitbox);
         Vec2 hitbox_pos = center_pos - (hitbox_bounds / 2.0f);
         //draw_wire_box(hitbox_pos, hitbox_bounds, RED);
+
 
         if (map.selected[i]) {
             SDL_FRect rect = {
@@ -557,6 +535,7 @@ enum class EditorMode {
     select,
     insert,
 };
+
 
 class Editor {
 public:
@@ -595,10 +574,6 @@ private:
     UI ui;
 
     //Mix_Music* music;
-    Mix_Chunk* don_sound = Mix_LoadWAV("data/don.wav");
-    Mix_Chunk* kat_sound = Mix_LoadWAV("data/kat.wav");
-    Mix_Chunk* big_don_sound = Mix_LoadWAV("data/big-don.wav");
-    Mix_Chunk* big_kat_sound = Mix_LoadWAV("data/big-kat.wav");
 };
 
 Editor::Editor(const Input& _input, Audio& _audio, SDL_Renderer* _renderer)
@@ -717,6 +692,39 @@ void Editor::update(std::chrono::duration<double> delta_time) {
         load_map(&map);
     }
 
+    if (input.key_down(SDL_SCANCODE_A) && input.modifier(SDL_KMOD_LCTRL)) {
+        std::fill(map.selected.begin(), map.selected.end(), true);
+    }
+
+    float seek = 0;
+    seek += input.wheel;
+
+    if (input.key_down(SDL_SCANCODE_LEFT)) {
+        if (input.modifier(SDL_KMOD_LCTRL)) {
+            seek += 4;
+        }
+        else {
+            seek += 1;
+        }
+    }
+
+    if (input.key_down(SDL_SCANCODE_RIGHT)) {
+        if (input.modifier(SDL_KMOD_LCTRL)) {
+            seek -= 4;
+        }
+        else {
+            seek -= 1;
+        }
+    }
+
+    if (seek != 0) {
+        int i = std::round((elapsed - offset) / quarter_interval);
+        double seek_double = offset + (i - seek) * quarter_interval;
+        audio.set_position(seek_double);
+        elapsed = audio.get_position();
+    }
+    cam.position.x = elapsed;
+
     switch (editor_mode) {
     case EditorMode::select:
         if (!ui.clicked && input.mouse_down(SDL_BUTTON_LMASK)) {
@@ -770,11 +778,8 @@ void Editor::update(std::chrono::duration<double> delta_time) {
         break;
     }
 
-
-    //if (IsKeyPressed(KEY_F5)) {
-    //    Game game{};
-    //    game.run();
-    //}
+    if (input.key_down(SDL_SCANCODE_F5)) {
+    }
 
     if (input.key_down(SDL_SCANCODE_Q)) { 
         editor_mode = EditorMode::select;
@@ -823,14 +828,6 @@ void Editor::update(std::chrono::duration<double> delta_time) {
     }
 
 
-    const float& wheel = input.wheel;
-    if (wheel != 0) {
-        int i = std::round((elapsed - offset) / quarter_interval);
-        double seek = offset + (i - wheel) * quarter_interval;
-        audio.set_position(seek);
-        elapsed = audio.get_position();
-    }
-    cam.position.x = elapsed;
 
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
     SDL_RenderClear(renderer);
@@ -1007,10 +1004,6 @@ int run() {
     //
     //Game game;
 
-    kat_circle = load_asset_tint(renderer, "data/circle.png", { 60, 219, 226, 255 });
-    don_circle = load_asset_tint(renderer, "data/circle.png", { 252, 78, 60, 255 });
-    circle_overlay = load_asset(renderer, "data/circle-overlay.png");
-    select_circle = load_asset(renderer, "data/circle-select.png");
 
     SDL_Surface* circle_surface = IMG_Load("data/circle.png");
 
@@ -1034,6 +1027,7 @@ int run() {
     Input input{};
 
     Editor editor{input, audio, renderer};
+    Game game{input, audio, renderer};
     editor.init();
 
     Mix_MasterVolume(MIX_MAX_VOLUME * 0.25);
@@ -1044,6 +1038,8 @@ int run() {
     Player player{ input, audio };
 
     init_font(renderer);
+
+    assets.init(renderer);
 
     //auto future = std::async(std::launch::async, fake_loop);
 
@@ -1102,7 +1098,17 @@ int run() {
         //SDL_RenderPresent(renderer);
         //player.update(delta_time.count());
 
-        editor.update(delta_time);
+        switch (context) {
+        //case Context::Menu:
+        //    menu.update(to_editor);
+        //    break;
+        case Context::Editor:
+            editor.update(delta_time);
+            break;
+        case Context::Game:
+            game.update(delta_time);
+            break;
+        }
 
         input.end_frame();
 

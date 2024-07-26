@@ -49,9 +49,13 @@ file(GLOB_RECURSE SOURCE_FILES CONFIGURE_DEPENDS ${SOURCE_DIRECTORY}/*.cpp)
 add_executable(${PROJECT_NAME} ${SOURCE_FILES})
 
 if(MSVC)
-  target_compile_options(${PROJECT_NAME} PUBLIC "$<$<CONFIG:DEBUG>:/ZI>")
-  target_link_options(${PROJECT_NAME} PUBLIC "/INCREMENTAL")
+    target_compile_options(${PROJECT_NAME} PUBLIC "$<$<CONFIG:DEBUG>:/ZI>")
+    target_link_options(${PROJECT_NAME} PUBLIC "/INCREMENTAL")
 endif()
+
+target_compile_definitions(${PROJECT_NAME} PRIVATE
+    $<$<CONFIG:Debug>:DEBUG>
+)
 
 #target_compile_definitions(${PROJECT_NAME} PUBLIC
 #    $<$<CONFIG:RELEASE>:TRACY_ENABLE>
