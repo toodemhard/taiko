@@ -17,19 +17,21 @@ struct Style {
 struct Rect {
     Vec2 position;
     Vec2 scale;
+};
+
+struct Rector {
+    Rect rect;
     const char* text;
 };
 
 struct Button {
-    Vec2 position;
-    Vec2 scale;
+    Rect rect;
     const char* text;
-    std::function<void()> callback;
+    std::function<void()> on_click;
 };
 
 struct Slider {
-    Vec2 position;
-    Vec2 scale;
+    Rect rect;
     float fraction;
     std::function<void(float)> callback;
 };
@@ -53,33 +55,31 @@ struct Group {
 
 class UI {
 public:
-    UI(const Input& _input, SDL_Renderer* renderer, int _screen_width, int _screen_height);
-    ~UI();
+    UI() = default;
+    UI(int _screen_width, int _screen_height);
+
     void button(const char* text, std::function<void()> on_click);
     void slider(float fraction, std::function<void(float)> on_input);
     void rect(const char* text);
-
-    void draw(SDL_Renderer* renderer);
-
     void begin_group(const Style& style);
     void end_group();
+
+    void input(Input& input);
+
+    void draw(SDL_Renderer* renderer);
 
     bool clicked = false;
 
 private:
-    const Input& input;
     TTF_Font* font;
 
     int screen_width;
     int screen_height;
-    const int font_size = 36;
+    int font_size = 36;
     std::vector<Button> buttons;
-    std::vector<Rect> rects;
+    std::vector<Rector> rects;
     std::vector<Slider> sliders;
     std::vector<Group> groups;
-
-    SDL_Surface* canvas;
-    SDL_Texture* canvas_texture;
 
     bool in_group = false;
 };

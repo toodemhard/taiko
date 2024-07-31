@@ -5,33 +5,7 @@
 #include <format>
 #include <iostream>
 
-UI::UI(const Input& _input, SDL_Renderer* renderer, int _screen_width, int _screen_height)
-    : input{ _input }, screen_width{ _screen_width }, screen_height{ _screen_height } {
-
-    font = TTF_OpenFont("data/JetBrainsMonoNLNerdFont-Regular.ttf", 36);
-    canvas = SDL_CreateSurface(screen_width, screen_height, SDL_PIXELFORMAT_ABGR8888);
-    canvas_texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STREAMING, screen_width, screen_height);
-    //SDL_Createtexu
-}
-
-UI::~UI() {
-    SDL_DestroySurface(canvas);
-    SDL_DestroyTexture(canvas_texture);
-}
-
-//void draw_text(SDL_Surface* surface, TTF_Font* font, const char* text, Vec2 position) {
-//    ZoneScoped;
-//    SDL_Surface* rendered_text = TTF_RenderText_Solid(font, text, SDL_Color{ 255, 255, 255, 255});
-//
-//    SDL_Rect dst_rect;
-//    dst_rect.x = position.x;
-//    dst_rect.y = position.y;
-//    dst_rect.w = rendered_text->w;
-//    dst_rect.h = rendered_text->h;
-//    SDL_BlitSurface(rendered_text, NULL, surface, &dst_rect);
-//
-//    SDL_DestroySurface(rendered_text);
-//}
+UI::UI(int _screen_width, int _screen_height) : screen_width{ _screen_width }, screen_height{ _screen_height } {}
 
 void UI::begin_group(const Style& style) {
     groups.push_back(Group{ {},  style });
@@ -43,20 +17,23 @@ void UI::end_group() {
 
     Group& group = groups[groups.size() - 1];
 
-	float total_width = 50;
+	float total_width = 0;
 	for (auto& e: group.children) {
-        switch (e.type) {
-        case ElementType::slider:
-            total_width += sliders[e.index].scale.x;
-            break;
-        case ElementType::button:
-            total_width += buttons[e.index].scale.x;
-            break;
-        case ElementType::rect:
-            total_width += rects[e.index].scale.x;
-            break;
+        Rect& rect = [&]() -> Rect& {
+            switch (e.type) {
+            case ElementType::slider:
+                return sliders[e.index].rect;
+                break;
+            case ElementType::button:
+                return buttons[e.index].rect;
+                break;
+            case ElementType::rect:
+                return rects[e.index].rect;
+                break;
+            }
+        }();
 
-        }
+        total_width += rect.scale.x;
 	}
 
     float total_height = font_size;
@@ -64,59 +41,54 @@ void UI::end_group() {
 	Vec2 start = {(screen_width - total_width) * group.style.anchor.x, (screen_height - total_height) * group.style.anchor.y};
 
 	for (auto& e: group.children) {
-        switch (e.type) {
-        case ElementType::slider:
-        {
-            Slider& slider = sliders[e.index];
-			slider.position = {start.x, start.y};
+        Rect& rect = [&]() -> Rect& {
+            switch (e.type) {
+            case ElementType::slider:
+                return sliders[e.index].rect;
+                break;
+            case ElementType::button:
+                return buttons[e.index].rect;
+                break;
+            case ElementType::rect:
+                return rects[e.index].rect;
+                break;
+            }
+        }();
 
-			const Vec2& p1 = slider.position;
-			Vec2 p2 = slider.position + slider.scale;
-
-			if (input.mouse_down(SDL_BUTTON_LEFT) && input.mouse_pos.x > p1.x && input.mouse_pos.y > p1.y && input.mouse_pos.x < p2.x && input.mouse_pos.y < p2.y) {
-                slider.callback((input.mouse_pos.x - start.x) / slider.scale.x);
-                clicked = true;
-			}
-
-			start.x += slider.scale.x + 50;
-
-            break;
-        }
-        case ElementType::button:
-        {
-            Button& button = buttons[e.index];
-			button.position = {start.x, start.y};
-
-			const Vec2& p1 = button.position;
-			Vec2 p2 = button.position + button.scale;
-
-			if (input.mouse_down(SDL_BUTTON_LEFT) && input.mouse_pos.x > p1.x && input.mouse_pos.y > p1.y && input.mouse_pos.x < p2.x && input.mouse_pos.y < p2.y) {
-                button.callback();
-                clicked = true;
-			}
-
-			start.x += button.scale.x + 50;
-
-            break;
-        }
-        case ElementType::rect:
-        {
-			Rect& rect = rects[e.index];
-			rect.position = {start.x, start.y};
-			start.x += rect.scale.x + 50;
-
-            break;
-        }
-        }
+        rect.position = { start.x, start.y };
+        start.x += rect.scale.x + 50;
 	}
 }
 
-void UI::rect(const char* text) {
-    int width;
-    TTF_MeasureUTF8(font, text, 9999, &width, NULL);
+void UI::input(Input& input) {
+    for (auto& button : buttons) {
+        const auto& rect = button.rect;
+        const Vec2& p1 = rect.position;
+        const Vec2 p2 = rect.position + rect.scale;
 
-    int height = TTF_FontHeight(font);
-    rects.push_back(Rect{ Vec2{0, 0}, Vec2{(float)width, (float)height}, text});
+        if (input.mouse_down(SDL_BUTTON_LEFT) && input.mouse_pos.x > p1.x && input.mouse_pos.y > p1.y && input.mouse_pos.x < p2.x && input.mouse_pos.y < p2.y) {
+            button.on_click();
+            clicked = true;
+        }
+    }
+
+    for (auto& slider : sliders) {
+        const auto& rect = slider.rect;
+        const Vec2& p1 = rect.position;
+        const Vec2 p2 = rect.position + rect.scale;
+        if (input.mouse_down(SDL_BUTTON_LEFT) && input.mouse_pos.x > p1.x && input.mouse_pos.y > p1.y && input.mouse_pos.x < p2.x && input.mouse_pos.y < p2.y) {
+            slider.callback((input.mouse_pos.x - p1.x) / rect.scale.x);
+            clicked = true;
+        }
+    }
+}
+
+void UI::rect(const char* text) {
+    int width = font_width(text, 36);
+
+    int height = font_height(36);
+
+    rects.push_back(Rector{ Rect{Vec2{0, 0}, Vec2{(float)width, (float)height}}, text });
 
     if (in_group) {
         groups[groups.size() - 1].children.push_back(ElementHandle{ ElementType::rect, rects.size() - 1 });
@@ -125,7 +97,7 @@ void UI::rect(const char* text) {
 
 
 void UI::slider(float fraction, std::function<void(float)> on_input) {
-    sliders.push_back({ {}, {500, 36}, fraction, on_input });
+    sliders.push_back({ Rect{{}, {500, 36}}, fraction, on_input });
 
     if (in_group) {
         groups[groups.size() - 1].children.push_back({ ElementType::slider, sliders.size() - 1 });
@@ -133,10 +105,9 @@ void UI::slider(float fraction, std::function<void(float)> on_input) {
 }
 
 void UI::button(const char* text, std::function<void()> on_click) {
-    int width;
-    TTF_MeasureUTF8(font, text, 9999, &width, NULL);
+    int width = font_width(text, 36);
 
-    int height = TTF_FontHeight(font);
+    int height = font_height(36);
     buttons.push_back( Button{ Vec2{0, 0}, Vec2{(float)width, (float)height}, text, on_click});
 
     if (in_group) {
@@ -144,15 +115,35 @@ void UI::button(const char* text, std::function<void()> on_click) {
     }
 }
 
+SDL_FPoint vec2_to_sdl_fpoint(const Vec2& vec) {
+    return { vec.x, vec.y };
+}
+
+void draw_wire_box(SDL_Renderer* renderer, const Rect& rect) {
+    SDL_FPoint points[5];
+    const Vec2& pos = rect.position;
+    const Vec2& scale = rect.scale;
+    points[0] = vec2_to_sdl_fpoint(pos);
+    points[1] = vec2_to_sdl_fpoint(pos + Vec2{1, 0} * scale);
+    points[2] = vec2_to_sdl_fpoint(pos + scale);
+    points[3] = vec2_to_sdl_fpoint(pos + Vec2{0, 1} * scale);
+    points[4] = points[0];
+
+    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+    SDL_RenderLines(renderer, points, 5);
+}
+
 void UI::draw(SDL_Renderer* renderer) {
     ZoneScoped;
 
     for (auto& e : rects) {
-        draw_text(renderer, e.text, e.position);
+        draw_text(renderer, e.text, e.rect.position);
+        draw_wire_box(renderer, e.rect);
     }
 
     for (auto& e : buttons) {
-        draw_text(renderer, e.text, e.position);
+        draw_text(renderer, e.text, e.rect.position);
+        draw_wire_box(renderer, e.rect);
     }
 
     //for (auto& e : sliders) {

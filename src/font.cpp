@@ -70,3 +70,11 @@ void draw_text(SDL_Renderer* renderer, const char* text, Vec2 position)
         ++text;
     }
 }
+
+float font_width(const char* text, float font_size) {
+    return 100;
+}
+
+float font_height(float font_size) {
+    return font_size;
+}
