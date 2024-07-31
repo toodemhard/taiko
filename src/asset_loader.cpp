@@ -2,23 +2,22 @@
 
 #include "asset_loader.h"
 #include <SDL3_image/SDL_image.h>
-#include <optional>
 #include <format>
 #include <iostream>
+#include <filesystem>
 
 #include "debug_macros.h"
-#include "color.h"
 
-std::string asset_path(const char* path) {
-    return std::string("data/") + std::string(path);
+std::filesystem::path asset_path(const char* path) {
+    return "data/" + std::string(path);
 }
 
 Image load_asset(SDL_Renderer* renderer, const char* path) {
-    SDL_Surface* surface = IMG_Load(asset_path(path).data());
+    SDL_Surface* surface = IMG_Load(asset_path(path).string().data());
 
     Image image;
-    image.w = surface->w;
-    image.h = surface->h;
+    image.width = surface->w;
+    image.height = surface->h;
     image.texture = SDL_CreateTextureFromSurface(renderer, surface);
 
     SDL_DestroySurface(surface);
@@ -27,13 +26,13 @@ Image load_asset(SDL_Renderer* renderer, const char* path) {
 }
 
 Image load_asset_tint(SDL_Renderer* renderer, const char* path, const Color& color) {
-    SDL_Surface* surface = IMG_Load(asset_path(path).data());
+    SDL_Surface* surface = IMG_Load(asset_path(path).string().data());
 
     SDL_SetSurfaceColorMod(surface, color.r, color.g, color.b);
 
     Image image;
-    image.w = surface->w;
-    image.h = surface->h;
+    image.width = surface->w;
+    image.height = surface->h;
     image.texture = SDL_CreateTextureFromSurface(renderer, surface);
 
     SDL_DestroySurface(surface);
@@ -41,13 +40,8 @@ Image load_asset_tint(SDL_Renderer* renderer, const char* path, const Color& col
     return image;
 }
 
-struct AssetLoadInfo {
-    const char* file_name;
-    const char* name;
-    std::optional<Color> color;
-};
 
-Image Assets::get(const char* name) {
+Image Assets::get_image(const char* name) {
     ZoneScoped;
 
     auto search = index.find(name);
@@ -59,19 +53,24 @@ Image Assets::get(const char* name) {
     return things[search->second];
 }
 
-void Assets::init(SDL_Renderer* renderer) {
+Mix_Chunk* Assets::get_sound(const char* name) {
     ZoneScoped;
 
-    std::vector<AssetLoadInfo> infos = {
-        {"circle-overlay.png", "circle_overlay"},
-        {"circle-select.png", "select_circle"},
-        {"circle.png", "kat_circle", Color{ 60, 219, 226, 255 }},
-        {"circle.png", "don_circle", Color{ 252, 78, 60, 255 }},
-    };
+    auto search = sounds.find(name);
+    if (search == sounds.end()) {
+        DEBUG_PANIC(std::format("could not find asset: {}\n", name))
+        return {};
+    }
 
-    things = std::vector<Image>(infos.size()); 
-    for (int i = 0; i < infos.size(); i++) {
-        const auto& info = infos[i];
+    return search->second;
+}
+
+void Assets::init(SDL_Renderer* renderer, std::vector<ImageLoadInfo> image_list, std::vector<SoundLoadInfo> sound_list) {
+    ZoneScoped;
+
+    things = std::vector<Image>(image_list.size()); 
+    for (int i = 0; i < image_list.size(); i++) {
+        const auto& info = image_list[i];
         
         Image image;
         if (!info.color.has_value()) {
@@ -84,4 +83,9 @@ void Assets::init(SDL_Renderer* renderer) {
         things[i] = image;
         index[info.name] = i;
     }
-}
+
+    for (int i = 0; i < sound_list.size(); i++) {
+        const auto& info = sound_list[i];
+        sounds[info.name] = Mix_LoadWAV(asset_path(info.file_name).string().data()); 
+    } 
+} 
