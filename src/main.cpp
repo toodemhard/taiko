@@ -11,6 +11,7 @@
 #include <filesystem>
 #include <array>
 #include <future>
+#include <queue>
 
 #include <SDL3/SDL.h>
 #include <SDL3_image/SDL_image.h>
@@ -38,14 +39,43 @@ const std::chrono::duration<double> perfect_range = 30ms;
 const float circle_radius = 0.1f;
 const float circle_outer_radius = 0.11f;
 
-Mix_Chunk* don_sound = Mix_LoadWAV("data/don.wav");
-Mix_Chunk* kat_sound = Mix_LoadWAV("data/kat.wav");
-Mix_Chunk* big_don_sound = Mix_LoadWAV("data/big-don.wav");
-Mix_Chunk* big_kat_sound = Mix_LoadWAV("data/big-kat.wav");
-
-class Assets;
 
 Assets assets;
+
+//struct Globals {
+//    Input input;
+//    Audio audio;
+//};
+
+enum class EventType {
+    EditorToTest,
+    TestToEditor,
+};
+
+class EventQueue {
+public:
+    bool pop_event(EventType* event);
+    void push_event(EventType event);
+private:
+    std::queue<EventType> events{};
+};
+
+void EventQueue::push_event(EventType event) {
+    events.push(event);
+}
+
+bool EventQueue::pop_event(EventType* event) {
+    if (events.empty()) {
+        return false;
+    }
+
+    *event = events.front();
+    events.pop();
+
+    return true;
+}
+
+EventQueue g_event_queue;
 
 
 enum NoteFlagBits : uint8_t {
@@ -91,34 +121,6 @@ Vec2 Cam::screen_to_world(const Vec2& point) const {
 }
 
 
-//void draw_map(const std::vector<Note>& map, const Cam& cam, int current_note) {
-//    if (map.size() == 0) {
-//        return;
-//    }
-//
-//    int right = map.size() - 1;
-//    constexpr float circle_padding = 0.2f;
-//    float right_bound = cam.position.x + cam.bounds.x / 2 + circle_padding;
-//
-//    for (int i = current_note; i < map.size(); i++) {
-//        if (map[i].time.count() >= right_bound) {
-//            right = i - 1;
-//            break;
-//        }
-//    }
-//
-//    for(int i = right; i >= current_note; i--) {
-//        const Note& note = map[i];
-//        Vec2 circle_pos = cam.world_to_screen({(float)note.time.count(), 0});
-//        Color color = (note.type == NoteType::don) ? RED : BLUE;
-//
-//        DrawCircle(circle_pos.x, circle_pos.y, cam.world_to_screen_scale(circle_outer_radius), WHITE);
-//        DrawCircle(circle_pos.x, circle_pos.y, cam.world_to_screen_scale(circle_radius), color);
-//    }
-//}
-//
-//const float particle_duration = 1.0f;
-//
 //struct Particle {
 //    Vec2 position;
 //    Vec2 velocity;
@@ -126,7 +128,7 @@ Vec2 Cam::screen_to_world(const Vec2& point) const {
 //    NoteType type;
 //    std::chrono::duration<double> start;
 //};
-//
+
 //void draw_particles(const Cam& cam, const std::vector<Particle>& particles, std::chrono::duration<double> now) {
 //    float outer_radius = cam.world_to_screen_scale(circle_outer_radius);
 //    float inner_radius = cam.world_to_screen_scale(circle_radius);
@@ -149,10 +151,12 @@ Vec2 Cam::screen_to_world(const Vec2& point) const {
 //    }
 //}
 
-
-
 class Map {
 public:
+    Map() = default;
+    //Map(const Map& map) {
+    //    std::cout << "copy\n";
+    //}
     void insert_note(double time, NoteFlags flags);
     void remove_note(int i);
 
@@ -168,6 +172,10 @@ public:
         selected = std::vector<bool>(times.size(), false);
     }
     
+    std::string music_file;
+    double bpm;
+    double offset;
+
     std::vector<double> times;
     std::vector<NoteFlags> flags_vec;
     std::vector<bool> selected;
@@ -203,6 +211,121 @@ void load_map(Map* map) {
     iarchive(*map);
 }
 
+void draw_map(SDL_Renderer* renderer, const Map& map, const Cam& cam, int current_note) {
+    ZoneScoped;
+
+    int right = map.times.size() - 1;
+    int left = 0;
+    constexpr float circle_padding = 0.2f;
+    float right_bound = cam.position.x + cam.bounds.x / 2 + circle_padding;
+    float left_bound = cam.position.x - (cam.bounds.x / 2 + circle_padding);
+
+    for (int i = current_note; i < map.times.size(); i++) {
+        if (map.times[i] >= right_bound) {
+            right = i - 1;
+            break;
+        }
+    }
+    for (int i = current_note; i >= 0; i--) {
+        if (i >= map.times.size()) {
+            continue;
+        }
+        if (map.times[i] <= left_bound) {
+            left = i + 1;
+            break;
+        }
+    }
+
+    for (int i = right; i >= left; i--) {
+        Vec2 center_pos = cam.world_to_screen({ (float)map.times[i], 0 });
+
+        float scale = (map.flags_vec[i] & NoteFlagBits::normal_or_big) ? 0.9f : 1.4f;
+        Image circle_image = (map.flags_vec[i] & NoteFlagBits::don_or_kat) ? assets.get_image("don_circle") : assets.get_image("kat_circle");
+        Image circle_overlay = assets.get_image("circle_overlay");
+        Image select_circle = assets.get_image("select_circle");
+
+        Vec2 circle_pos = center_pos;
+        circle_pos.x -= circle_image.width / 2 * scale;
+        circle_pos.y -= circle_image.height / 2 * scale;
+
+
+        {
+            SDL_FRect rect = { circle_pos.x, circle_pos.y, circle_image.width * scale, circle_image.height * scale };
+            SDL_RenderTexture(renderer, circle_image.texture, NULL, &rect);
+            SDL_RenderTexture(renderer, circle_overlay.texture, NULL, &rect);
+        }
+
+    }
+}
+
+const Vec2 note_hitbox = { 0.25, 0.25 };
+
+void draw_map_editor(SDL_Renderer* renderer, const Map& map, const Cam& cam, int current_note) {
+    ZoneScoped;
+
+    if (map.times.size() == 0) {
+        return;
+    }
+
+    int right = map.times.size() - 1;
+    int left = 0;
+    constexpr float circle_padding = 0.2f;
+    float right_bound = cam.position.x + cam.bounds.x / 2 + circle_padding;
+    float left_bound = cam.position.x - (cam.bounds.x / 2 + circle_padding);
+
+    for (int i = current_note; i < map.times.size(); i++) {
+        if (map.times[i] >= right_bound) {
+            right = i - 1;
+            break;
+        }
+    }
+    for (int i = current_note; i >= 0; i--) {
+        if (i >= map.times.size()) {
+            continue;
+        }
+        if (map.times[i] <= left_bound) {
+            left = i + 1;
+            break;
+        }
+    }
+
+    for(int i = right; i >= left; i--) {
+        Vec2 center_pos = cam.world_to_screen({(float)map.times[i], 0});
+
+        float scale = (map.flags_vec[i] & NoteFlagBits::normal_or_big) ? 0.9f : 1.4f;
+        Image circle_image = (map.flags_vec[i] & NoteFlagBits::don_or_kat) ? assets.get_image("don_circle") : assets.get_image("kat_circle");
+        Image circle_overlay = assets.get_image("circle_overlay");
+        Image select_circle = assets.get_image("select_circle");
+
+        Vec2 circle_pos = center_pos;
+        circle_pos.x -= circle_image.width / 2 * scale;
+        circle_pos.y -= circle_image.height / 2 * scale;
+
+
+        {
+            SDL_FRect rect = { circle_pos.x, circle_pos.y, circle_image.width * scale, circle_image.height * scale };
+            SDL_RenderTexture(renderer, circle_image.texture, NULL, &rect);
+            SDL_RenderTexture(renderer, circle_overlay.texture, NULL, &rect);
+        }
+
+        Vec2 hitbox_bounds = cam.world_to_screen_scale(note_hitbox);
+        Vec2 hitbox_pos = center_pos - (hitbox_bounds / 2.0f);
+        //draw_wire_box(hitbox_pos, hitbox_bounds, RED);
+
+
+        if (map.selected[i]) {
+            SDL_FRect rect = {
+                center_pos.x - select_circle.width / 2 * scale,
+                center_pos.y - select_circle.height / 2 * scale,
+                select_circle.width * scale,
+                select_circle.height * scale,
+            };
+            SDL_RenderTexture(renderer, select_circle.texture, NULL, &rect);
+        }
+    }
+}
+
+
 //using InputFlags = uint8_t;
 //
 //enum InputFlagBits : InputFlags {
@@ -230,21 +353,24 @@ struct BigNoteHits {
 
 class Game {
 public:
-    Game(const Input& _input, Audio& _audio, SDL_Renderer* _renderer);
+    Game() {};
+    Game(Input* _input, Audio* _audio, SDL_Renderer* _renderer, Map _map);
+    //Game& operator=(const Game&) = default;
+    void start();
     void update(std::chrono::duration<double> delta_time);
 private:
-    const Input& input;
-    Audio& audio;
-    SDL_Renderer* renderer;
-    Cam cam = {{0,0}, {4,3}};
+    Input* input_ptr = nullptr;
+    Audio* audio_ptr = nullptr;
+    SDL_Renderer* renderer = nullptr;
+    Cam cam = {{0,0}, {2,1.5f}};
 
     int current_note = 0;
 
     int score = 0;
 
-    std::chrono::time_point<std::chrono::steady_clock> start = std::chrono::high_resolution_clock::now();
+    //std::chrono::time_point<std::chrono::steady_clock> start_time = std::chrono::high_resolution_clock::now();
 
-    UI ui;
+    UI ui{};
 
     std::vector<InputRecord> input_history;
 
@@ -252,84 +378,105 @@ private:
     //std::vector<Particle> particles;
 
     BigNoteHits current_big_note_status;
+
+    bool auto_mode = false;
+
+    bool initialized = false;
 };
 
-Game::Game(const Input& _input, Audio& _audio, SDL_Renderer* _renderer)
-    : input{ _input }, audio{ _audio }, renderer{ _renderer }, ui{ input, renderer, window_width, window_height } {}
+Game::Game(Input* _input, Audio* _audio, SDL_Renderer* _renderer, Map _map)
+    : input_ptr{ _input }, audio_ptr{ _audio }, renderer{ _renderer }, map{ _map }, ui{ window_width, window_height } {
+}
 
+const double input_indicator_duration = 0.1;
 
-const float input_indicator_duration = 0.1f;
+void Game::start() {
+    audio_ptr->play();
+}
 
 void Game::update(std::chrono::duration<double> delta_time) {
-    //auto now = std::chrono::high_resolution_clock::now();
-    //std::chrono::duration<double> elapsed = now - start;
 
-    ////bool inputs[4] = { false, false, false, false };
-    ////std::array<bool, 4> inputs = { false, false, false, false };
-    //std::vector<DrumInput> inputs{};
+    Input& input = *input_ptr;
+    if (!initialized) {
+        this->start();
+        initialized = true;
+    }
 
-    //if (input.key_down(SDL_SCANCODE_X)) {
-    //    input_history.push_back(InputRecord{ DrumInput::don_left, elapsed.count() });
-    //    inputs.push_back(DrumInput::don_left);
-    //}
+    double elapsed = audio_ptr->get_position();
 
-    //if (input.key_down(SDL_SCANCODE_PERIOD)) {
-    //    input_history.push_back(InputRecord{ DrumInput::don_right, elapsed.count() });
-    //    inputs.push_back(DrumInput::don_right);
-    //}
+    if (input.key_down(SDL_SCANCODE_ESCAPE)) {
+        g_event_queue.push_event(EventType::TestToEditor);
+        return;
+    }
 
-    //if (input.key_down(SDL_SCANCODE_Z)) {
-    //    input_history.push_back(InputRecord{ DrumInput::kat_left, elapsed.count() });
-    //    inputs.push_back(DrumInput::kat_left);
-    //}
 
-    //if (input.key_down(SDL_SCANCODE_SLASH)) {
-    //    input_history.push_back(InputRecord{ DrumInput::kat_right, elapsed.count() });
-    //    inputs.push_back(DrumInput::kat_right);
-    //}
+    //bool inputs[4] = { false, false, false, false };
+    //std::array<bool, 4> inputs = { false, false, false, false };
+    std::vector<DrumInput> inputs{};
 
-    //for (const auto& input : inputs) {
-    //    if ( input == DrumInput::don_left || input == DrumInput::don_right) {
-    //        Mix_PlayChannel(-1, don_sound, 0);
-    //    } else if (input == DrumInput::kat_left || input == DrumInput::kat_right) {
-    //        Mix_PlayChannel(-1, kat_sound, 0);
+    if (input.key_down(SDL_SCANCODE_X)) {
+        input_history.push_back(InputRecord{ DrumInput::don_left, elapsed });
+        inputs.push_back(DrumInput::don_left);
+    }
+
+    if (input.key_down(SDL_SCANCODE_PERIOD)) {
+        input_history.push_back(InputRecord{ DrumInput::don_right, elapsed });
+        inputs.push_back(DrumInput::don_right);
+    }
+
+    if (input.key_down(SDL_SCANCODE_Z)) {
+        input_history.push_back(InputRecord{ DrumInput::kat_left, elapsed });
+        inputs.push_back(DrumInput::kat_left);
+    }
+
+    if (input.key_down(SDL_SCANCODE_SLASH)) {
+        input_history.push_back(InputRecord{ DrumInput::kat_right, elapsed });
+        inputs.push_back(DrumInput::kat_right);
+    }
+
+    for (const auto& input : inputs) {
+        if ( input == DrumInput::don_left || input == DrumInput::don_right) {
+            Mix_PlayChannel(-1, assets.get_sound("don"), 0);
+        } else if (input == DrumInput::kat_left || input == DrumInput::kat_right) {
+            Mix_PlayChannel(-1, assets.get_sound("kat"), 0);
+        }
+    }
+
+
+    if (current_note < map.times.size()) {
+        for (const auto& input : inputs) {
+            double hit_normalized = (elapsed - map.times[current_note]) / hit_range.count() + 0.5;
+            if (hit_normalized >= 0 && hit_normalized < 1) {
+                if (map.flags_vec[current_note] & NoteFlagBits::normal_or_big) {
+                    if (map.flags_vec[current_note])
+                    score += 300;
+                    //particles.push_back(Particle{ Vec2{(float)elapsed.count(), 0}, {0,1},1, note.type, elapsed });
+                    current_note++;
+                } else {
+                    
+
+                }
+            }
+
+        }
+
+        //if (elapsed > map[current_note].time - (hit_range / 2)) {
+        //    //PlaySound(don_sound);
+        //    particles.push_back(Particle{ Vec2{(float)elapsed.count(), 0}, {0,1}, 1, map[current_note].type, elapsed });
+        //    current_note++;
+        //}
+    }
+
+    cam.position.x = elapsed;
+
+    //for (int i = particles.size() - 1; i >= 0; i--) {
+    //    Particle& p = particles[i];
+    //    p.position += p.velocity * delta_time.count();
+
+    //    if (elapsed - p.start > 1s) {
+    //        particles.erase(particles.begin() + i);
     //    }
     //}
-
-    //if (current_note < map.times.size()) {
-    //    for (const auto& input : inputs) {
-    //        double hit_normalized = (elapsed.count() - map.times[current_note]) / hit_range.count() + 0.5;
-    //        if (hit_normalized >= 0 && hit_normalized < 1) {
-    //            if (map.flags_vec[current_note] & NoteFlagBits::normal_or_big) {
-    //                if (map.flags_vec[current_note])
-    //                score += 300;
-    //                //particles.push_back(Particle{ Vec2{(float)elapsed.count(), 0}, {0,1},1, note.type, elapsed });
-    //                current_note++;
-    //            } else {
-    //                
-
-    //            }
-    //        }
-
-    //    }
-
-    //    //if (elapsed > map[current_note].time - (hit_range / 2)) {
-    //    //    //PlaySound(don_sound);
-    //    //    particles.push_back(Particle{ Vec2{(float)elapsed.count(), 0}, {0,1}, 1, map[current_note].type, elapsed });
-    //    //    current_note++;
-    //    //}
-    //}
-
-    //cam.position.x = elapsed.count();
-
-    ////for (int i = particles.size() - 1; i >= 0; i--) {
-    ////    Particle& p = particles[i];
-    ////    p.position += p.velocity * delta_time.count();
-
-    ////    if (elapsed - p.start > 1s) {
-    ////        particles.erase(particles.begin() + i);
-    ////    }
-    ////}
 
 
     //Style style{};
@@ -339,59 +486,63 @@ void Game::update(std::chrono::duration<double> delta_time) {
     //ui.rect(score_text.data());
     //ui.end_group();
 
-    //SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
-    //SDL_RenderClear(renderer);
+    ui.begin_group(Style{ {1,1} }); 
+        auto frame_time = std::to_string(((float)std::chrono::duration_cast<std::chrono::microseconds>(delta_time).count()) / 1000) + " ms";
+        ui.rect(frame_time.data());
+    ui.end_group();
 
-    //float x = elapsed.count();
-    //Vec2 p1 = cam.world_to_screen({ x, 0.5f });
-    //Vec2 p2 = cam.world_to_screen({ x, -0.5f });
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
+    SDL_RenderClear(renderer);
 
-    //SDL_SetRenderDrawColor(renderer, 255, 255, 0, SDL_ALPHA_OPAQUE);
-    //SDL_RenderLine(renderer, p1.x, p1.y, p2.x, p2.y);
+    float x = elapsed;
+    Vec2 p1 = cam.world_to_screen({ x, 0.5f });
+    Vec2 p2 = cam.world_to_screen({ x, -0.5f });
 
-    //ui.draw();
+    SDL_SetRenderDrawColor(renderer, 255, 255, 0, SDL_ALPHA_OPAQUE);
+    SDL_RenderLine(renderer, p1.x, p1.y, p2.x, p2.y);
 
-    //Vector2 drum_pos = { 0, (window_height - textures.inner_drum.height) / 2};
-    //Vector2 right_pos = drum_pos;
-    //right_pos.x += textures.inner_drum.width;
-    //Rectangle rect{ 0, 0, textures.inner_drum.width, textures.inner_drum.height };
-    //Rectangle flipped_rect = rect;
-    //flipped_rect.width *= -1;
+    ui.draw(renderer);
 
-    //for (int i = inputs.size() - 1; i >= 0; i--) {
-    //    const InputRecord& input = inputs[i];
-    //    if (elapsed.count() - input.time > input_indicator_duration) {
-    //        break;
-    //    }
+    auto inner_drum = assets.get_image("inner_drum");
+    auto outer_drum = assets.get_image("outer_drum");
+    Vec2 drum_pos = { 0, (window_height - inner_drum.height) / 2};
 
-    //    switch (input.type) {
-    //    case DrumInput::don_left:
-    //        DrawTextureRec(textures.inner_drum, rect, drum_pos, WHITE);
-    //        break;
-    //    case Input::don_right:
-    //        DrawTextureRec(textures.inner_drum, flipped_rect, right_pos, WHITE);
-    //        break;
-    //    case Input::kat_left:
-    //        DrawTextureRec(textures.outer_drum, flipped_rect, drum_pos, WHITE);
-    //        break;
-    //    case Input::kat_right:
-    //        DrawTextureRec(textures.outer_drum, rect, right_pos, WHITE);
-    //        break;
-    //    }
-    //}
+    auto left_rect = SDL_FRect{ drum_pos.x, drum_pos.y, (float)inner_drum.width, (float)inner_drum.height };
+    auto right_rect = SDL_FRect{ drum_pos.x + inner_drum.width, drum_pos.y, (float)inner_drum.width, (float)inner_drum.height };
+
+    for (int i = input_history.size() - 1; i >= 0; i--) {
+        const InputRecord& input = input_history[i];
+        if (elapsed - input.time > input_indicator_duration) {
+            break;
+        }
+
+        switch (input.type) {
+        case DrumInput::don_left:
+            SDL_RenderTexture(renderer, inner_drum.texture, NULL, &left_rect);
+            break;
+        case DrumInput::don_right:
+            SDL_RenderTextureRotated(renderer, inner_drum.texture, NULL, &right_rect, 0, NULL, SDL_FLIP_HORIZONTAL);
+            break;
+        case DrumInput::kat_left:
+            SDL_RenderTextureRotated(renderer, outer_drum.texture, NULL, &left_rect, 0, NULL, SDL_FLIP_HORIZONTAL);
+            break;
+        case DrumInput::kat_right:
+            SDL_RenderTexture(renderer, outer_drum.texture, NULL, &right_rect);
+            break;
+        }
+    }
 
 
-    //Vec2 target = cam.world_to_screen(cam.position);
+    Vec2 target = cam.world_to_screen(cam.position);
     //DrawCircle(target.x, target.y, 50, WHITE);
     //DrawText((std::to_string(delta_time.count() * 1000) + " ms").data(), 100, 100, 24, WHITE);
-    //draw_map(map, cam, current_note);
+    draw_map_editor(renderer, map, cam, current_note);
 
     //draw_particles(cam, particles, elapsed);
 
-    //EndDrawing();
+    SDL_RenderPresent(renderer);
 }
 
-const Vec2 note_hitbox = { 0.25, 0.25 };
 
 std::vector<int> note_box_intersection(const Map& map, Vec2 start_pos, Vec2 end_pos) {
     if (end_pos.x < start_pos.x) {
@@ -447,85 +598,21 @@ std::optional<int> note_point_intersection(const Map& map, const Vec2& point, co
     return min;
 }
 
-SDL_FPoint vec2_to_sdl_fpoint(const Vec2& vec) {
-    return { vec.x, vec.y };
-}
-
-void draw_wire_box(SDL_Renderer* renderer, const Vec2& pos, const Vec2& scale) {
-    SDL_FPoint points[5];
-    points[0] = vec2_to_sdl_fpoint(pos);
-    points[1] = vec2_to_sdl_fpoint(pos + Vec2{1, 0} *scale);
-    points[2] = vec2_to_sdl_fpoint(pos + scale);
-    points[3] = vec2_to_sdl_fpoint(pos + Vec2{0, 1} *scale);
-    points[4] = points[0];
-    SDL_RenderLines(renderer, points, 5);
-}
-
-
-void draw_map_editor(SDL_Renderer* renderer, const Map& map, const Cam& cam, int current_note) {
-    ZoneScoped;
-
-    if (map.times.size() == 0) {
-        return;
-    }
-
-    int right = map.times.size() - 1;
-    int left = 0;
-    constexpr float circle_padding = 0.2f;
-    float right_bound = cam.position.x + cam.bounds.x / 2 + circle_padding;
-    float left_bound = cam.position.x - (cam.bounds.x / 2 + circle_padding);
-
-    for (int i = current_note; i < map.times.size(); i++) {
-        if (map.times[i] >= right_bound) {
-            right = i - 1;
-            break;
-        }
-    }
-    for (int i = current_note; i >= 0; i--) {
-        if (i >= map.times.size()) {
-            continue;
-        }
-        if (map.times[i] <= left_bound) {
-            left = i + 1;
-            break;
-        }
-    }
-
-    for(int i = right; i >= left; i--) {
-        Vec2 center_pos = cam.world_to_screen({(float)map.times[i], 0});
-
-        float scale = (map.flags_vec[i] & NoteFlagBits::normal_or_big) ? 0.9f : 1.4f;
-        Image circle_image = (map.flags_vec[i] & NoteFlagBits::don_or_kat) ? assets.get("don_circle") : assets.get("kat_circle");
-        Image circle_overlay = assets.get("circle_overlay");
-        Image select_circle = assets.get("select_circle");
-
-        Vec2 circle_pos = center_pos;
-        circle_pos.x -= circle_image.w / 2 * scale;
-        circle_pos.y -= circle_image.h / 2 * scale;
+//SDL_FPoint vec2_to_sdl_fpoint(const Vec2& vec) {
+//    return { vec.x, vec.y };
+//}
+//
+//void draw_wire_box(SDL_Renderer* renderer, const Vec2& pos, const Vec2& scale) {
+//    SDL_FPoint points[5];
+//    points[0] = vec2_to_sdl_fpoint(pos);
+//    points[1] = vec2_to_sdl_fpoint(pos + Vec2{1, 0} *scale);
+//    points[2] = vec2_to_sdl_fpoint(pos + scale);
+//    points[3] = vec2_to_sdl_fpoint(pos + Vec2{0, 1} *scale);
+//    points[4] = points[0];
+//    SDL_RenderLines(renderer, points, 5);
+//}
 
 
-        {
-            SDL_FRect rect = { circle_pos.x, circle_pos.y, circle_image.w * scale, circle_image.h * scale };
-            SDL_RenderTexture(renderer, circle_image.texture, NULL, &rect);
-            SDL_RenderTexture(renderer, circle_overlay.texture, NULL, &rect);
-        }
-
-        Vec2 hitbox_bounds = cam.world_to_screen_scale(note_hitbox);
-        Vec2 hitbox_pos = center_pos - (hitbox_bounds / 2.0f);
-        //draw_wire_box(hitbox_pos, hitbox_bounds, RED);
-
-
-        if (map.selected[i]) {
-            SDL_FRect rect = {
-                center_pos.x - select_circle.w / 2 * scale,
-                center_pos.y - select_circle.h / 2 * scale,
-                select_circle.w * scale,
-                select_circle.h * scale,
-            };
-            SDL_RenderTexture(renderer, select_circle.texture, NULL, &rect);
-        }
-    }
-}
 
 void set_draw_color(SDL_Renderer* renderer, Color color) {
     SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
@@ -539,12 +626,15 @@ enum class EditorMode {
 
 class Editor {
 public:
-    Editor(const Input& _input, Audio& _audio, SDL_Renderer* _renderer);
+    Editor(Input& _input, Audio& _audio, SDL_Renderer* _renderer);
     ~Editor();
     void update(std::chrono::duration<double> delta_time);
     void init();
+    Map map{};
+
+    double last_pos{};
 private:
-    const Input& input;
+    Input& input;
     Audio& audio;
     SDL_Renderer* renderer;
 
@@ -559,10 +649,10 @@ private:
     //NoteType note_type;
 
 
-    Map map{};
     //std::vector<Note> map;
     double offset = 4.390f;
     float bpm = 190;
+
 
     double quarter_interval = 60 / bpm / 4;
     double collision_range = quarter_interval / 2;
@@ -571,13 +661,14 @@ private:
 
     int current_note = -1;
 
-    UI ui;
+    UI ui{};
 
     //Mix_Music* music;
 };
 
-Editor::Editor(const Input& _input, Audio& _audio, SDL_Renderer* _renderer)
-    : input{ _input }, audio{ _audio }, renderer{ _renderer }, ui{ input, renderer, window_width, window_height } {}
+Editor::Editor(Input& _input, Audio& _audio, SDL_Renderer* _renderer)
+    : input{ _input }, audio{ _audio }, renderer{ _renderer }, ui{ window_width, window_height } {
+}
 
 Editor::~Editor() {
     //Mix_FreeMusic(music);
@@ -589,30 +680,13 @@ auto last = std::chrono::high_resolution_clock::now();
 
 
 void Editor::init() {
-    //music = Mix_LoadMUS("data/audio.mp3");
-
-    //if (music == NULL) {
-    //    std::cout << SDL_GetError() << '\n';
-    //}
-
-    //Mix_PlayMusic(music, 0);
-
-    //auto callback = [&](void* udata, Uint8* stream, int len) {
-    //    std::cout << std::format("{}\n", len);
-
-    //    };
-//typedef void (SDLCALL *Mix_MixCallback)(void *udata, Uint8 *stream, int len);
-
-    //Mix_SetPostMix(callback, NULL);
-
-    //Mix_VolumeMusic(MIX_MAX_VOLUME / 4);
-    //Mix_PauseMusic();
 }
 
 void Editor::update(std::chrono::duration<double> delta_time) {
     ZoneScoped;
     //double elapsed = Mix_GetMusicPosition(music);
     double elapsed = audio.get_position();
+    last_pos = elapsed;
 
 
     //if (!paused) {
@@ -667,6 +741,8 @@ void Editor::update(std::chrono::duration<double> delta_time) {
         auto frame_time = std::to_string(((float)std::chrono::duration_cast<std::chrono::microseconds>(delta_time).count()) / 1000) + " ms";
         ui.rect(frame_time.data());
     ui.end_group();
+
+    ui.input(input);
 
     Vec2 cursor_pos = cam.screen_to_world(input.mouse_pos);
 
@@ -779,6 +855,7 @@ void Editor::update(std::chrono::duration<double> delta_time) {
     }
 
     if (input.key_down(SDL_SCANCODE_F5)) {
+        g_event_queue.push_event(EventType::EditorToTest);
     }
 
     if (input.key_down(SDL_SCANCODE_Q)) { 
@@ -809,18 +886,16 @@ void Editor::update(std::chrono::duration<double> delta_time) {
     if (!audio.paused() && current_note < map.times.size() && elapsed >= map.times[current_note]) {
         switch (map.flags_vec[current_note]) {
         case (NoteFlagBits::don_or_kat | NoteFlagBits::normal_or_big):
-            Mix_PlayChannel(-1, don_sound, 0);
+            Mix_PlayChannel(-1, assets.get_sound("don"), 0);
             break;
         case (0 | NoteFlagBits::normal_or_big):
-            Mix_PlayChannel(-1, kat_sound, 0);
+            Mix_PlayChannel(-1, assets.get_sound("kat"), 0);
             break;
         case (NoteFlagBits::don_or_kat | 0):
-            Mix_PlayChannel(-1, big_don_sound, 0);
-            Mix_PlayChannel(-1, don_sound, 0);
+            Mix_PlayChannel(-1, assets.get_sound("kat"), 0);
             break;
         case (0 | 0):
-            Mix_PlayChannel(-1, big_kat_sound, 0);
-            Mix_PlayChannel(-1, kat_sound, 0);
+            Mix_PlayChannel(-1, assets.get_sound("kat"), 0);
             break;
         }
 
@@ -894,6 +969,7 @@ void Editor::update(std::chrono::duration<double> delta_time) {
     }
 
     ui.draw(renderer);
+
 
     {
         ZoneNamedN(jksfdgjh, "Render Present", true);
@@ -975,6 +1051,7 @@ void fake_loop() {
 }
 
 int run() {
+
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) < 0) {
         SDL_Log("SDL_Init failed (%s)", SDL_GetError());
         return 1;
@@ -992,29 +1069,7 @@ int run() {
 
     auto start = std::chrono::high_resolution_clock::now();
 
-
-    //int length;
-    //if (TTF_MeasureUTF8(font, text, 9999, &length, NULL) < 0) {
-    //    std::cout << std::format("{}\n", SDL_GetError());
-    //    return 1;
-    //}
-
-    //MainMenu menu;
-
-    //
-    //Game game;
-
-
-    SDL_Surface* circle_surface = IMG_Load("data/circle.png");
-
-    SDL_SetSurfaceColorMod(circle_surface, 255, 0, 0);
-
-    SDL_Texture* don_circle = SDL_CreateTextureFromSurface(renderer, circle_surface);
-
-    SDL_SetSurfaceColorMod(circle_surface, 0, 0, 255);
-    
-    SDL_Texture* kat_circle = SDL_CreateTextureFromSurface(renderer, circle_surface);
-
+    Input input{};
     Audio audio{};
     
 
@@ -1024,10 +1079,15 @@ int run() {
         context = Context::Editor;
     };
 
-    Input input{};
 
-    Editor editor{input, audio, renderer};
-    Game game{input, audio, renderer};
+    auto editor = Editor{input, audio, renderer};
+
+
+
+    Game game;
+
+    Map map{};
+
     editor.init();
 
     Mix_MasterVolume(MIX_MAX_VOLUME * 0.25);
@@ -1039,7 +1099,21 @@ int run() {
 
     init_font(renderer);
 
-    assets.init(renderer);
+    std::vector<SoundLoadInfo> sound_list = {
+        {"don.wav", "don"},
+        {"kat.wav", "kat"},
+    };
+
+    std::vector<ImageLoadInfo> image_list = {
+        {"circle-overlay.png", "circle_overlay"},
+        {"circle-select.png", "select_circle"},
+        {"circle.png", "kat_circle", Color{ 60, 219, 226, 255 }},
+        {"circle.png", "don_circle", Color{ 252, 78, 60, 255 }},
+        {"drum-inner.png", "inner_drum"},
+        {"drum-outer.png", "outer_drum"},
+    };
+
+    assets.init(renderer, image_list, sound_list);
 
     //auto future = std::async(std::launch::async, fake_loop);
 
@@ -1072,31 +1146,32 @@ int run() {
                 if (event.type == SDL_EVENT_MOUSE_WHEEL) {
                     wheel += event.wheel.y;
                 }
-
-                if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
-                    int asdf = 0;
-                }
-                
-                if (event.type == SDL_EVENT_KEY_DOWN) {
-                }
             }
         }
-
         if (quit) {
             break;
         }
 
         input.begin_frame(wheel);
 
-        //input.mouse_down(SDL_BUTTON_LEFT);
-
-        
-        //SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
-        //SDL_RenderClear(renderer);
 
 
-        //SDL_RenderPresent(renderer);
-        //player.update(delta_time.count());
+        EventType switch_event;
+        while (g_event_queue.pop_event(&switch_event)) {
+            switch (switch_event) {
+            case EventType::EditorToTest:
+                game = { &input, &audio, renderer, editor.map};
+                context = Context::Game;
+                break;
+            case EventType::TestToEditor:
+                game = {};
+                audio.set_position(editor.last_pos);
+                audio.pause();
+                context = Context::Editor;
+                break;
+            }
+
+        }
 
         switch (context) {
         //case Context::Menu:
@@ -1120,27 +1195,6 @@ int run() {
     SDL_DestroyWindow(window);
 
     SDL_Quit();
-    
-    //while (!WindowShouldClose()) {
-    //    auto now = high_resolution_clock::now();
-    //    duration<double> delta_time = now - last_frame;
-
-    //    switch (context) {
-    //    case Context::Menu:
-    //        menu.update(to_editor);
-    //        break;
-    //    case Context::Editor:
-    //        editor.update(delta_time);
-    //        break;
-    //    case Context::Game:
-    //        game.update(delta_time);
-    //        break;
-    //    }
-
-    //    last_frame = now;
-    //}
-    //
-    //CloseWindow();
 }
 
 int main() {
