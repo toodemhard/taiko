@@ -56,23 +56,29 @@ void draw_text(SDL_Renderer* renderer, const char* text, Vec2 position)
 {
     ZoneScoped;
 
-    stbtt_aligned_quad quad;
-
+    float x = position.x;
     while (*text) {
-        stbtt_GetBakedQuad(char_data, ft_width, ft_height, *text - 32, &position.x, &position.y, &quad, 1);
-        float w = (quad.s1 - quad.s0) * ft_width;
-        float h = (quad.t1 - quad.t0) * ft_height;
-        auto rect = SDL_FRect{ quad.s0 * ft_width, quad.t0 * ft_height, w, h };
-        auto dst = SDL_FRect{ position.x, position.y + char_data[*text - 32].yoff, w, h };
+        auto& char_info = char_data[*text - 32];
+        float w = char_info.x1 - char_info.x0;
+        float h = char_info.y1 - char_info.y0;
+        auto src = SDL_FRect{ (float)char_info.x0, (float)char_info.y0, w, h };
+        auto dst = SDL_FRect{ x, 32 + position.y + char_info.yoff, w, h };
 
-        SDL_RenderTexture(renderer, font_texture, &rect, &dst);
+        SDL_RenderTexture(renderer, font_texture, &src, &dst);
 
+        x += char_info.xadvance;
         ++text;
     }
 }
 
 float font_width(const char* text, float font_size) {
-    return 100;
+    float width = 0;
+    while (*text) {
+        width += char_data[*text - 32].xadvance;
+
+        ++text;
+    }
+    return width;
 }
 
 float font_height(float font_size) {
