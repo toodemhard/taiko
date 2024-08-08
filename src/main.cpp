@@ -1,5 +1,6 @@
 #include <tracy/Tracy.hpp>
 
+#include <iostream>
 #include <algorithm>
 #include <functional>
 #include <format>
@@ -50,6 +51,7 @@ Assets assets;
 enum class EventType {
     EditorToTest,
     TestToEditor,
+    ToEditor,
 };
 
 class EventQueue {
@@ -79,7 +81,7 @@ EventQueue g_event_queue;
 
 
 enum NoteFlagBits : uint8_t {
-    don_or_kat = 1 << 0, // true = don | false = kat
+    don_or_kat = 1 << 0,
     normal_or_big = 1 << 1,
 };
 
@@ -195,8 +197,12 @@ void Map::remove_note(int i) {
 }
 
 
-void save_map(const Map& map) {
-    std::ofstream fout("map.tnt");
+std::filesystem::path map_path(const char* file_name) {
+    return "data/maps/" + std::string(file_name);
+}
+
+void save_map(const Map& map, const char* file_name) {
+    std::ofstream fout(map_path(file_name).string().data());
 
     cereal::BinaryOutputArchive oarchive(fout);
 
@@ -333,12 +339,17 @@ void draw_map_editor(SDL_Renderer* renderer, const Map& map, const Cam& cam, int
 //    don = 1 << 1
 //};
 
+enum DrumInputFlagBits : uint8_t {
+    don_kat = 1 << 0,
+    left_right = 1 << 1,
+};
 
-enum class DrumInput {
-    don_left,
-    don_right,
-    kat_left,
-    kat_right,
+
+enum DrumInput : uint8_t {
+    don_left = DrumInputFlagBits::don_kat | DrumInputFlagBits::left_right,
+    don_right = DrumInputFlagBits::don_kat | 0,
+    kat_left = 0 | DrumInputFlagBits::left_right,
+    kat_right = 0,
 };
 
 struct InputRecord {
@@ -367,6 +378,7 @@ private:
     int current_note = 0;
 
     int score = 0;
+    int combo = 0;
 
     //std::chrono::time_point<std::chrono::steady_clock> start_time = std::chrono::high_resolution_clock::now();
 
@@ -375,11 +387,12 @@ private:
     std::vector<InputRecord> input_history;
 
     Map map{};
+
     //std::vector<Particle> particles;
 
     BigNoteHits current_big_note_status;
 
-    bool auto_mode = false;
+    bool auto_mode = true;
 
     bool initialized = false;
 };
@@ -409,10 +422,22 @@ void Game::update(std::chrono::duration<double> delta_time) {
         return;
     }
 
-
-    //bool inputs[4] = { false, false, false, false };
-    //std::array<bool, 4> inputs = { false, false, false, false };
     std::vector<DrumInput> inputs{};
+
+    if (auto_mode) {
+        if (current_note < map.times.size()) {
+            if (elapsed >= map.times[current_note]) {
+                if (map.flags_vec[current_note] & NoteFlagBits::don_or_kat) {
+                    input_history.push_back(InputRecord{ DrumInput::don_left, elapsed });
+                    inputs.push_back(DrumInput::don_left);
+                }
+                else {
+                    input_history.push_back(InputRecord{ DrumInput::kat_left, elapsed });
+                    inputs.push_back(DrumInput::kat_left);
+                }
+            }
+        }
+    }
 
     if (input.key_down(SDL_SCANCODE_X)) {
         input_history.push_back(InputRecord{ DrumInput::don_left, elapsed });
@@ -442,16 +467,19 @@ void Game::update(std::chrono::duration<double> delta_time) {
         }
     }
 
-
     if (current_note < map.times.size()) {
-        for (const auto& input : inputs) {
+        for (const auto& thing : inputs) {
             double hit_normalized = (elapsed - map.times[current_note]) / hit_range.count() + 0.5;
             if (hit_normalized >= 0 && hit_normalized < 1) {
                 if (map.flags_vec[current_note] & NoteFlagBits::normal_or_big) {
-                    if (map.flags_vec[current_note])
-                    score += 300;
+                    auto actual_type = (uint8_t)(map.flags_vec[current_note] & NoteFlagBits::don_or_kat);
+                    auto input_type = (uint8_t)(thing & DrumInputFlagBits::don_kat);
+                    if (actual_type == input_type) {
+                        score += 300;
+                        combo++;
+                        current_note++;
+                    }
                     //particles.push_back(Particle{ Vec2{(float)elapsed.count(), 0}, {0,1},1, note.type, elapsed });
-                    current_note++;
                 } else {
                     
 
@@ -485,10 +513,19 @@ void Game::update(std::chrono::duration<double> delta_time) {
     //std::string score_text = std::to_string(score);
     //ui.rect(score_text.data());
     //ui.end_group();
+    ui.begin_group(Style{ {1,0} }); 
+        auto score_text = std::to_string(score);
+        ui.rect(score_text.data(), {});
+    ui.end_group();
+
+    ui.begin_group(Style{ {0,1} }); 
+        auto combo_text = std::format("{}x", combo);
+        ui.rect(combo_text.data(), {});
+    ui.end_group();
 
     ui.begin_group(Style{ {1,1} }); 
         auto frame_time = std::to_string(((float)std::chrono::duration_cast<std::chrono::microseconds>(delta_time).count()) / 1000) + " ms";
-        ui.rect(frame_time.data());
+        ui.rect(frame_time.data(), {});
     ui.end_group();
 
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
@@ -501,7 +538,7 @@ void Game::update(std::chrono::duration<double> delta_time) {
     SDL_SetRenderDrawColor(renderer, 255, 255, 0, SDL_ALPHA_OPAQUE);
     SDL_RenderLine(renderer, p1.x, p1.y, p2.x, p2.y);
 
-    ui.draw(renderer);
+    draw_map_editor(renderer, map, cam, current_note);
 
     auto inner_drum = assets.get_image("inner_drum");
     auto outer_drum = assets.get_image("outer_drum");
@@ -536,9 +573,9 @@ void Game::update(std::chrono::duration<double> delta_time) {
     Vec2 target = cam.world_to_screen(cam.position);
     //DrawCircle(target.x, target.y, 50, WHITE);
     //DrawText((std::to_string(delta_time.count() * 1000) + " ms").data(), 100, 100, 24, WHITE);
-    draw_map_editor(renderer, map, cam, current_note);
-
     //draw_particles(cam, particles, elapsed);
+
+    ui.draw(renderer);
 
     SDL_RenderPresent(renderer);
 }
@@ -664,6 +701,10 @@ private:
     UI ui{};
 
     //Mix_Music* music;
+
+    TextFieldState name;
+
+    bool creating_map = true;
 };
 
 Editor::Editor(Input& _input, Audio& _audio, SDL_Renderer* _renderer)
@@ -694,8 +735,27 @@ void Editor::update(std::chrono::duration<double> delta_time) {
     //} else {
     //    elapsed = cam.position.x;
     //}
+    Style style{};
+    style.anchor = { 0.5, 0.5 };
+    style.stack_direction = StackDirection::Vertical;
 
-    ui.begin_group(Style{ {0,0.5} }); {
+
+    if (creating_map) {
+        ui.begin_group(style);
+
+        ui.text_field(&name, { .border_color = {255, 255, 255, 0}, .min_width = 200 });
+
+        ui.button("enter", {}, [&]() {
+            creating_map = false;
+            });
+
+        ui.end_group();
+    }
+
+    style.anchor = { 0, 0.5 };
+    style.stack_direction = StackDirection::Vertical;
+
+    ui.begin_group(style); {
         const char* note_color_text = (insert_flags & NoteFlagBits::don_or_kat) ? "Don" : "Kat";
 
         const char* note_size_text = (insert_flags & NoteFlagBits::normal_or_big) ? "Normal" : "Big";
@@ -710,7 +770,7 @@ void Editor::update(std::chrono::duration<double> delta_time) {
             break;
         }
 
-        ui.button(editor_mode_text, [&]() {
+        ui.button(editor_mode_text, {}, [&]() {
             if (editor_mode == EditorMode::insert) {
                 editor_mode = EditorMode::select;
             }
@@ -719,11 +779,11 @@ void Editor::update(std::chrono::duration<double> delta_time) {
             }
         });
 
-        ui.button(note_size_text, [&]() {
+        ui.button(note_size_text, {}, [&]() {
             insert_flags = insert_flags ^ NoteFlagBits::normal_or_big;
         });
 
-        ui.button(note_color_text, [&]() {
+        ui.button(note_color_text, {}, [&]() {
             insert_flags = insert_flags ^ NoteFlagBits::don_or_kat;
         });
     }
@@ -731,7 +791,7 @@ void Editor::update(std::chrono::duration<double> delta_time) {
 
     ui.begin_group(Style{ {0,1} });
         std::string time = std::to_string(cam.position.x) + " s";
-        ui.rect(time.data());
+        ui.rect(time.data(), {});
     //ui.slider(elapsed / GetMusicTimeLength(music), [&](float fraction) {
     //    SeekMusicStream(music, fraction * GetMusicTimeLength(music));
     //});
@@ -739,7 +799,7 @@ void Editor::update(std::chrono::duration<double> delta_time) {
 
     ui.begin_group(Style{ {1,1} }); 
         auto frame_time = std::to_string(((float)std::chrono::duration_cast<std::chrono::microseconds>(delta_time).count()) / 1000) + " ms";
-        ui.rect(frame_time.data());
+        ui.rect(frame_time.data(), {});
     ui.end_group();
 
     ui.input(input);
@@ -761,11 +821,11 @@ void Editor::update(std::chrono::duration<double> delta_time) {
     }
 
     if (input.key_down(SDL_SCANCODE_S) && input.modifier(SDL_KMOD_LCTRL)) {
-        save_map(map);
+        //save_map(map);
     }
 
     if (input.key_down(SDL_SCANCODE_O) && input.modifier(SDL_KMOD_LCTRL)) {
-        load_map(&map);
+        //load_map(&map);
     }
 
     if (input.key_down(SDL_SCANCODE_A) && input.modifier(SDL_KMOD_LCTRL)) {
@@ -981,61 +1041,178 @@ void Editor::update(std::chrono::duration<double> delta_time) {
 //    main,
 //    map_select,
 //};
-//
-//class MainMenu {
-//public:
-//    void update(std::function<void()> callback);
-//
-//private:
-//    UI ui;
-//    View current_view = View::main;
-//};
-//
-//void MainMenu::update(std::function<void()> callback) {
-//    if (IsKeyPressed(KEY_ONE)) {
-//        callback();
-//        std::cout << "fskadfh\n";
-//        return;
-//    }
-//
-//    ui.input();
-//
-//
-//    switch (current_view) {
-//        case View::main:
-//            ui.begin_group({});
-//            ui.button("Play", [&]() {
-//                current_view = View::map_select;
-//                std::cout << "kfsahdfhj\n";
-//            });
-//            ui.rect("Settings");
-//            ui.rect("Exit");
-//
-//            ui.end_group();
-//            break;
-//        case View::map_select:
-//            ui.rect("askjldhf");
-//            if (IsKeyPressed(KEY_ESCAPE)) {
-//                current_view = View::main;
-//            }
-//            break;
-//    }
-//
-//    BeginDrawing();
-//    ClearBackground(BLACK);
-//    DrawText("editor", 400, 300, 24, WHITE);
-//
-//    ui.draw();
-//    EndDrawing();
-//}
 
+struct MapEntry {
+    std::string title;
+    std::string artist;
+    std::string difficulty_name;
+};
+
+enum class EntryMode {
+    Play,
+    Edit,
+};
+
+class MainMenu {
+public:
+    MainMenu(Input* _input, Audio* _audio, SDL_Renderer* _renderer);
+    
+    void update();
+
+private:
+    UI ui;
+    Input* input_ptr;
+    Audio* audio_ptr;
+    SDL_Renderer* renderer;
+
+    EntryMode entry_mode = EntryMode::Play;
+
+    std::vector<MapEntry> map_list;
+
+    TextFieldState search{.text = "ashkjfhkjh"};
+};
+
+MainMenu::MainMenu(Input* _input, Audio* _audio, SDL_Renderer* _renderer)
+    : input_ptr{ _input }, audio_ptr{ _audio }, renderer{ _renderer }, ui{ window_width, window_height } {}
+
+struct ButtonInfo {
+    const char* text;
+    Style style;
+    std::function<void()> on_click;
+};
+
+void MainMenu::update() {
+    Input& input = *input_ptr;
+    Audio& audio = *audio_ptr;
+
+
+    std::vector<ButtonInfo> option;
+
+
+
+    Style inactive_style{};
+    inactive_style.text_color = { 128, 128 ,128, 255 };
+
+    Style active_style{};
+
+    option.push_back({ "Play", inactive_style, [&]() {
+        entry_mode = EntryMode::Play;
+    }});
+
+    option.push_back({ "Edit", inactive_style, [&]() {
+        entry_mode = EntryMode::Edit;
+    }});
+
+
+    if (entry_mode == EntryMode::Play) {
+        option[0].style = active_style;
+    }
+    else {
+        option[1].style = active_style;
+    }
+
+    Style style{};
+
+    ui.begin_group(style);
+
+    for (auto& info : option) {
+        ui.button(info.text, info.style, info.on_click);
+    }
+
+    ui.end_group();
+
+    if (entry_mode == EntryMode::Edit) {
+        Style style{};
+        style.anchor = { 0.25f, 0.5f };
+        ui.begin_group(style);
+
+        auto callback = [](void* userdata, const char* const* filelist, int filter) {
+            std::cout << std::format("{}\n", (int)filelist);
+            std::cout << std::format("{}\n", (int)filelist[0]);
+
+            if (filelist[0] != nullptr) {
+                //std::cout << "jkhaskdhfklsjahdkf";
+                //std::filesystem::create_directory("maps");
+                g_event_queue.push_event(EventType::ToEditor);
+            }
+            else {
+                std::cout << "vcbh";
+            }
+            };
+
+
+        ui.button("New Map", {}, [&]() {
+            SDL_ShowOpenFileDialog(callback, NULL, NULL, NULL, 0, NULL, 0);
+        });
+
+        ui.end_group();
+    }
+
+
+    //Style style = {};
+    //style.anchor = { 0.5, 0.25 };
+
+    //ui.begin_group(style);
+
+    //ui.text_field(&search, {});
+
+    //ui.end_group();
+
+
+    //style = {};
+    //style.anchor = { 0.5, 0.5 };
+    //style.background_color = { 255, 0, 0, 255 };
+    //style.gap = 36;
+
+
+    //ui.begin_group(style);
+    //
+    //ui.rect("1 djkfhgkjh", {});
+
+    //style = {};
+    //style.background_color = { 0, 0, 255, 255 };
+    //style.stack_direction = StackDirection::Vertical;
+    //ui.begin_group(style);
+    //ui.rect("2 aslkdjhf", {});
+    //ui.rect("aslkdjhf", {});
+    //ui.rect("aslkdjhf", {});
+    //ui.rect("aslkdjhf", {});
+    //ui.end_group();
+
+    //ui.begin_group(style);
+    //ui.rect("3 aslkdjhf", { .text_color = { 255, 0, 0, 255} });
+    //ui.rect("aslkdjhf", {});
+    //ui.rect("aslkdjhf", {});
+    //ui.rect("aslkdjhf", {});
+    //ui.end_group();
+
+    //ui.begin_group(style);
+    //ui.rect("4 aslkdjhf", {});
+    //ui.rect("aslkdjhf", {});
+    //ui.rect("aslkdjhf", {});
+    //ui.rect("aslkdjhf", {});
+    //ui.end_group();
+    //        
+    //ui.end_group();
+
+
+
+    ui.input(input);
+
+
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
+    SDL_RenderClear(renderer);
+
+
+    ui.draw(renderer);
+    SDL_RenderPresent(renderer);
+}
 
 enum class Context {
     Menu,
     Editor,
     Game,
 };
-
 
 void fake_loop() {
     while (1) {
@@ -1073,20 +1250,16 @@ int run() {
     Audio audio{};
     
 
-    Context context = Context::Editor;
-
-    auto to_editor = [&]() {
-        context = Context::Editor;
-    };
+    Context context = Context::Menu;
 
 
     auto editor = Editor{input, audio, renderer};
 
 
-
     Game game;
 
     Map map{};
+    MainMenu menu{&input, &audio, renderer};
 
     editor.init();
 
@@ -1094,8 +1267,6 @@ int run() {
     Mix_VolumeMusic(MIX_MAX_VOLUME * 0.1);
 
     auto last_frame = std::chrono::high_resolution_clock::now();
-
-    Player player{ input, audio };
 
     init_font(renderer);
 
@@ -1117,6 +1288,8 @@ int run() {
 
     //auto future = std::async(std::launch::async, fake_loop);
 
+    SDL_StartTextInput();
+
     while (1) {
         auto now = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> delta_time = now - last_frame;
@@ -1129,8 +1302,11 @@ int run() {
 
         last_frame = now;
 
-        float wheel{};
+        float total_wheel{};
         bool moved{};
+
+        input.begin_frame();
+        input.input_text = std::nullopt;
 
         SDL_Event event;
         bool quit = false;
@@ -1144,7 +1320,17 @@ int run() {
                 }
 
                 if (event.type == SDL_EVENT_MOUSE_WHEEL) {
-                    wheel += event.wheel.y;
+                    total_wheel += event.wheel.y;
+                }
+
+
+                if (event.type == SDL_EVENT_KEY_DOWN) {
+                    input.keyboard_repeat[event.key.scancode] = true;
+                }
+
+
+                if (event.type == SDL_EVENT_TEXT_INPUT) {
+                    input.input_text = std::string(event.text.text);
                 }
             }
         }
@@ -1152,7 +1338,7 @@ int run() {
             break;
         }
 
-        input.begin_frame(wheel);
+        input.wheel = total_wheel;
 
 
 
@@ -1169,14 +1355,16 @@ int run() {
                 audio.pause();
                 context = Context::Editor;
                 break;
+            case EventType::ToEditor:
+                context = Context::Editor;
             }
 
         }
 
         switch (context) {
-        //case Context::Menu:
-        //    menu.update(to_editor);
-        //    break;
+        case Context::Menu:
+            menu.update();
+            break;
         case Context::Editor:
             editor.update(delta_time);
             break;

@@ -1,11 +1,11 @@
 #include <tracy/Tracy.hpp>
 #include "input.h"
 
-void Input::begin_frame(float& _wheel) {
+void Input::begin_frame() {
     ZoneScoped;
 
+    std::fill(keyboard_repeat.begin(), keyboard_repeat.end(), false);
     current_mouse = SDL_GetMouseState(&mouse_pos.x, &mouse_pos.y);
-    wheel = _wheel;
     mod_state = SDL_GetModState();
 }
 
@@ -43,4 +43,8 @@ bool Input::key_held(const SDL_Scancode& scan_code) const {
 
 bool Input::key_up(const SDL_Scancode& scan_code) const {
     return !current_keyboard[scan_code] && last_keyboard[scan_code];
+}
+
+bool Input::key_down_repeat(const SDL_Scancode& scan_code) const {
+    return keyboard_repeat[scan_code];
 }
