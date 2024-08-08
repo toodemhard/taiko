@@ -45,6 +45,9 @@ double Audio::get_position() {
 }
 
 void Audio::set_position(double position) {
+    if (position < 0) {
+        position = 0;
+    }
     Mix_SetMusicPosition(position);
     elapsed = position;
     last_time = std::chrono::high_resolution_clock::now();
