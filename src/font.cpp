@@ -98,6 +98,10 @@ float font_width(const char* text, float font_size) {
     return width * size_ratio;
 }
 
-float font_height(float font_size) {
+float font_height(const char* text, float font_size) {
+    if (text == nullptr) {
+        return 0;
+    }
+
     return font_size;
 }

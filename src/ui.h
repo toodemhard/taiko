@@ -122,7 +122,7 @@ private:
     std::vector<Group> groups;
     std::vector<TextField> text_fields;
 
-    std::stack<int> group_stack;
+    std::vector<int> group_stack;
 
     int internal_rect(const char* text, const Style& style);
     Rect& element_rect(ElementHandle e);

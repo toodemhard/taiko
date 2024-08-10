@@ -31,24 +31,23 @@ void UI::begin_group(const Style& style) {
     ZoneScoped;
     Rect rect{};
     rect.background_color = style.background_color;
-    rects.push_back(rect);
-    groups.push_back(Group{ {}, style, (int)rects.size() - 1 });
+    groups.push_back(Group{ {}, style, internal_rect(nullptr, style)});
 
 
     if (group_stack.size() > 0) {
-        auto& parent_group = groups[group_stack.top()];
+        auto& parent_group = groups[group_stack.back()];
         parent_group.children.push_back({ ElementType::group, (int) groups.size() - 1 });
     }
 
-    group_stack.push(groups.size() - 1);
+    group_stack.push_back(groups.size() - 1);
 }
 
 void UI::end_group() {
     ZoneScoped;
 
-    Group& group = groups[group_stack.top()];
+    Group& group = groups[group_stack.back()];
 
-    group_stack.pop();
+    group_stack.pop_back();
 
     auto length_axis = [&]() -> float(*)(const Rect&) {
         switch (group.style.stack_direction) {
@@ -110,7 +109,7 @@ void UI::end_group() {
 	Vec2 start_pos = {(screen_width - total_width) * group.style.anchor.x, (screen_height - total_height) * group.style.anchor.y};
 
     auto& group_rect = rects[group.rect_index];
-    group_rect.scale = { total_width, total_height };
+    group_rect.scale = group_rect.scale + Vec2{ total_width, total_height };
 
     if (group_stack.empty()) {
         rects[group.rect_index].position = start_pos;
@@ -124,11 +123,13 @@ void UI::end_group() {
         //}
 
     }
-
 }
+
 void UI::visit_group(Group& group, Vec2 start_pos) {
+    start_pos = start_pos + Vec2{ group.style.padding.left, group.style.padding.top };
     for (auto& e : group.children) {
         Rect& rect = element_rect(e);
+
 
         if (e.type == ElementType::group) {
             visit_group(groups[e.index], start_pos);
@@ -229,7 +230,7 @@ void UI::text_field(TextFieldState* state, Style style) {
         });
 
     if (group_stack.size() > 0) {
-        auto& group = groups[group_stack.top()];
+        auto& group = groups[group_stack.back()];
         group.children.push_back({ ElementType::text_field, (int) text_fields.size() - 1 });
     }
 }
@@ -238,14 +239,15 @@ void UI::rect(const char* text, const Style& style) {
     auto index = internal_rect(text, style);
 
     if (group_stack.size() > 0) {
-        auto& group = groups[group_stack.top()];
+        auto& group = groups[group_stack.back()];
         group.children.push_back({ ElementType::rect,  (int) rects.size() - 1 });
     }
 }
 
 int UI::internal_rect(const char* text, const Style& style) {
-    int width = std::max(style.min_width, font_width(text, style.font_size));
-    int height = std::max(style.min_height, font_height(style.font_size));
+    auto& padding = style.padding;
+    int width = std::max(style.min_width, font_width(text, style.font_size)) + padding.left + padding.right;
+    int height = std::max(style.min_height, font_height(text, style.font_size)) + padding.top + padding.bottom;
 
     rects.push_back(Rect{
         Vec2{0, 0},
@@ -271,13 +273,10 @@ void UI::slider(float fraction, std::function<void(float)> on_input) {
 }
 
 void UI::button(const char* text, Style style, std::function<void()> on_click) {
-    int width = font_width(text, style.font_size);
-
-    int height = font_height(style.font_size);
     buttons.push_back(Button{ internal_rect(text, style), on_click});
 
     if (group_stack.size() > 0) {
-        auto& group = groups[group_stack.top()];
+        auto& group = groups[group_stack.back()];
         group.children.push_back({ ElementType::button,  (int) buttons.size() - 1 });
     }
 }

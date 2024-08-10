@@ -10,4 +10,4 @@ void draw_text(SDL_Renderer* renderer, const char* text, float size, Vec2 positi
 
 float font_width(const char* text, float font_size);
 
-float font_height(float font_size);
+float font_height(const char* text, float font_size);
