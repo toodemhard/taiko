@@ -7,12 +7,6 @@
 [submodule "lib/sdl-image"]
 	path = lib/sdl-image
 	url = https://github.com/libsdl-org/SDL_image.git
-[submodule "lib/minimp3"]
-	path = lib/minimp3
-	url = https://github.com/lieff/minimp3.git
-[submodule "lib/sdl-ttf"]
-	path = lib/sdl-ttf
-	url = https://github.com/libsdl-org/SDL_ttf.git
 [submodule "lib/tracy"]
 	path = lib/tracy
 	url = https://github.com/wolfpld/tracy.git

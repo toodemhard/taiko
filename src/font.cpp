@@ -49,7 +49,7 @@ void init_font(SDL_Renderer* renderer) {
         asdf[i * 4 + 3] = bitmap[i];
     }
 
-    auto surface = SDL_CreateSurfaceFrom(asdf.data(), ft_width, ft_height, ft_width * 4, SDL_PIXELFORMAT_RGBA8888);
+    auto surface = SDL_CreateSurfaceFrom(ft_width, ft_height, SDL_PIXELFORMAT_RGBA8888, asdf.data(), ft_width * 4);
     font_texture = SDL_CreateTextureFromSurface(renderer, surface);
 }
 

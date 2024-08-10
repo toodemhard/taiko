@@ -41,7 +41,6 @@ add_subdirectory(lib/sdl-image)
 option(SDL3MIXER_OPUS "Enable Opus music" OFF)
 
 add_subdirectory(lib/sdl-mixer)
-add_subdirectory(lib/sdl-ttf)
 
 set(SOURCE_DIRECTORY src)
 file(GLOB_RECURSE SOURCE_FILES CONFIGURE_DEPENDS ${SOURCE_DIRECTORY}/*.cpp)
@@ -72,7 +71,6 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     SDL3::SDL3
     SDL3_image::SDL3_image
     SDL3_mixer::SDL3_mixer
-    SDL3_ttf::SDL3_ttf
 )
 
 add_custom_target(copy_assets
