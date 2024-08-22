@@ -32,12 +32,25 @@ struct Style {
     Color border_color;
 
     Padding padding;
-    float gap;
 
     float min_width;
     float min_height;
 
+    // group styling
     StackDirection stack_direction = StackDirection::Horizontal;
+    float gap;
+};
+
+struct GroupStyle {
+    Vec2 anchor;
+
+    Color background_color = { 0, 0, 0, 0 };
+    Color border_color;
+
+    Padding padding;
+
+    StackDirection stack_direction = StackDirection::Horizontal;
+    float gap;
 };
 
 struct Rect {
@@ -47,7 +60,6 @@ struct Rect {
     float font_size = 36;
     Color text_color = { 255, 255, 255, 255 };
     Color background_color = { 0, 0, 0, 0 };
-
     Color border_color;
 };
 
@@ -75,10 +87,28 @@ struct ElementHandle {
     int index;
 };
 
+struct ClickInfo {
+    Vec2 offset_pos;
+};
+
+using OnClick = std::function<void(ClickInfo)>;
+
 struct Group {
-    std::vector<ElementHandle> children;
-    Style style = {};
     int rect_index;
+    Style style;
+    std::vector<ElementHandle> children;
+    OnClick click_property;
+};
+
+struct ClickRect {
+    Vec2 position;
+    Vec2 scale;
+
+    OnClick on_click;
+};
+
+struct Properties {
+    OnClick on_click;
 };
 
 struct TextFieldState {
@@ -103,6 +133,9 @@ public:
     void begin_group(const Style& style);
     void end_group();
 
+    void begin_group_v2(const Style& style, const Properties& properties);
+    void end_group_v2();
+
     void visit_group(Group& group, Vec2 start_pos);
 
     void input(Input& input);
@@ -115,6 +148,9 @@ private:
     int screen_width = 0;
     int screen_height = 0;
 
+
+    //properties
+    std::vector<ClickRect> click_rects;
     std::vector<Rect> rects;
 
     std::vector<Button> buttons;

@@ -29,10 +29,7 @@ Rect& UI::element_rect(ElementHandle e) {
 
 void UI::begin_group(const Style& style) {
     ZoneScoped;
-    Rect rect{};
-    rect.background_color = style.background_color;
-    groups.push_back(Group{ {}, style, internal_rect(nullptr, style)});
-
+    groups.push_back(Group{ internal_rect(nullptr, style), style });
 
     if (group_stack.size() > 0) {
         auto& parent_group = groups[group_stack.back()];
@@ -40,6 +37,24 @@ void UI::begin_group(const Style& style) {
     }
 
     group_stack.push_back(groups.size() - 1);
+}
+
+void UI::begin_group_v2(const Style& style, const Properties& properties) {
+    ZoneScoped;
+
+
+    groups.push_back(Group{ internal_rect(nullptr, style), style, {}, properties.on_click });
+
+    if (group_stack.size() > 0) {
+        auto& parent_group = groups[group_stack.back()];
+        parent_group.children.push_back({ ElementType::group, (int) groups.size() - 1 });
+    }
+
+    group_stack.push_back(groups.size() - 1);
+}
+
+void UI::end_group_v2() {
+    end_group();
 }
 
 void UI::end_group() {
@@ -106,26 +121,27 @@ void UI::end_group() {
         break;
     }
 
-	Vec2 start_pos = {(screen_width - total_width) * group.style.anchor.x, (screen_height - total_height) * group.style.anchor.y};
+    float x_padding = group.style.padding.left + group.style.padding.right;
+    float y_padding = group.style.padding.top + group.style.padding.bottom;
+
 
     auto& group_rect = rects[group.rect_index];
     group_rect.scale = group_rect.scale + Vec2{ total_width, total_height };
 
     if (group_stack.empty()) {
+        Vec2 start_pos = { (screen_width - (total_width + x_padding)) * group.style.anchor.x, (screen_height - (total_height + y_padding)) * group.style.anchor.y };
         rects[group.rect_index].position = start_pos;
         visit_group(group, start_pos);
-
-        //std::stack<int> visit_stack;
-
-        //rects[group.rect_index].position = { start.x, start.y };
-        //while (!visit_stack.empty()) {
-
-        //}
-
     }
 }
 
 void UI::visit_group(Group& group, Vec2 start_pos) {
+    ZoneScoped;
+
+    if (group.click_property != nullptr) {
+        click_rects.push_back({ start_pos, rects[group.rect_index].scale, group.click_property });
+    }
+
     start_pos = start_pos + Vec2{ group.style.padding.left, group.style.padding.top };
     for (auto& e : group.children) {
         Rect& rect = element_rect(e);
@@ -143,7 +159,6 @@ void UI::visit_group(Group& group, Vec2 start_pos) {
         else {
             start_pos.y += rect.scale.y + group.style.gap;
         }
-
     }
 }
 
@@ -159,6 +174,8 @@ bool rect_point_intersect(const Rect& rect, const Vec2& point) {
 }
 
 void UI::input(Input& input) {
+    ZoneScoped;
+
     for (auto& button : buttons) {
         const auto& rect = rects[button.rect_index];
         const Vec2& p1 = rect.position;
@@ -169,6 +186,15 @@ void UI::input(Input& input) {
             clicked = true;
         }
     }
+
+    for (auto& e : click_rects) {
+        const Vec2& p1 = e.position;
+        const Vec2 p2 = e.position + e.scale;
+        if (input.mouse_down(SDL_BUTTON_LEFT) && input.mouse_pos.x > p1.x && input.mouse_pos.y > p1.y && input.mouse_pos.x < p2.x && input.mouse_pos.y < p2.y) {
+            e.on_click({});
+        }
+    }
+    click_rects.clear();
 
     for (auto& e : text_fields) {
         if (e.state->focused) {
@@ -220,6 +246,8 @@ void UI::input(Input& input) {
 }
 
 void UI::text_field(TextFieldState* state, Style style) {
+    ZoneScoped;
+
     if (state->focused) {
         style.border_color = { 255, 255, 255, 255 };
     }
@@ -236,6 +264,8 @@ void UI::text_field(TextFieldState* state, Style style) {
 }
 
 void UI::rect(const char* text, const Style& style) {
+    ZoneScoped;
+
     auto index = internal_rect(text, style);
 
     if (group_stack.size() > 0) {
@@ -245,6 +275,8 @@ void UI::rect(const char* text, const Style& style) {
 }
 
 int UI::internal_rect(const char* text, const Style& style) {
+    ZoneScoped;
+
     auto& padding = style.padding;
     int width = std::max(style.min_width, font_width(text, style.font_size)) + padding.left + padding.right;
     int height = std::max(style.min_height, font_height(text, style.font_size)) + padding.top + padding.bottom;
@@ -273,6 +305,8 @@ void UI::slider(float fraction, std::function<void(float)> on_input) {
 }
 
 void UI::button(const char* text, Style style, std::function<void()> on_click) {
+    ZoneScoped;
+
     buttons.push_back(Button{ internal_rect(text, style), on_click});
 
     if (group_stack.size() > 0) {
@@ -304,23 +338,24 @@ void UI::draw(SDL_Renderer* renderer) {
     for (auto& rect : rects) {
         auto frect = SDL_FRect{ rect.position.x, rect.position.y, rect.scale.x, rect.scale.y };
 
-        auto& bg_color = rect.background_color;
-        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-        SDL_SetRenderDrawColor(renderer, bg_color.r, bg_color.g, bg_color.b, bg_color.a);
-        SDL_RenderFillRect(renderer, &frect);
+        {
+            ZoneNamedN(asdf, "draw rect", true);
+
+            auto& bg_color = rect.background_color;
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+            SDL_SetRenderDrawColor(renderer, bg_color.r, bg_color.g, bg_color.b, bg_color.a);
+            SDL_RenderFillRect(renderer, &frect);
+        }
 
         draw_text(renderer, rect.text, rect.font_size, rect.position, rect.text_color);
 
-        auto& color = rect.border_color;
-        SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
-        draw_wire_box(renderer, rect);
+        {
+            ZoneNamedN(askdjh, "draw border", true);
+            auto& color = rect.border_color;
+            SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
+            draw_wire_box(renderer, rect);
+        }
     }
-
-    //for (auto& e : sliders) {
-    //    DrawRectangle(e.position.x, e.position.y, e.scale.x, e.scale.y, GRAY);
-    //    float x = e.position.x + e.scale.x * e.fraction;
-    //    DrawLine(x, e.position.y, x, e.position.y + e.scale.y, YELLOW);
-    //}
 
     rects.clear();
     sliders.clear();
