@@ -18,10 +18,20 @@ Audio::Audio() {
     Mix_PauseMusic();
 }
 
-void Audio::load_music(const char* file_path) {
-    music = Mix_LoadMUS("data/audio.mp3");
+/*
+0 on success, 1 on error
+*/
+int Audio::load_music(const char* file_path) {
+    auto result = Mix_LoadMUS(file_path);
+    if (result == NULL) {
+        return 1;
+    }
+
+    music = result;
     Mix_PlayMusic(music, 0);
     Mix_PauseMusic();
+
+    return 0;
 }
 
 

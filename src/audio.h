@@ -15,7 +15,7 @@ enum class AudioState {
 class Audio {
 public:
     Audio();
-    void load_music(const char* file_path);
+    int load_music(const char* file_path);
     void play();
     void pause();
     void set_position(double position);
