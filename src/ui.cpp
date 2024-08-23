@@ -284,6 +284,8 @@ int UI::internal_rect(const char* text, const Style& style) {
     rects.push_back(Rect{
         Vec2{0, 0},
         Vec2{(float)width, (float)height},
+        padding.left,
+        padding.top,
         text,
         style.font_size,
         style.text_color,
@@ -319,10 +321,10 @@ SDL_FPoint vec2_to_sdl_fpoint(const Vec2& vec) {
     return { vec.x, vec.y };
 }
 
-void draw_wire_box(SDL_Renderer* renderer, const Rect& rect) {
+void draw_wire_box(SDL_Renderer* renderer, const SDL_FRect& rect) {
     SDL_FPoint points[5];
-    const Vec2& pos = rect.position;
-    const Vec2& scale = rect.scale;
+    const Vec2& pos = { rect.x, rect.y };
+    const Vec2& scale = { rect.w, rect.h };
     points[0] = vec2_to_sdl_fpoint(pos);
     points[1] = vec2_to_sdl_fpoint(pos + Vec2{1, 0} * scale);
     points[2] = vec2_to_sdl_fpoint(pos + scale);
@@ -347,13 +349,16 @@ void UI::draw(SDL_Renderer* renderer) {
             SDL_RenderFillRect(renderer, &frect);
         }
 
-        draw_text(renderer, rect.text, rect.font_size, rect.position, rect.text_color);
+        auto text_pos = Vec2{ rect.position.x + rect.padding_left, rect.position.y + rect.padding_top };
+        draw_text(renderer, rect.text, rect.font_size, text_pos, rect.text_color);
+        //SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
+        //draw_wire_box(renderer, { text_pos.x, text_pos.y, font_width(rect.text, rect.font_size), font_height(rect.text, rect.font_size) });
 
         {
             ZoneNamedN(askdjh, "draw border", true);
             auto& color = rect.border_color;
             SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
-            draw_wire_box(renderer, rect);
+            draw_wire_box(renderer, {rect.position.x, rect.position.y, rect.scale.x, rect.scale.y });
         }
     }
 

@@ -56,6 +56,8 @@ struct GroupStyle {
 struct Rect {
     Vec2 position;
     Vec2 scale;
+    float padding_left;
+    float padding_top;
     const char* text;
     float font_size = 36;
     Color text_color = { 255, 255, 255, 255 };
