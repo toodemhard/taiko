@@ -13,13 +13,17 @@
 #include <array>
 #include <future>
 #include <queue>
+#include <variant>
 
 #include <SDL3/SDL.h>
 #include <SDL3_image/SDL_image.h>
 #include <SDL3_mixer/SDL_mixer.h>
 
+#include <cereal/archives/json.hpp>
 #include <cereal/archives/binary.hpp>
 #include <cereal/types/vector.hpp>
+#include <cereal/types/string.hpp>
+
 
 #include "vec.h"
 #include "ui.h"
@@ -40,38 +44,68 @@ const float circle_radius = 0.1f;
 const float circle_outer_radius = 0.11f;
 
 
-Assets assets;
+Assets g_assets;
 
 //struct Globals {
 //    Input input;
 //    Audio audio;
 //};
 
-enum class EventType {
-    EditorToTest,
-    TestToEditor,
-    ToEditor,
-};
+namespace Event {
+    struct EditNewMap {};
+    struct EditMap {
+        std::filesystem::path map_directory;
+        std::optional<std::string> map_difficulty;
+    };
+    struct TestMap {};
+    struct QuitTest {};
+    struct PlayMap {
+        std::string map_directory;
+    };
+    struct Return {};
+}
+
+namespace EventType {
+    enum EventType {
+        EditNewMap,
+        EditMap,
+        TestMap,
+        QuitTest,
+        PlayMap,
+        Return,
+    };
+}
+
+using EventUnion = std::variant<
+    Event::EditNewMap,
+    Event::EditMap,
+    Event::TestMap,
+    Event::QuitTest,
+    Event::PlayMap,
+    Event::Return
+>;
 
 class EventQueue {
 public:
-    bool pop_event(EventType* event);
-    void push_event(EventType event);
+    bool pop_event(EventUnion* event);
+    void push_event(EventUnion event);
 private:
-    std::queue<EventType> events{};
+    std::queue<EventUnion> events{};
 };
 
-void EventQueue::push_event(EventType event) {
+void EventQueue::push_event(EventUnion event) {
     events.push(event);
 }
 
-bool EventQueue::pop_event(EventType* event) {
+bool EventQueue::pop_event(EventUnion* event) {
     if (events.empty()) {
         return false;
     }
 
-    *event = events.front();
-    events.pop();
+    if (event != nullptr) {
+        *event = events.front();
+        events.pop();
+    }
 
     return true;
 }
@@ -152,35 +186,66 @@ Vec2 Cam::screen_to_world(const Vec2& point) const {
 //    }
 //}
 
+struct MapSetInfo {
+    std::string title;
+    std::string artist;
+
+    template<class Archive>
+    void save(Archive& ar) const {
+        ar(title, artist);
+    }
+
+    template<class Archive>
+    void load(Archive& ar) {
+        ar(title, artist);
+    }
+};
+
+struct MapMeta {
+    std::string difficulty_name;
+
+    double bpm = 160;
+    double offset = 0;
+
+    template<class Archive>
+    void save(Archive& ar) const {
+        ar(CEREAL_NVP(difficulty_name), bpm, offset);
+    }
+
+    template<class Archive>
+    void load(Archive& ar) {
+        ar(difficulty_name, bpm, offset);
+    }
+};
+
 class Map {
 public:
     Map() = default;
-    //Map(const Map& map) {
-    //    std::cout << "copy\n";
-    //}
+    Map(MapMeta meta_data);
+
+    MapMeta m_meta_data;
+    
+    std::vector<double> times{};
+    std::vector<NoteFlags> flags_vec{};
+    std::vector<bool> selected{};
+
     void insert_note(double time, NoteFlags flags);
     void remove_note(int i);
 
     template<class Archive>
     void save(Archive& ar) const {
-        ar(times, flags_vec);
+        ar(m_meta_data, times, flags_vec);
     }
 
     template<class Archive>
     void load(Archive& ar) {
-        ar(times, flags_vec);
+        ar(m_meta_data, times, flags_vec);
 
         selected = std::vector<bool>(times.size(), false);
     }
-    
-    std::string music_file;
-    double bpm;
-    double offset;
-
-    std::vector<double> times;
-    std::vector<NoteFlags> flags_vec;
-    std::vector<bool> selected;
 };
+
+Map::Map(MapMeta meta_data) : m_meta_data{ meta_data } {}
 
 void Map::insert_note(double time, NoteFlags flags) {
     int i = std::upper_bound(times.begin(), times.end(), time) - times.begin();
@@ -196,8 +261,12 @@ void Map::remove_note(int i) {
 }
 
 
+std::filesystem::path maps_directory = "data/maps/";
+const char* map_file_extension = ".tko";
+const char* mapset_filename = "mapset";
+
 std::filesystem::path map_path(const char* file_name) {
-    return "data/maps/" + std::string(file_name);
+    return maps_directory / file_name;
 }
 
 void save_map(const Map& map, const char* file_name) {
@@ -245,9 +314,9 @@ void draw_map(SDL_Renderer* renderer, const Map& map, const Cam& cam, int curren
         Vec2 center_pos = cam.world_to_screen({ (float)map.times[i], 0 });
 
         float scale = (map.flags_vec[i] & NoteFlagBits::normal_or_big) ? 0.9f : 1.4f;
-        Image circle_image = (map.flags_vec[i] & NoteFlagBits::don_or_kat) ? assets.get_image("don_circle") : assets.get_image("kat_circle");
-        Image circle_overlay = assets.get_image("circle_overlay");
-        Image select_circle = assets.get_image("select_circle");
+        Image circle_image = (map.flags_vec[i] & NoteFlagBits::don_or_kat) ? g_assets.get_image("don_circle") : g_assets.get_image("kat_circle");
+        Image circle_overlay = g_assets.get_image("circle_overlay");
+        Image select_circle = g_assets.get_image("select_circle");
 
         Vec2 circle_pos = center_pos;
         circle_pos.x -= circle_image.width / 2 * scale;
@@ -298,9 +367,9 @@ void draw_map_editor(SDL_Renderer* renderer, const Map& map, const Cam& cam, int
         Vec2 center_pos = cam.world_to_screen({(float)map.times[i], 0});
 
         float scale = (map.flags_vec[i] & NoteFlagBits::normal_or_big) ? 0.9f : 1.4f;
-        Image circle_image = (map.flags_vec[i] & NoteFlagBits::don_or_kat) ? assets.get_image("don_circle") : assets.get_image("kat_circle");
-        Image circle_overlay = assets.get_image("circle_overlay");
-        Image select_circle = assets.get_image("select_circle");
+        Image circle_image = (map.flags_vec[i] & NoteFlagBits::don_or_kat) ? g_assets.get_image("don_circle") : g_assets.get_image("kat_circle");
+        Image circle_overlay = g_assets.get_image("circle_overlay");
+        Image select_circle = g_assets.get_image("select_circle");
 
         Vec2 circle_pos = center_pos;
         circle_pos.x -= circle_image.width / 2 * scale;
@@ -417,7 +486,7 @@ void Game::update(std::chrono::duration<double> delta_time) {
     double elapsed = audio_ptr->get_position();
 
     if (input.key_down(SDL_SCANCODE_ESCAPE)) {
-        g_event_queue.push_event(EventType::TestToEditor);
+        g_event_queue.push_event(Event::QuitTest{});
         return;
     }
 
@@ -460,9 +529,9 @@ void Game::update(std::chrono::duration<double> delta_time) {
 
     for (const auto& input : inputs) {
         if ( input == DrumInput::don_left || input == DrumInput::don_right) {
-            Mix_PlayChannel(-1, assets.get_sound("don"), 0);
+            Mix_PlayChannel(-1, g_assets.get_sound("don"), 0);
         } else if (input == DrumInput::kat_left || input == DrumInput::kat_right) {
-            Mix_PlayChannel(-1, assets.get_sound("kat"), 0);
+            Mix_PlayChannel(-1, g_assets.get_sound("kat"), 0);
         }
     }
 
@@ -539,8 +608,8 @@ void Game::update(std::chrono::duration<double> delta_time) {
 
     draw_map_editor(renderer, map, cam, current_note);
 
-    auto inner_drum = assets.get_image("inner_drum");
-    auto outer_drum = assets.get_image("outer_drum");
+    auto inner_drum = g_assets.get_image("inner_drum");
+    auto outer_drum = g_assets.get_image("outer_drum");
     Vec2 drum_pos = { 0, (window_height - inner_drum.height) / 2};
 
     auto left_rect = SDL_FRect{ drum_pos.x, drum_pos.y, (float)inner_drum.width, (float)inner_drum.height };
@@ -659,39 +728,78 @@ enum class EditorMode {
     insert,
 };
 
+class CopyLog {
+public:
+    CopyLog(int _x) : x{ _x } {}
+    CopyLog(const CopyLog& other) : x{ other.x } {
+        std::cerr << "copy!!!!!!";
+    }
+
+    CopyLog(const CopyLog&& other) : x{ other.x } {};
+
+    int x = 234324;
+};
+
+// keep strings alive in outer scope so that it can be drawn at end of update
+// can just ref const char* in inner scope
+class StringPrison {
+public:
+    const char* add(std::string&& string);
+private:
+    std::vector<std::string> strings;
+};
+
+const char* StringPrison::add(std::string&& string) {
+    strings.push_back(std::move(string));
+
+    return strings.back().data();
+}
+
+
+enum class EditorView {
+    Main,
+    MapSet,
+    Timing,
+};
+
 
 class Editor {
 public:
-    Editor(Input& _input, Audio& _audio, SDL_Renderer* _renderer);
+    Editor() = default;
+    Editor(Input* input, Audio* audio, SDL_Renderer* _renderer);
     ~Editor();
     void update(std::chrono::duration<double> delta_time);
     void init();
-    Map map{};
+    void kys(std::filesystem::path path);
+    void load_map(std::filesystem::path& map_path);
+    void refresh_maps();
+
+    Map m_map{};
 
     double last_pos{};
+    Audio* audio_ptr = nullptr;
+
+    bool creating_map = false;
+
 private:
-    Input& input;
-    Audio& audio;
+    Input* input_ptr = nullptr;
     SDL_Renderer* renderer;
 
     Cam cam = {{0,0}, {2,1.5f}};
 
+    MapSetInfo mapset_info{};
+
+    EditorView view = EditorView::Main;
     EditorMode editor_mode = EditorMode::select;
     std::vector<int> selected;
-
     std::optional<Vec2> box_select_begin;
-
     NoteFlags insert_flags = NoteFlagBits::don_or_kat | NoteFlagBits::normal_or_big;
-    //NoteType note_type;
 
 
-    //std::vector<Note> map;
-    double offset = 4.390f;
-    float bpm = 190;
+    std::filesystem::path m_mapset_directory;
+    std::vector<MapMeta> m_difficulty_list;
+    int m_current_difficulty_index = 0;
 
-
-    double quarter_interval = 60 / bpm / 4;
-    double collision_range = quarter_interval / 2;
 
     bool paused = true;
 
@@ -699,58 +807,292 @@ private:
 
     UI ui{};
 
-    //Mix_Music* music;
+    TextFieldState title;
+    TextFieldState artist;
 
-    TextFieldState name;
+    std::optional<std::filesystem::path> m_song_path;
 
-    bool creating_map = true;
+    void main_update();
 };
 
-Editor::Editor(Input& _input, Audio& _audio, SDL_Renderer* _renderer)
-    : input{ _input }, audio{ _audio }, renderer{ _renderer }, ui{ window_width, window_height } {
+Editor::Editor(Input* _input, Audio* _audio, SDL_Renderer* _renderer)
+    : input_ptr{ _input }, audio_ptr{ _audio }, renderer{ _renderer }, ui{ window_width, window_height } {
 }
 
 Editor::~Editor() {
-    //Mix_FreeMusic(music);
-    //Mix_FreeChunk(don_sound);
-    //Mix_FreeChunk(kat_sound);
 }
 
 auto last = std::chrono::high_resolution_clock::now();
 
 
-void Editor::init() {
+void Editor::load_map(std::filesystem::path& mapset_directory) {
+    m_mapset_directory = mapset_directory;
+
+    {
+        std::ifstream file_in((m_mapset_directory / mapset_filename).string().data());
+        cereal::BinaryInputArchive iarchive(file_in);
+        iarchive(mapset_info);
+    }
+
+    m_difficulty_list.clear();
+
+    for (const auto& entry : std::filesystem::directory_iterator(m_mapset_directory)) {
+        if (entry.path().extension().string().compare(map_file_extension) == 0) {
+            m_difficulty_list.push_back({});
+            std::ifstream map_file(entry.path());
+            cereal::BinaryInputArchive iarchive(map_file);
+            iarchive(m_difficulty_list.back());
+        }
+    }
+
+    refresh_maps();
 }
+
+void Editor::refresh_maps() {
+    m_difficulty_list.clear();
+
+    for (const auto& entry : std::filesystem::directory_iterator(m_mapset_directory)) {
+        if (entry.path().extension().string().compare(map_file_extension) == 0) {
+            std::ifstream fin(entry.path());
+
+            cereal::BinaryInputArchive iarchive(fin);
+
+            m_difficulty_list.push_back({});
+            iarchive(m_difficulty_list.back());
+        }
+    }
+    
+
+}
+
+void Editor::kys(std::filesystem::path path) {
+    m_song_path = path;
+}
+
 
 void Editor::update(std::chrono::duration<double> delta_time) {
     ZoneScoped;
-    //double elapsed = Mix_GetMusicPosition(music);
-    double elapsed = audio.get_position();
-    last_pos = elapsed;
 
-
-    //if (!paused) {
-    //    elapsed = Mix_GetMusicPosition(music);
-    //} else {
-    //    elapsed = cam.position.x;
-    //}
     Style style{};
     style.anchor = { 0.5, 0.5 };
     style.stack_direction = StackDirection::Vertical;
+    style.background_color = { 9, 30, 64, 255 };
 
+    float l = 25;
+    style.padding = { l, l, l, l };
+
+    StringPrison strings;
+
+
+    auto inactive_style = Style{};
+    inactive_style.text_color = { 128, 128, 128, 255 };
+
+
+    ui.begin_group({});
+    auto button_style = (view == EditorView::Main) ? Style{} : inactive_style;
+    ui.button("Editor", button_style, [&]() {
+        view = EditorView::Main;
+    });
+
+    button_style = (view == EditorView::MapSet) ? Style{} : inactive_style;
+    ui.button("Mapset", button_style, [&]() {
+        view = EditorView::MapSet;
+    });
+
+    button_style = (view == EditorView::Timing) ? Style{} : inactive_style;
+    ui.button("Timing", button_style, [&]() {
+        view = EditorView::Timing;
+    });
+    ui.end_group();
 
     if (creating_map) {
         ui.begin_group(style);
 
-        ui.text_field(&name, { .border_color = {255, 255, 255, 0}, .min_width = 200 });
+        ui.begin_group({});
+        ui.rect("title: ", {});
+        ui.text_field(&title, { .border_color = {255, 255, 255, 0}, .min_width = 200 });
+        ui.end_group();
+
+        ui.begin_group({});
+        ui.rect("artist: ", {});
+        ui.text_field(&artist, { .border_color = {255, 255, 255, 0}, .min_width = 200 });
+        ui.end_group();
+
+        const char* text = (m_song_path.has_value()) ? strings.add(m_song_path.value().filename().string()) : "choose song";
+        ui.button(text, {}, [&]() {
+            auto callback = [](void* userdata, const char* const* filelist, int filter) {
+                auto editor = (Editor*)userdata;
+
+                if (filelist[0] == nullptr) {
+                    std::cerr << "no files selected\n";
+                    return;
+                }
+
+                if (editor->audio_ptr->load_music(filelist[0]) != 0) {
+                    std::cerr << "invalid file type\n";
+                }
+                    
+                editor->kys(std::filesystem::path(filelist[0]));
+            };
+
+            SDL_ShowOpenFileDialog(callback, this, NULL, NULL, 0, NULL, 0);
+        });
 
         ui.button("enter", {}, [&]() {
+            if (title.text.length() == 0) {
+                std::cerr << "no title\n";
+                return;
+            }
+            if (!m_song_path.has_value()) {
+                std::cerr << "no song file\n";
+                return;
+            }
+
+            m_mapset_directory = "data/maps/" + std::format("{} - {}", artist.text, title.text);
+
+            std::filesystem::create_directories(m_mapset_directory);
+            SDL_CopyFile(m_song_path.value().string().data(), (m_mapset_directory / "audio.mp3").string().data()); 
+
+            mapset_info = { title.text, artist.text };
+
+            {
+                std::ofstream file_out((m_mapset_directory / mapset_filename).string().data());
+                cereal::BinaryOutputArchive oarchive(file_out);
+                oarchive(mapset_info);
+            }
+
             creating_map = false;
-            });
+        });
 
         ui.end_group();
     }
 
+    ui.begin_group(Style{ {1,1} }); 
+    auto frame_time = std::format("{}ms", ((float)std::chrono::duration_cast<std::chrono::microseconds>(delta_time).count()) / 1000);
+    ui.rect(frame_time.data(), {});
+    ui.end_group();
+
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
+    SDL_RenderClear(renderer);
+
+    switch (view) {
+    case EditorView::Main: {
+        main_update();
+        break;
+    }
+    case EditorView::MapSet: { 
+        Style style = {};
+        style.anchor = { 0.25, 0.25 };
+        style.stack_direction = StackDirection::Vertical;
+        ui.begin_group(style);
+        ui.rect(mapset_info.title.data(), {.font_size = 52});
+        ui.rect(mapset_info.artist.data(), { .text_color = {180, 180, 180, 255} });
+
+        ui.end_group();
+
+        style = {};
+        style.anchor = { 0.5, 0.5 };
+        style.stack_direction = StackDirection::Vertical;
+        style.gap = 36;
+        ui.begin_group(style);
+
+        style = {};
+        style.stack_direction = StackDirection::Vertical;
+        ui.begin_group(style);
+
+        auto selected_style = Style{};
+        selected_style.background_color = { 64, 64, 64, 255 };
+        
+        for (int i = 0; i < m_difficulty_list.size(); i++) {
+            auto& diff = m_difficulty_list[i];
+
+            auto entry_style = [&]() -> const Style& {
+                if (m_current_difficulty_index == i) {
+                    return selected_style;
+                } else {
+                    return Style{};
+                }
+            }();
+
+            ui.button(diff.difficulty_name.data(), entry_style, [&, i]() {
+                m_current_difficulty_index = i;
+            });
+        }
+
+        ui.end_group();
+
+        auto func = [&]() {
+            int duplicate_number = 0;
+            auto unique_file_name = std::string("new difficulty");
+
+            while (std::filesystem::exists(m_mapset_directory / (unique_file_name + map_file_extension))) {
+                duplicate_number += 1;
+                unique_file_name = std::format("new difficulty({})", duplicate_number);
+            }
+
+            m_map = Map{
+                MapMeta { .difficulty_name = unique_file_name}
+            };
+
+            {
+                std::ofstream fout(m_mapset_directory / (unique_file_name + map_file_extension));
+                cereal::BinaryOutputArchive ar(fout);
+                ar(m_map);
+            }
+
+            refresh_maps();
+        };
+
+        auto button_style = Style{};
+        button_style.background_color = { 255, 255, 255, 255 };
+        button_style.text_color = { 0, 0, 0, 255 };
+        button_style.padding = { 10, 10, 10, 10 };
+        ui.button("Add Difficulty", button_style, func);
+
+
+        //for (int i = 0; i < map)
+        ui.end_group();
+
+        ui.input(*input_ptr);
+        ui.draw(renderer);
+        break;
+    }
+    case EditorView::Timing: {
+        auto style = Style{};
+        style.anchor = { 0.5, 0.5 };
+        style.stack_direction = StackDirection::Vertical;
+        ui.begin_group(style);
+        ui.rect("KYS!!!!!", {});
+
+        //ui.text_field()
+        ui.end_group();
+
+        ui.input(*input_ptr);
+        ui.draw(renderer);
+        break;
+    }
+    default:
+        ui.input(*input_ptr);
+        ui.draw(renderer);
+        break;
+    }
+
+    {
+        ZoneNamedN(jksfdgjh, "Render Present", true);
+        SDL_RenderPresent(renderer);
+    }
+}
+
+void Editor::main_update() {
+    ZoneScoped;
+
+    auto& input = *input_ptr;
+    auto& audio = *audio_ptr;
+
+    double elapsed = audio.get_position();
+    last_pos = elapsed;
+
+    Style style = {};
     style.anchor = { 0, 0.5 };
     style.stack_direction = StackDirection::Vertical;
 
@@ -796,26 +1138,25 @@ void Editor::update(std::chrono::duration<double> delta_time) {
     //});
     ui.end_group();
 
-    ui.begin_group(Style{ {1,1} }); 
-        auto frame_time = std::to_string(((float)std::chrono::duration_cast<std::chrono::microseconds>(delta_time).count()) / 1000) + " ms";
-        ui.rect(frame_time.data(), {});
-    ui.end_group();
 
-    ui.input(input);
 
     Vec2 cursor_pos = cam.screen_to_world(input.mouse_pos);
 
-    std::optional<int> to_select = note_point_intersection(map, cursor_pos, current_note);
+    if (input.key_down(SDL_SCANCODE_ESCAPE)) {
+        g_event_queue.push_event(Event::Return{});
+    }
+
+    std::optional<int> to_select = note_point_intersection(m_map, cursor_pos, current_note);
     if (input.mouse_down(SDL_BUTTON_RMASK) && to_select.has_value()) {
-        if (map.selected[to_select.value()]) {
-            for (int i = map.selected.size() - 1; i >= 0; i--) {
-                if (map.selected[i]) {
-                    map.remove_note(i);
+        if (m_map.selected[to_select.value()]) {
+            for (int i = m_map.selected.size() - 1; i >= 0; i--) {
+                if (m_map.selected[i]) {
+                    m_map.remove_note(i);
                 }
             }
         }
         else {
-            map.remove_note(to_select.value());
+            m_map.remove_note(to_select.value());
         }
     }
 
@@ -828,7 +1169,7 @@ void Editor::update(std::chrono::duration<double> delta_time) {
     }
 
     if (input.key_down(SDL_SCANCODE_A) && input.modifier(SDL_KMOD_LCTRL)) {
-        std::fill(map.selected.begin(), map.selected.end(), true);
+        std::fill(m_map.selected.begin(), m_map.selected.end(), true);
     }
 
     float seek = 0;
@@ -852,6 +1193,12 @@ void Editor::update(std::chrono::duration<double> delta_time) {
         }
     }
 
+    auto& offset = m_map.m_meta_data.offset;
+    auto& bpm = m_map.m_meta_data.bpm;
+
+    double quarter_interval = 60 / bpm / 4;
+    double collision_range = quarter_interval / 2;
+
     if (seek != 0) {
         int i = std::round((elapsed - offset) / quarter_interval);
         double seek_double = offset + (i - seek) * quarter_interval;
@@ -864,7 +1211,7 @@ void Editor::update(std::chrono::duration<double> delta_time) {
     case EditorMode::select:
         if (!ui.clicked && input.mouse_down(SDL_BUTTON_LMASK)) {
             if (to_select.has_value()) {
-                map.selected[to_select.value()] = !map.selected[to_select.value()];
+                m_map.selected[to_select.value()] = !m_map.selected[to_select.value()];
             } else { 
                 box_select_begin = cursor_pos;
             }
@@ -872,11 +1219,11 @@ void Editor::update(std::chrono::duration<double> delta_time) {
 
         if (input.mouse_held(SDL_BUTTON_LMASK)) {
             if (box_select_begin.has_value()) {
-                auto hits = note_box_intersection(map, box_select_begin.value(), cursor_pos);
-                std::fill(map.selected.begin(), map.selected.end(), false);
+                auto hits = note_box_intersection(m_map, box_select_begin.value(), cursor_pos);
+                std::fill(m_map.selected.begin(), m_map.selected.end(), false);
 
                 for (auto& i : hits) {
-                    map.selected[i] = true;
+                    m_map.selected[i] = true;
                 }
             }
 
@@ -894,8 +1241,8 @@ void Editor::update(std::chrono::duration<double> delta_time) {
 
             bool collision = false;
             double diff;
-            for (int i = 0; i < map.times.size(); i++) {
-                diff = std::abs((map.times[i] - time));
+            for (int i = 0; i < m_map.times.size(); i++) {
+                diff = std::abs((m_map.times[i] - time));
                 if (diff < collision_range) {
                     collision = true;
                     break;
@@ -903,7 +1250,7 @@ void Editor::update(std::chrono::duration<double> delta_time) {
             }
 
             if (!collision) {
-                map.insert_note(time, insert_flags);
+                m_map.insert_note(time, insert_flags);
 
                 if (time < elapsed) {
                     current_note++;
@@ -914,7 +1261,7 @@ void Editor::update(std::chrono::duration<double> delta_time) {
     }
 
     if (input.key_down(SDL_SCANCODE_F5)) {
-        g_event_queue.push_event(EventType::EditorToTest);
+        g_event_queue.push_event(Event::TestMap{});
     }
 
     if (input.key_down(SDL_SCANCODE_Q)) { 
@@ -936,35 +1283,31 @@ void Editor::update(std::chrono::duration<double> delta_time) {
     if (input.key_down(SDL_SCANCODE_SPACE)) {
         if (audio.paused()) {
             audio.play();
-            current_note = std::upper_bound(map.times.begin(), map.times.end(), elapsed) - map.times.begin();
+            current_note = std::upper_bound(m_map.times.begin(), m_map.times.end(), elapsed) - m_map.times.begin();
         } else {
             audio.pause();
         }
     }
 
-    if (!audio.paused() && current_note < map.times.size() && elapsed >= map.times[current_note]) {
-        switch (map.flags_vec[current_note]) {
+    if (!audio.paused() && current_note < m_map.times.size() && elapsed >= m_map.times[current_note]) {
+        switch (m_map.flags_vec[current_note]) {
         case (NoteFlagBits::don_or_kat | NoteFlagBits::normal_or_big):
-            Mix_PlayChannel(-1, assets.get_sound("don"), 0);
+            Mix_PlayChannel(-1, g_assets.get_sound("don"), 0);
             break;
         case (0 | NoteFlagBits::normal_or_big):
-            Mix_PlayChannel(-1, assets.get_sound("kat"), 0);
+            Mix_PlayChannel(-1, g_assets.get_sound("kat"), 0);
             break;
         case (NoteFlagBits::don_or_kat | 0):
-            Mix_PlayChannel(-1, assets.get_sound("kat"), 0);
+            Mix_PlayChannel(-1, g_assets.get_sound("kat"), 0);
             break;
         case (0 | 0):
-            Mix_PlayChannel(-1, assets.get_sound("kat"), 0);
+            Mix_PlayChannel(-1, g_assets.get_sound("kat"), 0);
             break;
         }
 
         current_note++;
     }
 
-
-
-    SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
-    SDL_RenderClear(renderer);
 
     float right_bound =cam.position.x + cam.bounds.x / 2;
     float left_bound = cam.position.x - cam.bounds.x / 2;
@@ -1002,7 +1345,7 @@ void Editor::update(std::chrono::duration<double> delta_time) {
     SDL_SetRenderDrawColor(renderer, 255, 255, 0, SDL_ALPHA_OPAQUE);
     SDL_RenderLine(renderer, p1.x, p1.y, p2.x, p2.y);
 
-    draw_map_editor(renderer, map, cam, current_note);
+    draw_map_editor(renderer, m_map, cam, current_note);
 
     if (box_select_begin.has_value()) {
         Vec2 start_pos = cam.world_to_screen(box_select_begin.value());
@@ -1027,25 +1370,9 @@ void Editor::update(std::chrono::duration<double> delta_time) {
         SDL_RenderRect(renderer, &rect);
     }
 
+    ui.input(*input_ptr);
     ui.draw(renderer);
-
-
-    {
-        ZoneNamedN(jksfdgjh, "Render Present", true);
-        SDL_RenderPresent(renderer);
-    }
 }
-
-//enum class View {
-//    main,
-//    map_select,
-//};
-
-struct MapEntry {
-    std::string title;
-    std::string artist;
-    std::string difficulty_name;
-};
 
 enum class EntryMode {
     Play,
@@ -1057,6 +1384,7 @@ public:
     MainMenu(Input* _input, Audio* _audio, SDL_Renderer* _renderer);
     
     void update();
+    void reload_maps();
 
 private:
     UI ui;
@@ -1066,13 +1394,52 @@ private:
 
     EntryMode entry_mode = EntryMode::Play;
 
-    std::vector<MapEntry> map_list;
+    std::vector<MapMeta> map_list;
+    std::vector<int> mapset_index_list;
+
+    std::vector<MapSetInfo> mapsets;
+    std::vector<std::filesystem::path> mapset_paths;
 
     TextFieldState search{.text = "ashkjfhkjh"};
 };
 
 MainMenu::MainMenu(Input* _input, Audio* _audio, SDL_Renderer* _renderer)
-    : input_ptr{ _input }, audio_ptr{ _audio }, renderer{ _renderer }, ui{ window_width, window_height } {}
+    : input_ptr{ _input }, audio_ptr{ _audio }, renderer{ _renderer }, ui{ window_width, window_height } {
+    reload_maps();
+}
+
+void MainMenu::reload_maps() {
+    map_list.clear();
+    mapset_index_list.clear();
+    mapsets.clear();
+
+    for (const auto& mapset : std::filesystem::directory_iterator(maps_directory)) {
+        mapset_paths.push_back(mapset.path());
+        mapsets.push_back({});
+        int mapset_index = mapsets.size() - 1;
+        {
+            std::ifstream fin(mapset.path() / mapset_filename);
+
+            cereal::BinaryInputArchive iarchive(fin);
+
+            iarchive(mapsets.back());
+        }
+
+        for (const auto& entry : std::filesystem::directory_iterator(mapset.path())) {
+            if (entry.path().extension().string().compare(map_file_extension) == 0) {
+                std::ifstream fin(entry.path());
+
+                cereal::BinaryInputArchive iarchive(fin);
+
+                map_list.push_back({});
+                iarchive(map_list.back());
+
+                mapset_index_list.push_back(mapset_index);
+            }
+        }
+    }
+
+}
 
 struct ButtonInfo {
     const char* text;
@@ -1088,6 +1455,9 @@ void MainMenu::update() {
     std::vector<ButtonInfo> option;
 
 
+    if (input.key_down(SDL_SCANCODE_F5)) {
+        reload_maps();
+    }
 
     Style inactive_style{};
     inactive_style.text_color = { 128, 128 ,128, 255 };
@@ -1096,11 +1466,11 @@ void MainMenu::update() {
 
     option.push_back({ "Play", inactive_style, [&]() {
         entry_mode = EntryMode::Play;
-    }});
+    } });
 
     option.push_back({ "Edit", inactive_style, [&]() {
         entry_mode = EntryMode::Edit;
-    }});
+    } });
 
 
     if (entry_mode == EntryMode::Play) {
@@ -1125,27 +1495,44 @@ void MainMenu::update() {
         style.anchor = { 0.25f, 0.5f };
         ui.begin_group(style);
 
-        auto callback = [](void* userdata, const char* const* filelist, int filter) {
-            std::cout << std::format("{}\n", (int)filelist);
-            std::cout << std::format("{}\n", (int)filelist[0]);
-
-            if (filelist[0] != nullptr) {
-                //std::cout << "jkhaskdhfklsjahdkf";
-                //std::filesystem::create_directory("maps");
-                g_event_queue.push_event(EventType::ToEditor);
-            }
-            else {
-                std::cout << "vcbh";
-            }
-            };
-
-
         ui.button("New Map", {}, [&]() {
-            SDL_ShowOpenFileDialog(callback, NULL, NULL, NULL, 0, NULL, 0);
-        });
+            g_event_queue.push_event(Event::EditNewMap{});
+            });
 
         ui.end_group();
     }
+
+    auto group_style = Style{};
+    group_style.stack_direction = StackDirection::Vertical;
+    group_style.gap = 25;
+    group_style.anchor = { 1, 0.5 };
+    group_style.padding = { .right = 25 };
+
+    ui.begin_group(group_style);
+
+
+    // list mapsets
+    for (int i = 0; i < mapsets.size(); i++) {
+        auto& mapset = mapsets[i];
+        auto& mapset_directory = mapset_paths[i];
+        group_style = {};
+        group_style.stack_direction = StackDirection::Vertical;
+        group_style.background_color = { 20, 20, 20, 255 };
+        group_style.border_color = { 100, 100, 50, 255 };
+        float l = 25;
+        group_style.padding = { l, l, l, l };
+
+        OnClick edit_map = [&](ClickInfo info) {
+            g_event_queue.push_event(Event::EditMap{ mapset_directory, {} });
+        };
+
+        ui.begin_group_v2(group_style, {edit_map});
+        ui.rect(mapset.title.data(), {});
+        ui.rect(mapset.artist.data(), {});
+        ui.end_group_v2();
+    }
+
+    ui.end_group();
 
 
     //Style style = {};
@@ -1226,14 +1613,59 @@ void fake_loop() {
     }
 }
 
+struct Atomic {
+    int x, y;
+
+    template<class Archive>
+    void save(Archive& ar) const {
+        ar(x, y);
+    }
+
+    template<class Archive>
+    void load(Archive& ar) {
+        ar(x, y);
+    }
+};
+
+struct Composite {
+    Atomic thing;
+    std::string title;
+
+    template<class Archive>
+    void save(Archive& ar) const {
+        ar(thing, title);
+    }
+
+    template<class Archive>
+    void load(Archive& ar) {
+        ar(thing, title);
+    }
+};
+
+void create_dirs() {
+    ZoneScoped;
+    std::filesystem::create_directory(maps_directory);
+}
+
 int run() {
+
+    //auto map = Map{
+    //        MapMeta {.difficulty_name = "Oni!!"}
+    //};
+
+    //std::ofstream fout("../map.json");
+
+    //cereal::JSONOutputArchive ar(fout);
+
+    //ar(map);
+
+
+    //return 0;
+
+    create_dirs();
 
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) < 0) {
         SDL_Log("SDL_Init failed (%s)", SDL_GetError());
-        return 1;
-    }
-    if (TTF_Init() != 0) {
-        std::cout << std::format("{}\n", TTF_GetError());
         return 1;
     }
 
@@ -1249,18 +1681,15 @@ int run() {
     Audio audio{};
     
 
-    Context context = Context::Menu;
+    std::vector<Context> context_stack{ Context::Menu };
 
 
-    auto editor = Editor{input, audio, renderer};
 
 
+    Editor editor;
     Game game;
-
-    Map map{};
     MainMenu menu{&input, &audio, renderer};
 
-    editor.init();
 
     Mix_MasterVolume(MIX_MAX_VOLUME * 0.25);
     Mix_VolumeMusic(MIX_MAX_VOLUME * 0.1);
@@ -1283,11 +1712,11 @@ int run() {
         {"drum-outer.png", "outer_drum"},
     };
 
-    assets.init(renderer, image_list, sound_list);
+    g_assets.init(renderer, image_list, sound_list);
 
     //auto future = std::async(std::launch::async, fake_loop);
 
-    SDL_StartTextInput();
+    SDL_StartTextInput(window);
 
     while (1) {
         auto now = std::chrono::high_resolution_clock::now();
@@ -1301,15 +1730,16 @@ int run() {
 
         last_frame = now;
 
-        float total_wheel{};
-        bool moved{};
-
-        input.begin_frame();
-        input.input_text = std::nullopt;
-
-        SDL_Event event;
         bool quit = false;
+
         {
+            float total_wheel{};
+            bool moved{};
+
+            input.begin_frame();
+            input.input_text = std::nullopt;
+
+            SDL_Event event;
             ZoneNamedN(var, "poll input", true);
             while (SDL_PollEvent(&event)) {
                 ZoneNamedN(var, "event", true);
@@ -1322,45 +1752,57 @@ int run() {
                     total_wheel += event.wheel.y;
                 }
 
-
                 if (event.type == SDL_EVENT_KEY_DOWN) {
                     input.keyboard_repeat[event.key.scancode] = true;
                 }
-
 
                 if (event.type == SDL_EVENT_TEXT_INPUT) {
                     input.input_text = std::string(event.text.text);
                 }
             }
+            input.wheel = total_wheel;
         }
         if (quit) {
             break;
         }
 
-        input.wheel = total_wheel;
 
 
-
-        EventType switch_event;
-        while (g_event_queue.pop_event(&switch_event)) {
-            switch (switch_event) {
-            case EventType::EditorToTest:
-                game = { &input, &audio, renderer, editor.map};
-                context = Context::Game;
+        EventUnion event;
+        while (g_event_queue.pop_event(&event)) {
+            switch (event.index()) {
+            case EventType::TestMap:
+                game = { &input, &audio, renderer, editor.m_map};
+                context_stack.push_back(Context::Game);
                 break;
-            case EventType::TestToEditor:
+            case EventType::QuitTest:
                 game = {};
                 audio.set_position(editor.last_pos);
                 audio.pause();
-                context = Context::Editor;
+                context_stack.pop_back();
                 break;
-            case EventType::ToEditor:
-                context = Context::Editor;
+            case EventType::EditNewMap:
+                context_stack.push_back(Context::Editor);
+                editor = Editor{ &input, &audio, renderer };
+                editor.creating_map = true;
+                break;
+            case EventType::EditMap: {
+                auto& edit_map_event = std::get<Event::EditMap>(event);
+                context_stack.push_back(Context::Editor);
+                editor = Editor{ &input, &audio, renderer };
+                editor.load_map(edit_map_event.map_directory);
             }
-
+            break;
+            case EventType::PlayMap:
+                //context_stack.pop_back();
+                break;
+            case EventType::Return:
+                context_stack.pop_back();
+                break;
+            }
         }
 
-        switch (context) {
+        switch (context_stack.back()) {
         case Context::Menu:
             menu.update();
             break;
