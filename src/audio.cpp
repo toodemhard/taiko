@@ -12,10 +12,6 @@
 
 Audio::Audio() {
     Mix_OpenAudio(0, NULL);
-    music = Mix_LoadMUS("data/audio.mp3");
-    Mix_PlayMusic(music, 0);
-    Mix_VolumeMusic(MIX_MAX_VOLUME * 0.3);
-    Mix_PauseMusic();
 }
 
 /*
@@ -28,6 +24,8 @@ int Audio::load_music(const char* file_path) {
     }
 
     music = result;
+    elapsed = 0;
+
     Mix_PlayMusic(music, 0);
     Mix_PauseMusic();
 

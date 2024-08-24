@@ -758,6 +758,7 @@ public:
     void init();
     void load_mapset(std::filesystem::path& map_path);
     void refresh_maps();
+    void quit();
 
     Map m_map{};
 
@@ -820,6 +821,8 @@ void Editor::load_mapset(std::filesystem::path& mapset_directory) {
         cereal::BinaryInputArchive iarchive(file_in);
         iarchive(mapset_info);
     }
+
+    audio_ptr->load_music((m_mapset_directory / "audio.mp3").string().data());
 
     m_map_infos.clear();
 
@@ -1701,20 +1704,6 @@ void create_dirs() {
 }
 
 int run() {
-
-    //auto map = Map{
-    //        MapMeta {.difficulty_name = "Oni!!"}
-    //};
-
-    //std::ofstream fout("../map.json");
-
-    //cereal::JSONOutputArchive ar(fout);
-
-    //ar(map);
-
-
-    //return 0;
-
     create_dirs();
 
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) < 0) {
@@ -1735,13 +1724,13 @@ int run() {
     
     std::vector<Context> context_stack{ Context::Menu };
 
-    Editor editor;
+    std::unique_ptr<Editor> editor;
     Game game;
     MainMenu menu{&input, &audio, renderer};
 
 
-    Mix_MasterVolume(MIX_MAX_VOLUME * 0.25);
-    Mix_VolumeMusic(MIX_MAX_VOLUME * 0.1);
+    Mix_MasterVolume(MIX_MAX_VOLUME * 0.3);
+    Mix_VolumeMusic(MIX_MAX_VOLUME * 0.2);
 
     auto last_frame = std::chrono::high_resolution_clock::now();
 
@@ -1815,37 +1804,40 @@ int run() {
             break;
         }
 
-
-
         EventUnion event;
         while (g_event_queue.pop_event(&event)) {
             switch (event.index()) {
             case EventType::TestMap:
-                game = { &input, &audio, renderer, editor.m_map};
+                game = { &input, &audio, renderer, editor->m_map};
                 context_stack.push_back(Context::Game);
                 break;
             case EventType::QuitTest:
                 game = {};
-                audio.set_position(editor.last_pos);
+                audio.set_position(editor->last_pos);
                 audio.pause();
                 context_stack.pop_back();
                 break;
             case EventType::EditNewMap:
                 context_stack.push_back(Context::Editor);
-                editor = Editor{ &input, &audio, renderer };
-                editor.creating_map = true;
+                editor = std::make_unique<Editor>(&input, &audio, renderer);
+                editor->creating_map = true;
                 break;
             case EventType::EditMap: {
                 auto& edit_map_event = std::get<Event::EditMap>(event);
                 context_stack.push_back(Context::Editor);
-                editor = Editor{ &input, &audio, renderer };
-                editor.load_mapset(edit_map_event.map_directory);
+                editor = std::make_unique<Editor>(&input, &audio, renderer);
+                editor->load_mapset(edit_map_event.map_directory);
             }
             break;
             case EventType::PlayMap:
                 //context_stack.pop_back();
                 break;
             case EventType::Return:
+                switch (context_stack.back()) {
+                case Context::Editor:
+                    editor->quit();
+                    editor.reset();
+                }
                 context_stack.pop_back();
                 break;
             }
@@ -1856,7 +1848,7 @@ int run() {
             menu.update();
             break;
         case Context::Editor:
-            editor.update(delta_time);
+            editor->update(delta_time);
             break;
         case Context::Game:
             game.update(delta_time);
