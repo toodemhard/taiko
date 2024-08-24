@@ -848,6 +848,9 @@ void Editor::load_map(int map_index) {
 }
 
 void Editor::remove_map(int map_index) {
+    std::filesystem::remove(m_map_paths[map_index]);
+    
+    this->refresh_maps();
     return;
 }
 
@@ -874,7 +877,7 @@ void Editor::refresh_maps() {
 void Editor::rename_map(int map_index, const std::string& new_name) {
     m_map.m_meta_data.difficulty_name = new_name;
     auto new_path = m_mapset_directory / (new_name + map_file_extension);
-    auto& old_path = m_map_paths[m_current_map_index];
+    auto& old_path = m_map_paths[map_index];
 
     if (old_path.compare(new_path) == 0) {
         return;
@@ -1106,7 +1109,6 @@ void Editor::update(std::chrono::duration<double> delta_time) {
         ui.button("Add Difficulty", button_style, func);
 
 
-        //for (int i = 0; i < map)
         ui.end_group();
 
         ui.input(*input_ptr);
@@ -1120,7 +1122,6 @@ void Editor::update(std::chrono::duration<double> delta_time) {
         ui.begin_group(style);
         ui.rect("KYS!!!!!", {});
 
-        //ui.text_field()
         ui.end_group();
 
         ui.input(*input_ptr);
