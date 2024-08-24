@@ -269,20 +269,10 @@ std::filesystem::path map_path(const char* file_name) {
     return maps_directory / file_name;
 }
 
-void save_map(const Map& map, const char* file_name) {
-    std::ofstream fout(map_path(file_name).string().data());
-
-    cereal::BinaryOutputArchive oarchive(fout);
-
-    oarchive(map);
-}
-
-void load_map(Map* map) {
-    std::ifstream fin("map.tnt");
-
-    cereal::BinaryInputArchive iarchive(fin);
-
-    iarchive(*map);
+void save_map(const Map& map, std::filesystem::path path) {
+    std::ofstream file(path);
+    cereal::BinaryOutputArchive ar(file);
+    ar(map);
 }
 
 void draw_map(SDL_Renderer* renderer, const Map& map, const Cam& cam, int current_note) {
@@ -717,8 +707,6 @@ std::optional<int> note_point_intersection(const Map& map, const Vec2& point, co
 //    SDL_RenderLines(renderer, points, 5);
 //}
 
-
-
 void set_draw_color(SDL_Renderer* renderer, Color color) {
     SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
 }
@@ -755,13 +743,11 @@ const char* StringPrison::add(std::string&& string) {
     return strings.back().data();
 }
 
-
 enum class EditorView {
     Main,
     MapSet,
     Timing,
 };
-
 
 class Editor {
 public:
@@ -770,8 +756,7 @@ public:
     ~Editor();
     void update(std::chrono::duration<double> delta_time);
     void init();
-    void kys(std::filesystem::path path);
-    void load_map(std::filesystem::path& map_path);
+    void load_mapset(std::filesystem::path& map_path);
     void refresh_maps();
 
     Map m_map{};
@@ -780,6 +765,7 @@ public:
     Audio* audio_ptr = nullptr;
 
     bool creating_map = false;
+    std::optional<std::filesystem::path> m_song_path;
 
 private:
     Input* input_ptr = nullptr;
@@ -797,8 +783,12 @@ private:
 
 
     std::filesystem::path m_mapset_directory;
-    std::vector<MapMeta> m_difficulty_list;
-    int m_current_difficulty_index = 0;
+    std::vector<MapMeta> m_map_infos;
+    std::vector<std::filesystem::path> m_map_paths;
+    int m_current_map_index = 0;
+    
+    TextFieldState m_map_rename_field;
+    bool m_renaming_map = false;
 
 
     bool paused = true;
@@ -810,22 +800,19 @@ private:
     TextFieldState title;
     TextFieldState artist;
 
-    std::optional<std::filesystem::path> m_song_path;
 
     void main_update();
+    void load_map(int map_index);
+    void remove_map(int map_index);
+    void rename_map(int map_index, const std::string& new_name);
 };
 
 Editor::Editor(Input* _input, Audio* _audio, SDL_Renderer* _renderer)
-    : input_ptr{ _input }, audio_ptr{ _audio }, renderer{ _renderer }, ui{ window_width, window_height } {
-}
+    : input_ptr{ _input }, audio_ptr{ _audio }, renderer{ _renderer }, ui{ window_width, window_height } {}
 
-Editor::~Editor() {
-}
+Editor::~Editor() {}
 
-auto last = std::chrono::high_resolution_clock::now();
-
-
-void Editor::load_map(std::filesystem::path& mapset_directory) {
+void Editor::load_mapset(std::filesystem::path& mapset_directory) {
     m_mapset_directory = mapset_directory;
 
     {
@@ -834,44 +821,78 @@ void Editor::load_map(std::filesystem::path& mapset_directory) {
         iarchive(mapset_info);
     }
 
-    m_difficulty_list.clear();
+    m_map_infos.clear();
 
     for (const auto& entry : std::filesystem::directory_iterator(m_mapset_directory)) {
         if (entry.path().extension().string().compare(map_file_extension) == 0) {
-            m_difficulty_list.push_back({});
+            m_map_infos.push_back({});
             std::ifstream map_file(entry.path());
             cereal::BinaryInputArchive iarchive(map_file);
-            iarchive(m_difficulty_list.back());
+            iarchive(m_map_infos.back());
         }
     }
 
     refresh_maps();
 }
 
+void Editor::load_map(int map_index) {
+    m_current_map_index = map_index;
+
+    {
+        std::ifstream map_file(m_map_paths[map_index]);
+        cereal::BinaryInputArchive ar(map_file);
+        ar(m_map);
+    }
+
+    audio_ptr->set_position(0);
+}
+
+void Editor::remove_map(int map_index) {
+    std::filesystem::remove(m_map_paths[map_index]);
+    
+    this->refresh_maps();
+    return;
+}
+
 void Editor::refresh_maps() {
-    m_difficulty_list.clear();
+    m_map_infos.clear();
+    m_map_paths.clear();
 
     for (const auto& entry : std::filesystem::directory_iterator(m_mapset_directory)) {
         if (entry.path().extension().string().compare(map_file_extension) == 0) {
+            m_map_paths.push_back(entry.path());
+
             std::ifstream fin(entry.path());
 
             cereal::BinaryInputArchive iarchive(fin);
 
-            m_difficulty_list.push_back({});
-            iarchive(m_difficulty_list.back());
+            m_map_infos.push_back({});
+            iarchive(m_map_infos.back());
         }
     }
     
 
 }
 
-void Editor::kys(std::filesystem::path path) {
-    m_song_path = path;
-}
+void Editor::rename_map(int map_index, const std::string& new_name) {
+    m_map.m_meta_data.difficulty_name = new_name;
+    auto new_path = m_mapset_directory / (new_name + map_file_extension);
+    auto& old_path = m_map_paths[map_index];
 
+    if (old_path.compare(new_path) == 0) {
+        return;
+    }
+    
+    std::filesystem::rename(old_path, new_path);
+    save_map(m_map, new_path);
+
+    this->refresh_maps();
+}
 
 void Editor::update(std::chrono::duration<double> delta_time) {
     ZoneScoped;
+    auto& input = *input_ptr;
+    auto& audio = *audio_ptr;
 
     Style style{};
     style.anchor = { 0.5, 0.5 };
@@ -931,9 +952,11 @@ void Editor::update(std::chrono::duration<double> delta_time) {
                 if (editor->audio_ptr->load_music(filelist[0]) != 0) {
                     std::cerr << "invalid file type\n";
                 }
-                    
-                editor->kys(std::filesystem::path(filelist[0]));
+
+                editor->m_song_path = std::filesystem::path(filelist[0]);
             };
+
+            
 
             SDL_ShowOpenFileDialog(callback, this, NULL, NULL, 0, NULL, 0);
         });
@@ -981,6 +1004,25 @@ void Editor::update(std::chrono::duration<double> delta_time) {
         break;
     }
     case EditorView::MapSet: { 
+        if (input.key_down(SDL_SCANCODE_F2)) {
+            m_renaming_map = true;
+
+            m_map_rename_field.text = m_map_infos[m_current_map_index].difficulty_name;
+        }
+
+        if (m_renaming_map == true) {
+            if (input.key_down(SDL_SCANCODE_RETURN)) {
+                std::cerr << "enter\n";
+                std::cerr << m_map_rename_field.text;
+
+                m_renaming_map = false;
+
+                this->rename_map(m_current_map_index, m_map_rename_field.text);
+
+            }
+
+        }
+
         Style style = {};
         style.anchor = { 0.25, 0.25 };
         style.stack_direction = StackDirection::Vertical;
@@ -1001,22 +1043,39 @@ void Editor::update(std::chrono::duration<double> delta_time) {
         ui.begin_group(style);
 
         auto selected_style = Style{};
-        selected_style.background_color = { 64, 64, 64, 255 };
+        selected_style.border_color = { 255, 255, 255, 255 };
+
+        auto deselected_style = Style{};
+        deselected_style.text_color = { 180, 180, 180, 255 };
         
-        for (int i = 0; i < m_difficulty_list.size(); i++) {
-            auto& diff = m_difficulty_list[i];
+        
+        for (int i = 0; i < m_map_infos.size(); i++) {
+            auto& diff = m_map_infos[i];
+            
+            if (i == m_current_map_index && m_renaming_map) {
+                ui.text_field(&m_map_rename_field, { .text_color{255, 0, 0, 255} });
+                continue;
+            }
 
             auto entry_style = [&]() -> const Style& {
-                if (m_current_difficulty_index == i) {
+                if (m_current_map_index == i) {
                     return selected_style;
                 } else {
-                    return Style{};
+                    return deselected_style;
                 }
             }();
 
+            ui.begin_group_v2({}, {});
+
             ui.button(diff.difficulty_name.data(), entry_style, [&, i]() {
-                m_current_difficulty_index = i;
+                this->load_map(i);
             });
+
+            ui.button("x", {}, [&, i]() {
+                this->remove_map(i);
+            });
+
+            ui.end_group_v2();
         }
 
         ui.end_group();
@@ -1050,7 +1109,6 @@ void Editor::update(std::chrono::duration<double> delta_time) {
         ui.button("Add Difficulty", button_style, func);
 
 
-        //for (int i = 0; i < map)
         ui.end_group();
 
         ui.input(*input_ptr);
@@ -1064,7 +1122,6 @@ void Editor::update(std::chrono::duration<double> delta_time) {
         ui.begin_group(style);
         ui.rect("KYS!!!!!", {});
 
-        //ui.text_field()
         ui.end_group();
 
         ui.input(*input_ptr);
@@ -1161,11 +1218,7 @@ void Editor::main_update() {
     }
 
     if (input.key_down(SDL_SCANCODE_S) && input.modifier(SDL_KMOD_LCTRL)) {
-        //save_map(map);
-    }
-
-    if (input.key_down(SDL_SCANCODE_O) && input.modifier(SDL_KMOD_LCTRL)) {
-        //load_map(&map);
+        save_map(m_map, m_map_paths[m_current_map_index]);
     }
 
     if (input.key_down(SDL_SCANCODE_A) && input.modifier(SDL_KMOD_LCTRL)) {
@@ -1680,11 +1733,7 @@ int run() {
     Input input{};
     Audio audio{};
     
-
     std::vector<Context> context_stack{ Context::Menu };
-
-
-
 
     Editor editor;
     Game game;
@@ -1790,7 +1839,7 @@ int run() {
                 auto& edit_map_event = std::get<Event::EditMap>(event);
                 context_stack.push_back(Context::Editor);
                 editor = Editor{ &input, &audio, renderer };
-                editor.load_map(edit_map_event.map_directory);
+                editor.load_mapset(edit_map_event.map_directory);
             }
             break;
             case EventType::PlayMap:
