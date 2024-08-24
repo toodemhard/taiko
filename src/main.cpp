@@ -765,6 +765,7 @@ public:
     Audio* audio_ptr = nullptr;
 
     bool creating_map = false;
+    std::optional<std::filesystem::path> m_song_path;
 
 private:
     Input* input_ptr = nullptr;
@@ -799,7 +800,6 @@ private:
     TextFieldState title;
     TextFieldState artist;
 
-    std::optional<std::filesystem::path> m_song_path;
 
     void main_update();
     void load_map(int map_index);
@@ -949,7 +949,11 @@ void Editor::update(std::chrono::duration<double> delta_time) {
                 if (editor->audio_ptr->load_music(filelist[0]) != 0) {
                     std::cerr << "invalid file type\n";
                 }
+
+                editor->m_song_path = std::filesystem::path(filelist[0]);
             };
+
+            
 
             SDL_ShowOpenFileDialog(callback, this, NULL, NULL, 0, NULL, 0);
         });
