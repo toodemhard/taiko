@@ -756,7 +756,6 @@ public:
     ~Editor();
     void update(std::chrono::duration<double> delta_time);
     void init();
-    void kys(std::filesystem::path path);
     void load_mapset(std::filesystem::path& map_path);
     void refresh_maps();
 
@@ -786,6 +785,10 @@ private:
     std::vector<MapMeta> m_map_infos;
     std::vector<std::filesystem::path> m_map_paths;
     int m_current_map_index = 0;
+    
+    TextFieldState m_map_rename_field;
+    bool m_renaming_map = false;
+
 
     bool paused = true;
 
@@ -801,17 +804,13 @@ private:
     void main_update();
     void load_map(int map_index);
     void remove_map(int map_index);
+    void rename_map(int map_index, const std::string& new_name);
 };
 
 Editor::Editor(Input* _input, Audio* _audio, SDL_Renderer* _renderer)
-    : input_ptr{ _input }, audio_ptr{ _audio }, renderer{ _renderer }, ui{ window_width, window_height } {
-}
+    : input_ptr{ _input }, audio_ptr{ _audio }, renderer{ _renderer }, ui{ window_width, window_height } {}
 
-Editor::~Editor() {
-}
-
-auto last = std::chrono::high_resolution_clock::now();
-
+Editor::~Editor() {}
 
 void Editor::load_mapset(std::filesystem::path& mapset_directory) {
     m_mapset_directory = mapset_directory;
@@ -854,6 +853,7 @@ void Editor::remove_map(int map_index) {
 
 void Editor::refresh_maps() {
     m_map_infos.clear();
+    m_map_paths.clear();
 
     for (const auto& entry : std::filesystem::directory_iterator(m_mapset_directory)) {
         if (entry.path().extension().string().compare(map_file_extension) == 0) {
@@ -871,13 +871,25 @@ void Editor::refresh_maps() {
 
 }
 
-void Editor::kys(std::filesystem::path path) {
-    m_song_path = path;
-}
+void Editor::rename_map(int map_index, const std::string& new_name) {
+    m_map.m_meta_data.difficulty_name = new_name;
+    auto new_path = m_mapset_directory / (new_name + map_file_extension);
+    auto& old_path = m_map_paths[m_current_map_index];
 
+    if (old_path.compare(new_path) == 0) {
+        return;
+    }
+    
+    std::filesystem::rename(old_path, new_path);
+    save_map(m_map, new_path);
+
+    this->refresh_maps();
+}
 
 void Editor::update(std::chrono::duration<double> delta_time) {
     ZoneScoped;
+    auto& input = *input_ptr;
+    auto& audio = *audio_ptr;
 
     Style style{};
     style.anchor = { 0.5, 0.5 };
@@ -937,8 +949,6 @@ void Editor::update(std::chrono::duration<double> delta_time) {
                 if (editor->audio_ptr->load_music(filelist[0]) != 0) {
                     std::cerr << "invalid file type\n";
                 }
-                    
-                editor->kys(std::filesystem::path(filelist[0]));
             };
 
             SDL_ShowOpenFileDialog(callback, this, NULL, NULL, 0, NULL, 0);
@@ -987,6 +997,25 @@ void Editor::update(std::chrono::duration<double> delta_time) {
         break;
     }
     case EditorView::MapSet: { 
+        if (input.key_down(SDL_SCANCODE_F2)) {
+            m_renaming_map = true;
+
+            m_map_rename_field.text = m_map_infos[m_current_map_index].difficulty_name;
+        }
+
+        if (m_renaming_map == true) {
+            if (input.key_down(SDL_SCANCODE_RETURN)) {
+                std::cerr << "enter\n";
+                std::cerr << m_map_rename_field.text;
+
+                m_renaming_map = false;
+
+                this->rename_map(m_current_map_index, m_map_rename_field.text);
+
+            }
+
+        }
+
         Style style = {};
         style.anchor = { 0.25, 0.25 };
         style.stack_direction = StackDirection::Vertical;
@@ -1015,6 +1044,11 @@ void Editor::update(std::chrono::duration<double> delta_time) {
         
         for (int i = 0; i < m_map_infos.size(); i++) {
             auto& diff = m_map_infos[i];
+            
+            if (i == m_current_map_index && m_renaming_map) {
+                ui.text_field(&m_map_rename_field, { .text_color{255, 0, 0, 255} });
+                continue;
+            }
 
             auto entry_style = [&]() -> const Style& {
                 if (m_current_map_index == i) {
@@ -1695,6 +1729,7 @@ int run() {
     Audio audio{};
     
     std::vector<Context> context_stack{ Context::Menu };
+
     Editor editor;
     Game game;
     MainMenu menu{&input, &audio, renderer};
