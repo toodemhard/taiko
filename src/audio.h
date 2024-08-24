@@ -16,13 +16,14 @@ class Audio {
 public:
     Audio();
     int load_music(const char* file_path);
-    void play();
+    void resume();
     void pause();
+    void stop();
     void set_position(double position);
     double get_position();
     bool paused();
 
-    Mix_Music* music;
+    Mix_Music* m_music = nullptr;
 
 private:
     double elapsed = 0;

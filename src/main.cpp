@@ -462,7 +462,7 @@ Game::Game(Input* _input, Audio* _audio, SDL_Renderer* _renderer, Map _map)
 const double input_indicator_duration = 0.1;
 
 void Game::start() {
-    audio_ptr->play();
+    audio_ptr->resume();
 }
 
 void Game::update(std::chrono::duration<double> delta_time) {
@@ -811,7 +811,12 @@ private:
 Editor::Editor(Input* _input, Audio* _audio, SDL_Renderer* _renderer)
     : input_ptr{ _input }, audio_ptr{ _audio }, renderer{ _renderer }, ui{ window_width, window_height } {}
 
-Editor::~Editor() {}
+Editor::~Editor() {
+}
+
+void Editor::quit() {
+    audio_ptr->stop();
+}
 
 void Editor::load_mapset(std::filesystem::path& mapset_directory) {
     m_mapset_directory = mapset_directory;
@@ -1338,7 +1343,7 @@ void Editor::main_update() {
 
     if (input.key_down(SDL_SCANCODE_SPACE)) {
         if (audio.paused()) {
-            audio.play();
+            audio.resume();
             current_note = std::upper_bound(m_map.times.begin(), m_map.times.end(), elapsed) - m_map.times.begin();
         } else {
             audio.pause();
