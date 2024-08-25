@@ -209,7 +209,7 @@ struct MapMeta {
 
     template<class Archive>
     void save(Archive& ar) const {
-        ar(CEREAL_NVP(difficulty_name), bpm, offset);
+        ar(difficulty_name, bpm, offset);
     }
 
     template<class Archive>
@@ -269,10 +269,18 @@ std::filesystem::path map_path(const char* file_name) {
     return maps_directory / file_name;
 }
 
-void save_map(const Map& map, std::filesystem::path path) {
-    std::ofstream file(path);
+template<typename T>
+void save_binary(const T& object, std::filesystem::path path) {
+    std::ofstream file(path, std::ios::binary);
     cereal::BinaryOutputArchive ar(file);
-    ar(map);
+    ar(object);
+}
+
+template<typename T>
+void load_binary(T& object, std::filesystem::path path) {
+    std::ifstream file(path, std::ios::binary);
+    cereal::BinaryInputArchive ar(file);
+    ar(object);
 }
 
 void draw_map(SDL_Renderer* renderer, const Map& map, const Cam& cam, int current_note) {
@@ -811,6 +819,7 @@ private:
     void load_map(int map_index);
     void remove_map(int map_index);
     void rename_map(int map_index, const std::string& new_name);
+    //void save_mapset_info();
 };
 
 Editor::Editor(Input* _input, Audio* _audio, SDL_Renderer* _renderer)
@@ -823,39 +832,30 @@ void Editor::quit() {
     audio_ptr->stop();
 }
 
+//void Editor::save_mapset_info() {
+//    mapset_info.
+//}
+
 void Editor::load_mapset(std::filesystem::path& mapset_directory) {
     m_mapset_directory = mapset_directory;
 
-    {
-        std::ifstream file_in((m_mapset_directory / mapset_filename).string().data());
-        cereal::BinaryInputArchive iarchive(file_in);
-        iarchive(mapset_info);
-    }
+    load_binary(mapset_info, (m_mapset_directory / mapset_filename));
 
     audio_ptr->load_music((m_mapset_directory / "audio.mp3").string().data());
 
     m_map_infos.clear();
 
-    for (const auto& entry : std::filesystem::directory_iterator(m_mapset_directory)) {
-        if (entry.path().extension().string().compare(map_file_extension) == 0) {
-            m_map_infos.push_back({});
-            std::ifstream map_file(entry.path());
-            cereal::BinaryInputArchive iarchive(map_file);
-            iarchive(m_map_infos.back());
-        }
-    }
-
     refresh_maps();
+
+    if (m_map_paths.size() > 0) {
+        this->load_map(m_current_map_index);
+    }
 }
 
 void Editor::load_map(int map_index) {
     m_current_map_index = map_index;
 
-    {
-        std::ifstream map_file(m_map_paths[map_index]);
-        cereal::BinaryInputArchive ar(map_file);
-        ar(m_map);
-    }
+    load_binary(m_map, m_map_paths[map_index]);
 
     audio_ptr->set_position(0);
 }
@@ -875,12 +875,8 @@ void Editor::refresh_maps() {
         if (entry.path().extension().string().compare(map_file_extension) == 0) {
             m_map_paths.push_back(entry.path());
 
-            std::ifstream fin(entry.path());
-
-            cereal::BinaryInputArchive iarchive(fin);
-
             m_map_infos.push_back({});
-            iarchive(m_map_infos.back());
+            load_binary(m_map_infos.back(), entry.path());
         }
     }
     
@@ -897,7 +893,7 @@ void Editor::rename_map(int map_index, const std::string& new_name) {
     }
     
     std::filesystem::rename(old_path, new_path);
-    save_map(m_map, new_path);
+    save_binary(m_map, new_path);
 
     this->refresh_maps();
 }
@@ -991,11 +987,8 @@ void Editor::update(std::chrono::duration<double> delta_time) {
 
             mapset_info = { title.text, artist.text };
 
-            {
-                std::ofstream file_out((m_mapset_directory / mapset_filename).string().data());
-                cereal::BinaryOutputArchive oarchive(file_out);
-                oarchive(mapset_info);
-            }
+
+            save_binary(mapset_info, (m_mapset_directory / mapset_filename));
 
             creating_map = false;
         });
@@ -1106,11 +1099,8 @@ void Editor::update(std::chrono::duration<double> delta_time) {
                 MapMeta { .difficulty_name = unique_file_name}
             };
 
-            {
-                std::ofstream fout(m_mapset_directory / (unique_file_name + map_file_extension));
-                cereal::BinaryOutputArchive ar(fout);
-                ar(m_map);
-            }
+
+            save_binary(m_map, m_mapset_directory / (unique_file_name + map_file_extension));
 
             refresh_maps();
         };
@@ -1263,7 +1253,7 @@ void Editor::main_update() {
     }
 
     if (input.key_down(SDL_SCANCODE_S) && input.modifier(SDL_KMOD_LCTRL)) {
-        save_map(m_map, m_map_paths[m_current_map_index]);
+        save_binary(m_map, m_map_paths[m_current_map_index]);
     }
 
     if (input.key_down(SDL_SCANCODE_A) && input.modifier(SDL_KMOD_LCTRL)) {
@@ -1516,26 +1506,22 @@ void MainMenu::reload_maps() {
         mapset_paths.push_back(mapset.path());
         mapsets.push_back({});
         int mapset_index = mapsets.size() - 1;
-        {
-            std::ifstream fin(mapset.path() / mapset_filename);
 
-            cereal::BinaryInputArchive iarchive(fin);
+        load_binary(mapsets.back(), mapset.path() / mapset_filename);
 
-            iarchive(mapsets.back());
-        }
 
-        for (const auto& entry : std::filesystem::directory_iterator(mapset.path())) {
-            if (entry.path().extension().string().compare(map_file_extension) == 0) {
-                std::ifstream fin(entry.path());
+        //for (const auto& entry : std::filesystem::directory_iterator(mapset.path())) {
+        //    if (entry.path().extension().string().compare(map_file_extension) == 0) {
+        //        std::ifstream fin(entry.path());
 
-                cereal::BinaryInputArchive iarchive(fin);
+        //        cereal::BinaryInputArchive iarchive(fin);
 
-                map_list.push_back({});
-                iarchive(map_list.back());
+        //        map_list.push_back({});
+        //        iarchive(map_list.back());
 
-                mapset_index_list.push_back(mapset_index);
-            }
-        }
+        //        mapset_index_list.push_back(mapset_index);
+        //    }
+        //}
     }
 
 }
