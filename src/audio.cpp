@@ -52,6 +52,10 @@ void Audio::pause() {
 }
 
 double Audio::get_position() {
+    if (m_music == nullptr) {
+        return 0;
+    }
+
     float ret = elapsed;
     if (!paused()) {
         ret += (std::chrono::high_resolution_clock::now() - last_time).count() / 1000000000.0;
