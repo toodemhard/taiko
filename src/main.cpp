@@ -798,8 +798,13 @@ private:
 
     UI ui{};
 
-    TextFieldState title;
-    TextFieldState artist;
+    TextFieldState title{};
+    TextFieldState artist{};
+
+
+    // timing tab
+    TextFieldState bpm{};
+    TextFieldState offset{};
 
 
     void main_update();
@@ -1128,7 +1133,39 @@ void Editor::update(std::chrono::duration<double> delta_time) {
         style.anchor = { 0.5, 0.5 };
         style.stack_direction = StackDirection::Vertical;
         ui.begin_group(style);
+
         ui.rect("KYS!!!!!", {});
+
+        auto fs = Style{};
+        fs.min_width = 200;
+
+        if (!bpm.focused) {
+            bpm.text = std::format("{}", m_map.m_meta_data.bpm);
+        }
+
+        ui.begin_group_v2({ .gap{10} }, {});
+        ui.rect("bpm", {});
+        ui.text_field(&bpm, fs);
+        ui.end_group_v2();
+
+        if (bpm.focused && input.key_down(SDL_SCANCODE_RETURN)) {
+            bpm.focused = false;
+            m_map.m_meta_data.bpm = std::stof(bpm.text);
+        }
+
+        if (!offset.focused) {
+            offset.text = std::format("{:.2f}", m_map.m_meta_data.offset);
+        }
+
+        ui.begin_group_v2({ .gap{10} }, {});
+        ui.rect("offset", {});
+        ui.text_field(&offset, fs);
+        ui.end_group_v2();
+
+        if (offset.focused && input.key_down(SDL_SCANCODE_RETURN)) {
+            offset.focused = false;
+            m_map.m_meta_data.offset = std::stof(offset.text);
+        }
 
         ui.end_group();
 
