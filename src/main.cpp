@@ -1510,6 +1510,7 @@ void MainMenu::reload_maps() {
     map_list.clear();
     mapset_index_list.clear();
     mapsets.clear();
+    mapset_paths.clear();
 
     for (const auto& mapset : std::filesystem::directory_iterator(maps_directory)) {
         mapset_paths.push_back(mapset.path());
