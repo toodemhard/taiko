@@ -12,6 +12,15 @@
 
 #include <SDL3/SDL.h>
 
+// keep strings alive in outer scope so that it can be drawn at end of update
+// can just ref const char* in inner scope
+class StringPrison {
+public:
+    const char* add(std::string&& string);
+private:
+    std::vector<std::string> strings;
+};
+
 enum class StackDirection {
     Horizontal,
     Vertical,

@@ -59,6 +59,7 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
 #target_compile_definitions(${PROJECT_NAME} PUBLIC
 #    $<$<CONFIG:RELEASE>:TRACY_ENABLE>
 #)
+target_include_directories(${PROJECT_NAME} PRIVATE src/)
 
 target_include_directories(${PROJECT_NAME} PRIVATE 
     lib/stb
