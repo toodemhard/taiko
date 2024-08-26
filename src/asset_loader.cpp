@@ -41,19 +41,19 @@ Image load_asset_tint(SDL_Renderer* renderer, const char* path, const Color& col
 }
 
 
-Image Assets::get_image(const char* name) {
+Image AssetLoader::get_image(const char* name) {
     ZoneScoped;
 
-    auto search = index.find(name);
-    if (search == index.end()) {
+    auto search = image_index.find(name);
+    if (search == image_index.end()) {
         DEBUG_PANIC(std::format("could not find asset: {}\n", name))
         return {};
     }
 
-    return things[search->second];
+    return images[search->second];
 }
 
-Mix_Chunk* Assets::get_sound(const char* name) {
+Mix_Chunk* AssetLoader::get_sound(const char* name) {
     ZoneScoped;
 
     auto search = sounds.find(name);
@@ -65,10 +65,10 @@ Mix_Chunk* Assets::get_sound(const char* name) {
     return search->second;
 }
 
-void Assets::init(SDL_Renderer* renderer, std::vector<ImageLoadInfo> image_list, std::vector<SoundLoadInfo> sound_list) {
+void AssetLoader::init(SDL_Renderer* renderer, std::vector<ImageLoadInfo>& image_list, std::vector<SoundLoadInfo>& sound_list) {
     ZoneScoped;
 
-    things = std::vector<Image>(image_list.size()); 
+    images = std::vector<Image>(image_list.size()); 
     for (int i = 0; i < image_list.size(); i++) {
         const auto& info = image_list[i];
         
@@ -80,8 +80,8 @@ void Assets::init(SDL_Renderer* renderer, std::vector<ImageLoadInfo> image_list,
             image = load_asset_tint(renderer, info.file_name, info.color.value());
         }
 
-        things[i] = image;
-        index[info.name] = i;
+        images[i] = image;
+        image_index[info.name] = i;
     }
 
     for (int i = 0; i < sound_list.size(); i++) {

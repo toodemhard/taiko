@@ -1,10 +1,5 @@
-#include <stdlib.h>
 #include <SDL3/SDL.h>
-
-//#define MINIMP3_IMPLEMENTATION
-//#include "minimp3.h"
-//#include "minimp3_ex.h"
-
+#include <stdlib.h>
 #include <iostream>
 #include <format>
 
@@ -14,9 +9,7 @@ Audio::Audio() {
     Mix_OpenAudio(0, NULL);
 }
 
-/*
-0 on success, 1 on error
-*/
+// return 0 on success, 1 on error
 int Audio::load_music(const char* file_path) {
     if (m_music != nullptr) {
         this->stop();
@@ -77,8 +70,6 @@ bool Audio::paused() {
     return (bool)Mix_PausedMusic();
 }
 
-#include <SDL3/SDL.h>
-
 Player::Player(Input& _input, Audio& _audio) : input{ _input }, audio{ _audio } {
 }
 
@@ -90,7 +81,6 @@ void Player::update(float delta_time) {
         else {
             audio.pause();
         }
-
     }
 
     if (!audio.paused()) {

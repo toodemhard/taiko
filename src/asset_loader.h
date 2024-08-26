@@ -23,15 +23,14 @@ struct SoundLoadInfo {
     const char* name;
 };
 
-class Assets {
+class AssetLoader {
 public:
-    void init(SDL_Renderer* renderer, std::vector<ImageLoadInfo> image_list, std::vector<SoundLoadInfo> sound_list);
+    void init(SDL_Renderer* renderer, std::vector<ImageLoadInfo>& image_list, std::vector<SoundLoadInfo>& sound_list);
     Image get_image(const char* name);
     Mix_Chunk* get_sound(const char* name);
-    //int index(const char* name);
 private:
-    std::vector<Image> things;
-    std::unordered_map<const char*, int> index;
+    std::vector<Image> images;
+    std::unordered_map<const char*, int> image_index;
 
     std::unordered_map<const char*, Mix_Chunk*> sounds;
 };
