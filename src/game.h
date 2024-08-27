@@ -93,12 +93,12 @@ private:
     AssetLoader& assets;
     EventQueue& event_queue;
 
-    Cam cam{{0,0}, {2,1.5f}};
+    Cam cam{{0,0}, {2, 1.5f}};
 
     bool m_test_mode{ false };
     bool m_auto_mode{ false };
 
-    int current_note = 0;
+    int current_note_index = 0;
 
     int score = 0;
     int combo = 0;
@@ -108,10 +108,14 @@ private:
     std::vector<InputRecord> input_history;
 
     Map m_map{};
+    std::vector<bool> note_alive_list{};
+
 
     //std::vector<Particle> particles;
 
     BigNoteHits current_big_note_status;
 
     bool initialized = false;
+
+    void draw_map();
 };
