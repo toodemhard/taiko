@@ -54,7 +54,7 @@ void init_font(SDL_Renderer* renderer) {
 }
 
  
-void draw_text(SDL_Renderer* renderer, const char* text, float font_size, Vec2 position, Color color) {
+void draw_text(SDL_Renderer* renderer, const char* text, float font_size, Vec2 position, RGBA color) {
     ZoneScoped;
     if (text == nullptr) {
         return;

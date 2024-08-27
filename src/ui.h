@@ -36,9 +36,9 @@ struct Padding {
 struct Style {
     Vec2 anchor;
     float font_size = 36;
-    Color text_color = { 255, 255, 255, 255 };
-    Color background_color = { 0, 0, 0, 0 };
-    Color border_color;
+    RGBA text_color = { 255, 255, 255, 255 };
+    RGBA background_color = { 0, 0, 0, 0 };
+    RGBA border_color;
 
     Padding padding;
 
@@ -53,8 +53,8 @@ struct Style {
 struct GroupStyle {
     Vec2 anchor;
 
-    Color background_color = { 0, 0, 0, 0 };
-    Color border_color;
+    RGBA background_color = { 0, 0, 0, 0 };
+    RGBA border_color;
 
     Padding padding;
 
@@ -69,9 +69,9 @@ struct Rect {
     float padding_top;
     const char* text;
     float font_size = 36;
-    Color text_color = { 255, 255, 255, 255 };
-    Color background_color = { 0, 0, 0, 0 };
-    Color border_color;
+    RGBA text_color = { 255, 255, 255, 255 };
+    RGBA background_color = { 0, 0, 0, 0 };
+    RGBA border_color;
 };
 
 struct Button {

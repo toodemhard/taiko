@@ -25,7 +25,7 @@ Image load_asset(SDL_Renderer* renderer, const char* path) {
     return image;
 }
 
-Image load_asset_tint(SDL_Renderer* renderer, const char* path, const Color& color) {
+Image load_asset_tint(SDL_Renderer* renderer, const char* path, const RGBA& color) {
     SDL_Surface* surface = IMG_Load(asset_path(path).string().data());
 
     SDL_SetSurfaceColorMod(surface, color.r, color.g, color.b);

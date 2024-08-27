@@ -56,8 +56,8 @@ int run() {
     std::vector<ImageLoadInfo> image_list = {
         {"circle-overlay.png", "circle_overlay"},
         {"circle-select.png", "select_circle"},
-        {"circle.png", "kat_circle", Color{ 60, 219, 226, 255 }},
-        {"circle.png", "don_circle", Color{ 252, 78, 60, 255 }},
+        {"circle.png", "kat_circle", RGBA{ 60, 219, 226, 255 }},
+        {"circle.png", "don_circle", RGBA{ 252, 78, 60, 255 }},
         {"drum-inner.png", "inner_drum"},
         {"drum-outer.png", "outer_drum"},
     };

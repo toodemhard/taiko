@@ -15,7 +15,7 @@ struct Image {
 struct ImageLoadInfo {
     const char* file_name;
     const char* name;
-    std::optional<Color> color;
+    std::optional<RGBA> color;
 };
 
 struct SoundLoadInfo {

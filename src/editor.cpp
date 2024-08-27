@@ -476,7 +476,7 @@ void Editor::update(std::chrono::duration<double> delta_time) {
     }
 }
 
-void set_draw_color(SDL_Renderer* renderer, Color color) {
+void set_draw_color(SDL_Renderer* renderer, RGBA color) {
     SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
 }
 
@@ -713,7 +713,7 @@ void Editor::main_update() {
         }
 
         float height;
-        Color color;
+        RGBA color;
         if (i % 4 == 0) {
             height = 0.2;
             color = { 255, 255, 255 };
