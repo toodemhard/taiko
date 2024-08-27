@@ -174,3 +174,13 @@ private:
     int internal_rect(const char* text, const Style& style);
     Rect& element_rect(ElementHandle e);
 };
+
+namespace color {
+    constexpr RGBA white{ 255, 255, 255, 255 };
+    constexpr RGBA grey{ 180, 180, 180, 255 };
+}
+
+namespace styles {
+    constexpr Style active_option{ .text_color{color::white} };
+    constexpr Style inactive_option{ .text_color{color::grey} };
+}
