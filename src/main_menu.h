@@ -28,9 +28,11 @@ private:
 
     EntryMode entry_mode = EntryMode::Play;
 
+    //maps
     std::vector<MapMeta> map_list;
     std::vector<int> mapset_index_list;
 
+    //mapsets
     std::vector<MapSetInfo> mapsets;
     std::vector<std::filesystem::path> mapset_paths;
 

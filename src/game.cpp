@@ -75,8 +75,15 @@ Vec2 Cam::screen_to_world(const Vec2& point) const {
     return { relative_pos.x + position.x, position.y - relative_pos.y };
 }
 
-Game::Game(SDL_Renderer* _renderer, Input& _input, Audio& _audio, AssetLoader& _assets, EventQueue& _event_queue, Map map)
-    : renderer{ _renderer }, input{ _input }, audio{ _audio }, assets{ _assets }, event_queue{ _event_queue }, map{ map } {}
+Game::Game(Systems systems, game::InitConfig config, Map map) :
+    renderer{ systems.renderer },
+    input{ systems.input }, 
+    audio{ systems.audio },
+    assets{ systems.assets },
+    event_queue{ systems.event_queue },
+    m_map{ map },
+    m_auto_mode{ config.auto_mode },
+    m_test_mode{ config.test_mode } {}
 
 void Game::start() {
     audio.resume();
@@ -92,16 +99,23 @@ void Game::update(std::chrono::duration<double> delta_time) {
     double elapsed = audio.get_position();
 
     if (input.key_down(SDL_SCANCODE_ESCAPE)) {
-        event_queue.push_event(Event::QuitTest{});
+        if (m_test_mode) {
+            event_queue.push_event(Event::QuitTest{});
+        }
+        else {
+            event_queue.push_event(Event::Return{});
+        }
+
+        audio.stop();
         return;
     }
 
     std::vector<DrumInput> inputs{};
 
-    if (auto_mode) {
-        if (current_note < map.times.size()) {
-            if (elapsed >= map.times[current_note]) {
-                if (map.flags_vec[current_note] & NoteFlagBits::don_or_kat) {
+    if (m_auto_mode) {
+        if (current_note < m_map.times.size()) {
+            if (elapsed >= m_map.times[current_note]) {
+                if (m_map.flags_vec[current_note] & NoteFlagBits::don_or_kat) {
                     input_history.push_back(InputRecord{ DrumInput::don_left, elapsed });
                     inputs.push_back(DrumInput::don_left);
                 }
@@ -134,19 +148,20 @@ void Game::update(std::chrono::duration<double> delta_time) {
     }
 
     for (const auto& input : inputs) {
-        if ( input == DrumInput::don_left || input == DrumInput::don_right) {
+        if (input == DrumInput::don_left || input == DrumInput::don_right) {
             Mix_PlayChannel(-1, assets.get_sound("don"), 0);
-        } else if (input == DrumInput::kat_left || input == DrumInput::kat_right) {
+        }
+        else if (input == DrumInput::kat_left || input == DrumInput::kat_right) {
             Mix_PlayChannel(-1, assets.get_sound("kat"), 0);
         }
     }
 
-    if (current_note < map.times.size()) {
+    if (current_note < m_map.times.size()) {
         for (const auto& thing : inputs) {
-            double hit_normalized = (elapsed - map.times[current_note]) / hit_range.count() + 0.5;
+            double hit_normalized = (elapsed - m_map.times[current_note]) / hit_range.count() + 0.5;
             if (hit_normalized >= 0 && hit_normalized < 1) {
-                if (map.flags_vec[current_note] & NoteFlagBits::normal_or_big) {
-                    auto actual_type = (uint8_t)(map.flags_vec[current_note] & NoteFlagBits::don_or_kat);
+                if (m_map.flags_vec[current_note] & NoteFlagBits::normal_or_big) {
+                    auto actual_type = (uint8_t)(m_map.flags_vec[current_note] & NoteFlagBits::don_or_kat);
                     auto input_type = (uint8_t)(thing & DrumInputFlagBits::don_kat);
                     if (actual_type == input_type) {
                         score += 300;
@@ -154,8 +169,9 @@ void Game::update(std::chrono::duration<double> delta_time) {
                         current_note++;
                     }
                     //particles.push_back(Particle{ Vec2{(float)elapsed.count(), 0}, {0,1},1, note.type, elapsed });
-                } else {
-                    
+                }
+                else {
+
 
                 }
             }
@@ -187,19 +203,19 @@ void Game::update(std::chrono::duration<double> delta_time) {
     //std::string score_text = std::to_string(score);
     //ui.rect(score_text.data());
     //ui.end_group();
-    ui.begin_group(Style{ {1,0} }); 
-        auto score_text = std::to_string(score);
-        ui.rect(score_text.data(), {});
+    ui.begin_group(Style{ {1,0} });
+    auto score_text = std::to_string(score);
+    ui.rect(score_text.data(), {});
     ui.end_group();
 
-    ui.begin_group(Style{ {0,1} }); 
-        auto combo_text = std::format("{}x", combo);
-        ui.rect(combo_text.data(), {});
+    ui.begin_group(Style{ {0,1} });
+    auto combo_text = std::format("{}x", combo);
+    ui.rect(combo_text.data(), {});
     ui.end_group();
 
-    ui.begin_group(Style{ {1,1} }); 
-        auto frame_time = std::to_string(((float)std::chrono::duration_cast<std::chrono::microseconds>(delta_time).count()) / 1000) + " ms";
-        ui.rect(frame_time.data(), {});
+    ui.begin_group(Style{ {1,1} });
+    auto frame_time = std::to_string(((float)std::chrono::duration_cast<std::chrono::microseconds>(delta_time).count()) / 1000) + " ms";
+    ui.rect(frame_time.data(), {});
     ui.end_group();
 
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
@@ -212,11 +228,11 @@ void Game::update(std::chrono::duration<double> delta_time) {
     SDL_SetRenderDrawColor(renderer, 255, 255, 0, SDL_ALPHA_OPAQUE);
     SDL_RenderLine(renderer, p1.x, p1.y, p2.x, p2.y);
 
-    draw_map(renderer, assets, map, cam, current_note);
+    draw_map(renderer, assets, m_map, cam, current_note);
 
     auto inner_drum = assets.get_image("inner_drum");
     auto outer_drum = assets.get_image("outer_drum");
-    Vec2 drum_pos = { 0, (window_height - inner_drum.height) / 2};
+    Vec2 drum_pos = { 0, (window_height - inner_drum.height) / 2 };
 
     auto left_rect = SDL_FRect{ drum_pos.x, drum_pos.y, (float)inner_drum.width, (float)inner_drum.height };
     auto right_rect = SDL_FRect{ drum_pos.x + inner_drum.width, drum_pos.y, (float)inner_drum.width, (float)inner_drum.height };

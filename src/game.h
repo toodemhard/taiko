@@ -72,9 +72,18 @@ struct BigNoteHits {
     bool right = false;
 };
 
+namespace game {
+
+struct InitConfig {
+    bool auto_mode;
+    bool test_mode;
+};
+
+}
+
 class Game {
 public:
-    Game(SDL_Renderer* _renderer, Input& _input, Audio& _audio, AssetLoader& _assets, EventQueue& _event_queue, Map map);
+    Game(Systems systems, game::InitConfig config, Map map);
     void start();
     void update(std::chrono::duration<double> delta_time);
 private:
@@ -86,6 +95,9 @@ private:
 
     Cam cam{{0,0}, {2,1.5f}};
 
+    bool m_test_mode{ false };
+    bool m_auto_mode{ false };
+
     int current_note = 0;
 
     int score = 0;
@@ -95,15 +107,11 @@ private:
 
     std::vector<InputRecord> input_history;
 
-    Map map{};
+    Map m_map{};
 
     //std::vector<Particle> particles;
 
     BigNoteHits current_big_note_status;
 
-    bool auto_mode = true;
-
     bool initialized = false;
 };
-
-
