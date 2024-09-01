@@ -4,6 +4,7 @@
 #include <vector>
 #include <unordered_map>
 #include <optional>
+#include <filesystem>
 
 #include "color.h"
 
@@ -25,6 +26,7 @@ struct SoundLoadInfo {
 
 class AssetLoader {
 public:
+    // init() file with "image.png" then get_image() with "image"
     void init(SDL_Renderer* renderer, std::vector<ImageLoadInfo>& image_list, std::vector<SoundLoadInfo>& sound_list);
     Image get_image(const char* name);
     Mix_Chunk* get_sound(const char* name);

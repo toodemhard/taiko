@@ -20,35 +20,11 @@ public:
     float world_to_screen_scale(const float& length) const;
 };
 
-//struct Particle {
-//    Vec2 position;
-//    Vec2 velocity;
-//    float scale;
-//    NoteType type;
-//    std::chrono::duration<double> start;
-//};
-
-//void draw_particles(const Cam& cam, const std::vector<Particle>& particles, std::chrono::duration<double> now) {
-//    float outer_radius = cam.world_to_screen_scale(circle_outer_radius);
-//    float inner_radius = cam.world_to_screen_scale(circle_radius);
-//    for (auto& p : particles) {
-//        Vec2 pos = cam.world_to_screen(p.position);
-//
-//        Color color;
-//
-//        if (p.type == NoteType::don) {
-//            color = RED;
-//        } else {
-//            color = BLUE;
-//        }
-//
-//        uint8_t alpha = (p.start - now).count() / particle_duration * 255;
-//        color.a = alpha;
-//
-//        //DrawCircle(pos.x, pos.y, outer_radius, Color{255,255,255,alpha});
-//        DrawCircle(pos.x, pos.y, inner_radius, color);
-//    }
-//}
+enum hit_effect {
+    none,
+    ok,
+    perfect,
+};
 
 enum DrumInputFlagBits : uint8_t {
     don_kat = 1 << 0,
@@ -93,7 +69,13 @@ private:
     AssetLoader& assets;
     EventQueue& event_queue;
 
-    Cam cam{{0,0}, {2, 1.5f}};
+    Cam cam{{0,0}, {1.5f, 1.5f}};
+
+    float accuracy_fraction = 1;
+
+    int perfect_count{};
+    int ok_count{};
+    int miss_count{};
 
     bool m_test_mode{ false };
     bool m_auto_mode{ false };
@@ -110,8 +92,13 @@ private:
     Map m_map{};
     std::vector<bool> note_alive_list{};
 
+    hit_effect m_current_hit_effect{};
+    float hit_effect_time_point_seconds{};
 
-    //std::vector<Particle> particles;
+    std::vector<int> in_flight_notes_indices;
+
+    bool m_paused;
+    bool m_end_screen;
 
     BigNoteHits current_big_note_status;
 

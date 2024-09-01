@@ -38,7 +38,7 @@ int run() {
     SDL_Renderer* renderer;
 
     SDL_CreateWindowAndRenderer("", window_width, window_height, 0, &window, &renderer);
-    //SDL_SetWindowFullscreen(window, true);
+    SDL_SetWindowFullscreen(window, true);
 
     Input input{};
     Audio audio{};
@@ -56,6 +56,8 @@ int run() {
     };
 
     std::vector<ImageLoadInfo> image_list = {
+        {"hit_effect_ok.png", "hit_effect_ok"},
+        {"hit_effect_perfect.png", "hit_effect_perfect"},
         {"circle-overlay.png", "circle_overlay"},
         {"circle-select.png", "select_circle"},
         {"circle.png", "kat_circle", RGBA{ 60, 219, 226, 255 }},

@@ -8,27 +8,20 @@
 
 #include "debug_macros.h"
 
+
+const static std::filesystem::path asset_directory{ "data/" };
+
 std::filesystem::path asset_path(const char* path) {
     return "data/" + std::string(path);
 }
 
-Image load_asset(SDL_Renderer* renderer, const char* path) {
-    SDL_Surface* surface = IMG_Load(asset_path(path).string().data());
+Image load_asset(SDL_Renderer* renderer, const char* file_name, std::optional<RGBA> tint_color) {
+    SDL_Surface* surface = IMG_Load((asset_directory / file_name).string().data());
 
-    Image image;
-    image.width = surface->w;
-    image.height = surface->h;
-    image.texture = SDL_CreateTextureFromSurface(renderer, surface);
-
-    SDL_DestroySurface(surface);
-
-    return image;
-}
-
-Image load_asset_tint(SDL_Renderer* renderer, const char* path, const RGBA& color) {
-    SDL_Surface* surface = IMG_Load(asset_path(path).string().data());
-
-    SDL_SetSurfaceColorMod(surface, color.r, color.g, color.b);
+    if (tint_color.has_value()) {
+        const auto& color_value = tint_color.value();
+        SDL_SetSurfaceColorMod(surface, color_value.r, color_value.g, color_value.b);
+    }
 
     Image image;
     image.width = surface->w;
@@ -73,12 +66,7 @@ void AssetLoader::init(SDL_Renderer* renderer, std::vector<ImageLoadInfo>& image
         const auto& info = image_list[i];
         
         Image image;
-        if (!info.color.has_value()) {
-            image = load_asset(renderer, info.file_name);
-        }
-        else {
-            image = load_asset_tint(renderer, info.file_name, info.color.value());
-        }
+        image = load_asset(renderer, info.file_name, info.color);
 
         images[i] = image;
         image_index[info.name] = i;

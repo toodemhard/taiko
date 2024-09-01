@@ -5,6 +5,18 @@ constexpr double input_indicator_duration = 0.1;
 
 using namespace constants;
 
+Vec2 rect_center(const SDL_FRect& rect) {
+    return { rect.x + rect.w / 2, rect.y + rect.h / 2 };
+}
+
+SDL_FRect rect_at_center_point(Vec2 center, float width, float height) {
+    return { center.x - width / 2.0f, center.y - width / 2.0f, width, height };
+}
+
+Vec2 linear_interp(Vec2 p1, Vec2 p2, float t) {
+    return p1 + (p2 - p1) * t;
+}
+
 void Game::draw_map() {
     ZoneScoped;
 
@@ -38,8 +50,8 @@ void Game::draw_map() {
 
         Vec2 center_pos = cam.world_to_screen({ (float)m_map.times[i], 0 });
 
-        float scale = (m_map.flags_vec[i] & NoteFlagBits::normal_or_big) ? 0.9f : 1.4f;
-        Image circle_image = (m_map.flags_vec[i] & NoteFlagBits::don_or_kat) ? assets.get_image("don_circle") : assets.get_image("kat_circle");
+        float scale = (m_map.flags_list[i] & NoteFlagBits::normal_or_big) ? 0.9f : 1.4f;
+        Image circle_image = (m_map.flags_list[i] & NoteFlagBits::don_or_kat) ? assets.get_image("don_circle") : assets.get_image("kat_circle");
         Image circle_overlay = assets.get_image("circle_overlay");
         Image select_circle = assets.get_image("select_circle");
 
@@ -54,6 +66,23 @@ void Game::draw_map() {
         }
 
     }
+}
+
+void draw_note(SDL_Renderer* renderer, AssetLoader& assets, const NoteFlags& note_type, const Vec2& center_point) {
+        float scale = (note_type & NoteFlagBits::normal_or_big) ? 0.9f : 1.4f;
+        Image circle_image = (note_type & NoteFlagBits::don_or_kat) ? assets.get_image("don_circle") : assets.get_image("kat_circle");
+        Image circle_overlay = assets.get_image("circle_overlay");
+        Image select_circle = assets.get_image("select_circle");
+
+        Vec2 circle_pos = center_point;
+        circle_pos.x -= circle_image.width / 2 * scale;
+        circle_pos.y -= circle_image.height / 2 * scale;
+
+        {
+            SDL_FRect rect = { circle_pos.x, circle_pos.y, circle_image.width * scale, circle_image.height * scale };
+            SDL_RenderTexture(renderer, circle_image.texture, NULL, &rect);
+            SDL_RenderTexture(renderer, circle_overlay.texture, NULL, &rect);
+        }
 }
 
 Vec2 Cam::world_to_screen(const Vec2& point) const {
@@ -121,7 +150,7 @@ void Game::update(std::chrono::duration<double> delta_time) {
     if (m_auto_mode) {
         if (current_note_index < m_map.times.size()) {
             if (elapsed >= m_map.times[current_note_index]) {
-                if (m_map.flags_vec[current_note_index] & NoteFlagBits::don_or_kat) {
+                if (m_map.flags_list[current_note_index] & NoteFlagBits::don_or_kat) {
                     input_history.push_back(InputRecord{ DrumInput::don_left, elapsed });
                     inputs.push_back(DrumInput::don_left);
                 }
@@ -162,36 +191,69 @@ void Game::update(std::chrono::duration<double> delta_time) {
         }
     }
 
+    if (elapsed - hit_effect_time_point_seconds > hit_effect_duration.count()) {
+        m_current_hit_effect = hit_effect::none;
+    }
+
+    auto update_accuracy = [&]() {
+        accuracy_fraction = (perfect_accuracy_weight * perfect_count + ok_accuracy_weight * ok_count + miss_accuracy_weight * miss_count) / (current_note_index);
+
+    };
+
     if (current_note_index < m_map.times.size()) {
-        bool forwarded = false;
         for (const auto& thing : inputs) {
-            double hit_normalized = (elapsed - m_map.times[current_note_index]) / hit_range.count() + 0.5;
-            if (hit_normalized >= 0 && hit_normalized < 1) {
-                if (m_map.flags_vec[current_note_index] & NoteFlagBits::normal_or_big) {
-                    auto actual_type = (uint8_t)(m_map.flags_vec[current_note_index] & NoteFlagBits::don_or_kat);
-                    auto input_type = (uint8_t)(thing & DrumInputFlagBits::don_kat);
-                    if (actual_type == input_type) {
+            auto error_duration = elapsed - m_map.times[current_note_index];
+            if (std::abs(error_duration) <= ok_range.count() / 2) {
+                auto actual_type = (uint8_t)(m_map.flags_list[current_note_index] & NoteFlagBits::don_or_kat);
+                auto input_type = (uint8_t)(thing & DrumInputFlagBits::don_kat);
+                if (actual_type == input_type) {
+                    note_alive_list[current_note_index] = false;
+                    hit_effect_time_point_seconds = elapsed;
+                    combo++;
+                    if (error_duration <= perfect_range.count() / 2) {
+                        m_current_hit_effect = hit_effect::perfect;
                         score += 300;
-                        combo++;
-                        note_alive_list[current_note_index] = false;
+                        perfect_count++;
                     }
                     else {
-                        combo = 0;
+                        m_current_hit_effect = hit_effect::ok;
+                        score += 100;
+                        ok_count++;
                     }
 
-                    current_note_index++;
+                    in_flight_notes_indices.push_back(current_note_index);
 
-                    forwarded = true;
-                    //particles.push_back(Particle{ Vec2{(float)elapsed.count(), 0}, {0,1},1, note.type, elapsed });
+
+                    current_note_index++;
                 }
+                else {
+                    combo = 0;
+                    miss_count++;
+                }
+                update_accuracy();
             }
         }
+    }
 
+    if (current_note_index < m_map.times.size()) {
         // if current note passed by completely without input attempts
-        if (!forwarded && elapsed - m_map.times[current_note_index] > hit_range.count() / 2) {
+        if (elapsed - m_map.times[current_note_index] > ok_range.count() / 2) {
             combo = 0;
+            miss_count++;
+            update_accuracy();
+
             current_note_index++;
         }
+    }
+
+    for (int i = 0; i < in_flight_notes_indices.size(); i++) {
+        auto flight_elapsed = elapsed - m_map.times[in_flight_notes_indices[i]];
+
+        if (flight_elapsed <= total_flight_time_seconds) {
+            break;
+        }
+
+        in_flight_notes_indices.erase(in_flight_notes_indices.begin());
     }
 
     auto inner_drum = assets.get_image("inner_drum");
@@ -217,17 +279,19 @@ void Game::update(std::chrono::duration<double> delta_time) {
     //}
 
 
-    //Style style{};
-    //style.anchor = { 1,0 };
+    Style style{};
+    style.anchor = { 1,0 };
+    style.stack_direction = StackDirection::Vertical;
     //ui.begin_group(style);
     //std::string score_text = std::to_string(score);
     //ui.rect(score_text.data());
     //ui.end_group();
-    auto index_string = std::format("index = {}", current_note_index);
-    ui.begin_group(Style{ {1,0} });
+    StringPrison strings{};
+
+    ui.begin_group(style);
     auto score_text = std::to_string(score);
     ui.rect(score_text.data(), {});
-    ui.rect(index_string.data(), {});
+    ui.rect(strings.add(std::format("{:.2f}%", accuracy_fraction * 100)), {});
     ui.end_group();
 
     ui.begin_group(Style{ {0,1} });
@@ -251,6 +315,27 @@ void Game::update(std::chrono::duration<double> delta_time) {
     SDL_RenderLine(renderer, p1.x, p1.y, p2.x, p2.y);
 
     SDL_RenderTexture(renderer, hit_target.texture, NULL, &hit_target_rect);
+
+    auto flight_start_point = rect_center(hit_target_rect);
+    for (auto& note_index : in_flight_notes_indices) {
+        auto flight_elapsed = elapsed - m_map.times[note_index];
+
+        auto pos = linear_interp({ flight_start_point.x, flight_start_point.y }, { 1920, 0 }, flight_elapsed / total_flight_time_seconds);
+
+        draw_note(renderer, assets, m_map.flags_list[note_index], pos);
+    }
+
+
+    if (m_current_hit_effect == hit_effect::perfect) {
+        auto hit_effect_image = assets.get_image("hit_effect_perfect");
+        auto dst_rect = rect_at_center_point(rect_center(hit_target_rect), hit_effect_image.width, hit_effect_image.height);
+        SDL_RenderTexture(renderer, hit_effect_image.texture, NULL, &dst_rect);
+    }
+    else if (m_current_hit_effect == hit_effect::ok) {
+        auto hit_effect_image = assets.get_image("hit_effect_ok");
+        auto dst_rect = rect_at_center_point(rect_center(hit_target_rect), hit_effect_image.width, hit_effect_image.height);
+        SDL_RenderTexture(renderer, hit_effect_image.texture, NULL, &dst_rect);
+    }
 
     this->draw_map();
 
@@ -279,6 +364,7 @@ void Game::update(std::chrono::duration<double> delta_time) {
             break;
         }
     }
+
 
 
 
