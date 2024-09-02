@@ -57,6 +57,11 @@ struct InitConfig {
 
 }
 
+struct InFlightNotes {
+    std::vector<NoteFlags> flags;
+    std::vector<double> times;
+};
+
 class Game {
 public:
     Game(Systems systems, game::InitConfig config, Map map);
@@ -95,8 +100,8 @@ private:
     hit_effect m_current_hit_effect{};
     float hit_effect_time_point_seconds{};
 
-    std::vector<int> in_flight_notes_indices;
-
+    InFlightNotes in_flight_notes;
+    
     bool m_paused{};
     bool m_end_screen{};
 
