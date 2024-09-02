@@ -140,7 +140,7 @@ int run() {
         while (event_queue.pop_event(&event_union)) {
             switch (event_union.index()) {
             case EventType::TestMap:
-                game = std::make_unique<Game>(systems, game::InitConfig{}, editor->m_map);
+                game = std::make_unique<Game>(systems, game::InitConfig{ false, true }, editor->m_map);
                 context_stack.push_back(Context::Game);
                 break;
             case EventType::QuitTest:
@@ -167,7 +167,10 @@ int run() {
                 context_stack.push_back(Context::Game);
                 Map map;
                 load_binary(map, event.mapset_directory / event.map_filename);
-                audio.load_music((event.mapset_directory / std::string("audio.mp3")).string().data());
+                auto music_file = find_music_file(event.mapset_directory);
+                if (music_file.has_value()) {
+                    audio.load_music(music_file.value().string().data());
+                }
                 game = std::make_unique<Game>(systems, game::InitConfig{}, map);
             }
             break;
@@ -179,6 +182,7 @@ int run() {
                     break;
                 case Context::Game:
                     game.reset();
+                    audio.stop();
                     break;
                 }
                 context_stack.pop_back();

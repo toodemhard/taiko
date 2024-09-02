@@ -2,6 +2,10 @@
 
 #include <string>
 #include <vector>
+#include <filesystem>
+#include <optional>
+
+std::optional<std::filesystem::path> find_music_file(std::filesystem::path mapset_directory);
 
 enum NoteFlagBits : uint8_t {
     don_or_kat = 1 << 0,
