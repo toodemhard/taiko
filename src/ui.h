@@ -12,13 +12,16 @@
 
 #include <SDL3/SDL.h>
 
+constexpr int string_array_size{ 10 };
+
 // keep strings alive in outer scope so that it can be drawn at end of update
 // can just ref const char* in inner scope
-class StringPrison {
+class StringCache {
 public:
     const char* add(std::string&& string);
 private:
-    std::vector<std::string> strings;
+    std::array<std::string, string_array_size> strings;
+    int count{ 0 };
 };
 
 enum class StackDirection {
@@ -162,8 +165,8 @@ private:
 
     //properties
     std::vector<ClickRect> click_rects;
-    std::vector<Rect> rects;
 
+    std::vector<Rect> rects;
     std::vector<Button> buttons;
     std::vector<Slider> sliders;
     std::vector<Group> groups;
