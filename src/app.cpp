@@ -9,6 +9,8 @@
 #include "game.h"
 #include "main_menu.h"
 
+#include "serialize.h"
+
 using namespace constants;
 
 void create_dirs() {
@@ -36,7 +38,7 @@ int run() {
     SDL_Renderer* renderer;
 
     SDL_CreateWindowAndRenderer("", window_width, window_height, 0, &window, &renderer);
-    //SDL_SetWindowFullscreen(window, true);
+    SDL_SetWindowFullscreen(window, true);
 
     Input input{};
     Audio audio{};
@@ -54,10 +56,12 @@ int run() {
     };
 
     std::vector<ImageLoadInfo> image_list = {
+        {"hit_effect_ok.png", "hit_effect_ok"},
+        {"hit_effect_perfect.png", "hit_effect_perfect"},
         {"circle-overlay.png", "circle_overlay"},
         {"circle-select.png", "select_circle"},
-        {"circle.png", "kat_circle", Color{ 60, 219, 226, 255 }},
-        {"circle.png", "don_circle", Color{ 252, 78, 60, 255 }},
+        {"circle.png", "kat_circle", RGBA{ 60, 219, 226, 255 }},
+        {"circle.png", "don_circle", RGBA{ 252, 78, 60, 255 }},
         {"drum-inner.png", "inner_drum"},
         {"drum-outer.png", "outer_drum"},
     };
@@ -67,10 +71,18 @@ int run() {
 
     EventQueue event_queue{};
 
+    Systems systems{
+        renderer,
+        input,
+        audio,
+        assets,
+        event_queue
+    };
+
     std::vector<Context> context_stack{ Context::Menu };
 
-    std::unique_ptr<Editor> editor;
-    std::unique_ptr<Game> game;
+    std::unique_ptr<Editor> editor{};
+    std::unique_ptr<Game> game{};
     std::unique_ptr<MainMenu> menu{ std::make_unique<MainMenu>(renderer, input, audio, assets, event_queue) };
 
     SDL_StartTextInput(window);
@@ -124,11 +136,11 @@ int run() {
             break;
         }
 
-        EventUnion event;
-        while (event_queue.pop_event(&event)) {
-            switch (event.index()) {
+        EventUnion event_union;
+        while (event_queue.pop_event(&event_union)) {
+            switch (event_union.index()) {
             case EventType::TestMap:
-                game = std::make_unique<Game>(renderer, input, audio, assets, event_queue, editor->m_map);
+                game = std::make_unique<Game>(systems, game::InitConfig{}, editor->m_map);
                 context_stack.push_back(Context::Game);
                 break;
             case EventType::QuitTest:
@@ -136,6 +148,7 @@ int run() {
                 audio.set_position(editor->last_pos);
                 audio.pause();
                 context_stack.pop_back();
+                game.reset();
                 break;
             case EventType::EditNewMap:
                 context_stack.push_back(Context::Editor);
@@ -143,20 +156,30 @@ int run() {
                 editor->creating_map = true;
                 break;
             case EventType::EditMap: {
-                auto& edit_map_event = std::get<Event::EditMap>(event);
+                auto& event = std::get<Event::EditMap>(event_union);
                 context_stack.push_back(Context::Editor);
                 editor = std::make_unique<Editor>(renderer, input, audio, assets, event_queue);
-                editor->load_mapset(edit_map_event.map_directory);
+                editor->load_mapset(event.map_directory);
             }
             break;
-            case EventType::PlayMap:
-                //context_stack.pop_back();
-                break;
+            case EventType::PlayMap: {
+                auto& event = std::get<Event::PlayMap>(event_union);
+                context_stack.push_back(Context::Game);
+                Map map;
+                load_binary(map, event.mapset_directory / event.map_filename);
+                audio.load_music((event.mapset_directory / std::string("audio.mp3")).string().data());
+                game = std::make_unique<Game>(systems, game::InitConfig{}, map);
+            }
+            break;
             case EventType::Return:
                 switch (context_stack.back()) {
                 case Context::Editor:
                     editor->quit();
                     editor.reset();
+                    break;
+                case Context::Game:
+                    game.reset();
+                    break;
                 }
                 context_stack.pop_back();
                 break;

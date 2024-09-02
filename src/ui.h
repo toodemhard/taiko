@@ -12,13 +12,16 @@
 
 #include <SDL3/SDL.h>
 
+constexpr int string_array_size{ 10 };
+
 // keep strings alive in outer scope so that it can be drawn at end of update
 // can just ref const char* in inner scope
-class StringPrison {
+class StringCache {
 public:
     const char* add(std::string&& string);
 private:
-    std::vector<std::string> strings;
+    std::array<std::string, string_array_size> strings;
+    int count{ 0 };
 };
 
 enum class StackDirection {
@@ -36,9 +39,9 @@ struct Padding {
 struct Style {
     Vec2 anchor;
     float font_size = 36;
-    Color text_color = { 255, 255, 255, 255 };
-    Color background_color = { 0, 0, 0, 0 };
-    Color border_color;
+    RGBA text_color = { 255, 255, 255, 255 };
+    RGBA background_color = { 0, 0, 0, 0 };
+    RGBA border_color = { 255, 0, 0, 255 };
 
     Padding padding;
 
@@ -53,8 +56,8 @@ struct Style {
 struct GroupStyle {
     Vec2 anchor;
 
-    Color background_color = { 0, 0, 0, 0 };
-    Color border_color;
+    RGBA background_color = { 0, 0, 0, 0 };
+    RGBA border_color;
 
     Padding padding;
 
@@ -69,9 +72,9 @@ struct Rect {
     float padding_top;
     const char* text;
     float font_size = 36;
-    Color text_color = { 255, 255, 255, 255 };
-    Color background_color = { 0, 0, 0, 0 };
-    Color border_color;
+    RGBA text_color = { 255, 255, 255, 255 };
+    RGBA background_color = { 0, 0, 0, 0 };
+    RGBA border_color;
 };
 
 struct Button {
@@ -162,8 +165,8 @@ private:
 
     //properties
     std::vector<ClickRect> click_rects;
-    std::vector<Rect> rects;
 
+    std::vector<Rect> rects;
     std::vector<Button> buttons;
     std::vector<Slider> sliders;
     std::vector<Group> groups;
@@ -174,3 +177,13 @@ private:
     int internal_rect(const char* text, const Style& style);
     Rect& element_rect(ElementHandle e);
 };
+
+namespace color {
+    constexpr RGBA white{ 255, 255, 255, 255 };
+    constexpr RGBA grey{ 180, 180, 180, 255 };
+}
+
+namespace styles {
+    constexpr Style active_option{ .text_color{color::white} };
+    constexpr Style inactive_option{ .text_color{color::grey} };
+}

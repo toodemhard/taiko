@@ -65,8 +65,8 @@ void draw_map_editor(SDL_Renderer* renderer, AssetLoader& assets, const Map& map
     for(int i = right; i >= left; i--) {
         Vec2 center_pos = cam.world_to_screen({(float)map.times[i], 0});
 
-        float scale = (map.flags_vec[i] & NoteFlagBits::normal_or_big) ? 0.9f : 1.4f;
-        Image circle_image = (map.flags_vec[i] & NoteFlagBits::don_or_kat) ? assets.get_image("don_circle") : assets.get_image("kat_circle");
+        float scale = (map.flags_list[i] & NoteFlagBits::normal_or_big) ? 0.9f : 1.4f;
+        Image circle_image = (map.flags_list[i] & NoteFlagBits::don_or_kat) ? assets.get_image("don_circle") : assets.get_image("kat_circle");
         Image circle_overlay = assets.get_image("circle_overlay");
         Image select_circle = assets.get_image("select_circle");
 
@@ -212,7 +212,7 @@ void Editor::update(std::chrono::duration<double> delta_time) {
     float l = 25;
     style.padding = { l, l, l, l };
 
-    StringPrison strings;
+    StringCache strings;
 
 
     auto inactive_style = Style{};
@@ -476,7 +476,7 @@ void Editor::update(std::chrono::duration<double> delta_time) {
     }
 }
 
-void set_draw_color(SDL_Renderer* renderer, Color color) {
+void set_draw_color(SDL_Renderer* renderer, RGBA color) {
     SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
 }
 
@@ -680,7 +680,7 @@ void Editor::main_update() {
     }
 
     if (!audio.paused() && current_note < m_map.times.size() && elapsed >= m_map.times[current_note]) {
-        switch (m_map.flags_vec[current_note]) {
+        switch (m_map.flags_list[current_note]) {
         case (NoteFlagBits::don_or_kat | NoteFlagBits::normal_or_big):
             Mix_PlayChannel(-1, assets.get_sound("don"), 0);
             break;
@@ -713,7 +713,7 @@ void Editor::main_update() {
         }
 
         float height;
-        Color color;
+        RGBA color;
         if (i % 4 == 0) {
             height = 0.2;
             color = { 255, 255, 255 };

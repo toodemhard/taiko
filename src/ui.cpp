@@ -7,10 +7,10 @@
 
 #include "debug_macros.h"
 
-const char* StringPrison::add(std::string&& string) {
-    strings.push_back(std::move(string));
-
-    return strings.back().data();
+const char* StringCache::add(std::string&& string) {
+    strings[count] = string;
+    count++;
+    return strings[count - 1].data();
 }
 
 UI::UI(int _screen_width, int _screen_height) : screen_width{ _screen_width }, screen_height{ _screen_height } {}

@@ -50,7 +50,7 @@ public:
     MapMeta m_meta_data;
     
     std::vector<double> times{};
-    std::vector<NoteFlags> flags_vec{};
+    std::vector<NoteFlags> flags_list{};
     std::vector<bool> selected{};
 
     void insert_note(double time, NoteFlags flags);
@@ -58,12 +58,12 @@ public:
 
     template<class Archive>
     void save(Archive& ar) const {
-        ar(m_meta_data, times, flags_vec);
+        ar(m_meta_data, times, flags_list);
     }
 
     template<class Archive>
     void load(Archive& ar) {
-        ar(m_meta_data, times, flags_vec);
+        ar(m_meta_data, times, flags_list);
 
         selected = std::vector<bool>(times.size(), false);
     }

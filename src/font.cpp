@@ -33,7 +33,8 @@ std::vector<char> read_file(const char* file_name) {
 }
 
 void init_font(SDL_Renderer* renderer) {
-    auto ttf_buffer = read_file("JetBrainsMonoNLNerdFont-Regular.ttf");
+    //auto ttf_buffer = read_file("JetBrainsMonoNLNerdFont-Regular.ttf");
+    auto ttf_buffer = read_file("taiko.ttf");
     stbtt_InitFont(&font_info, (unsigned char*)ttf_buffer.data(), 0);
 
 
@@ -54,7 +55,7 @@ void init_font(SDL_Renderer* renderer) {
 }
 
  
-void draw_text(SDL_Renderer* renderer, const char* text, float font_size, Vec2 position, Color color) {
+void draw_text(SDL_Renderer* renderer, const char* text, float font_size, Vec2 position, RGBA color) {
     ZoneScoped;
     if (text == nullptr) {
         return;

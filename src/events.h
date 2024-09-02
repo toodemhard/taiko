@@ -15,10 +15,10 @@ namespace Event {
     struct TestMap {};
     struct QuitTest {};
     struct PlayMap {
-        std::string map_directory;
+        std::filesystem::path mapset_directory;
+        std::string map_filename;
     };
     struct Return {};
-
 }
 
 using EventUnion = std::variant<

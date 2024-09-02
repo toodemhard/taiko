@@ -22,19 +22,13 @@ void MainMenu::reload_maps() {
 
         load_binary(mapsets.back(), mapset.path() / mapset_filename);
 
-
-        //for (const auto& entry : std::filesystem::directory_iterator(mapset.path())) {
-        //    if (entry.path().extension().string().compare(map_file_extension) == 0) {
-        //        std::ifstream fin(entry.path());
-
-        //        cereal::BinaryInputArchive iarchive(fin);
-
-        //        map_list.push_back({});
-        //        iarchive(map_list.back());
-
-        //        mapset_index_list.push_back(mapset_index);
-        //    }
-        //}
+        for (const auto& entry : std::filesystem::directory_iterator(mapset.path())) {
+            if (entry.path().extension().string().compare(map_file_extension) == 0) {
+                map_list.push_back({});
+                load_binary(map_list.back(), entry.path());
+                mapset_index_list.push_back(mapset_index);
+            }
+        }
     }
 
 }
@@ -104,26 +98,58 @@ void MainMenu::update() {
     ui.begin_group(group_style);
 
 
-    // list mapsets
-    for (int i = 0; i < mapsets.size(); i++) {
-        auto& mapset = mapsets[i];
-        auto& mapset_directory = mapset_paths[i];
-        group_style = {};
-        group_style.stack_direction = StackDirection::Vertical;
-        group_style.background_color = { 20, 20, 20, 255 };
-        group_style.border_color = { 100, 100, 50, 255 };
-        float l = 25;
-        group_style.padding = { l, l, l, l };
 
-        OnClick edit_map = [&](ClickInfo info) {
-            event_queue.push_event(Event::EditMap{ mapset_directory, {} });
-        };
+    if (entry_mode == EntryMode::Play) {
+        // list maps
+        for (int i = 0; i < map_list.size(); i++) {
+            auto& map_info = map_list[i];
+            int mapset_index = mapset_index_list[i];
+            auto& mapset = mapsets[mapset_index];
+            auto& mapset_directory = mapset_paths[mapset_index];
 
-        ui.begin_group_v2(group_style, {edit_map});
-        ui.rect(mapset.title.data(), {});
-        ui.rect(mapset.artist.data(), {});
-        ui.end_group_v2();
+            group_style = {};
+            group_style.stack_direction = StackDirection::Vertical;
+            //group_style.background_color = { 20, 20, 20, 255 };
+            group_style.border_color = color::white;
+            float l = 25;
+            group_style.padding = { l, l, l, l };
+
+            OnClick edit_map = [&](ClickInfo info) {
+                event_queue.push_event(Event::PlayMap{ mapset_directory, (map_info.difficulty_name + map_file_extension)});
+            };
+
+            ui.begin_group_v2(group_style, { edit_map });
+            ui.rect(mapset.title.data(), {});
+            ui.rect(mapset.artist.data(), { .font_size{24}, .text_color = color::grey });
+            ui.rect(map_info.difficulty_name.data(), { .font_size{24} });
+            ui.end_group_v2();
+        }
+
     }
+    else if (entry_mode == EntryMode::Edit) {
+        // list mapsets
+        for (int i = 0; i < mapsets.size(); i++) {
+            auto& mapset = mapsets[i];
+            auto& mapset_directory = mapset_paths[i];
+            group_style = {};
+            group_style.stack_direction = StackDirection::Vertical;
+            group_style.background_color = { 20, 20, 20, 255 };
+            group_style.border_color = { 100, 100, 50, 255 };
+            float l = 25;
+            group_style.padding = { l, l, l, l };
+
+            OnClick edit_map = [&](ClickInfo info) {
+                event_queue.push_event(Event::EditMap{ mapset_directory, {} });
+                };
+
+            ui.begin_group_v2(group_style, { edit_map });
+            ui.rect(mapset.title.data(), {});
+            ui.rect(mapset.artist.data(), {});
+            ui.end_group_v2();
+        }
+
+    }
+
 
     ui.end_group();
 
