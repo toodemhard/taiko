@@ -167,7 +167,10 @@ int run() {
                 context_stack.push_back(Context::Game);
                 Map map;
                 load_binary(map, event.mapset_directory / event.map_filename);
-                audio.load_music((event.mapset_directory / std::string("audio.mp3")).string().data());
+                auto music_file = find_music_file(event.mapset_directory);
+                if (music_file.has_value()) {
+                    audio.load_music(music_file.value().string().data());
+                }
                 game = std::make_unique<Game>(systems, game::InitConfig{}, map);
             }
             break;

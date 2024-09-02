@@ -142,7 +142,11 @@ void Editor::load_mapset(std::filesystem::path& mapset_directory) {
 
     load_binary(mapset_info, (m_mapset_directory / mapset_filename));
 
-    audio.load_music((m_mapset_directory / "audio.mp3").string().data());
+    auto music_file = find_music_file(mapset_directory);
+
+    if (music_file.has_value()) {
+        audio.load_music(music_file.value().string().data());
+    }
 
     m_map_infos.clear();
 
@@ -284,7 +288,7 @@ void Editor::update(std::chrono::duration<double> delta_time) {
             m_mapset_directory = "data/maps/" + std::format("{} - {}", artist.text, title.text);
 
             std::filesystem::create_directories(m_mapset_directory);
-            SDL_CopyFile(m_song_path.value().string().data(), (m_mapset_directory / "audio.mp3").string().data()); 
+            SDL_CopyFile(m_song_path.value().string().data(), (m_mapset_directory / m_song_path.value().filename().c_str() ).string().data());
 
             mapset_info = { title.text, artist.text };
 
