@@ -14,9 +14,9 @@ else()
     set(TRACY_ENABLE OFF)
 endif ()
 
-add_subdirectory(lib/tracy)
+add_subdirectory(lib/tracy EXCLUDE_FROM_ALL)
 
-add_subdirectory(lib/sdl3)
+add_subdirectory(lib/sdl3 EXCLUDE_FROM_ALL)
 
 option(SDL3IMAGE_AVIF "Support loading AVIF images" OFF)
 option(SDL3IMAGE_BMP "Support loading BMP images" OFF)
@@ -36,11 +36,11 @@ option(SDL3IMAGE_XCF "Support loading XCF images" OFF)
 option(SDL3IMAGE_XPM "Support loading XPM images" OFF)
 option(SDL3IMAGE_XV "Support loading XV images" OFF)
 
-add_subdirectory(lib/sdl-image)
+add_subdirectory(lib/sdl-image EXCLUDE_FROM_ALL)
 
 option(SDL3MIXER_OPUS "Enable Opus music" OFF)
 
-add_subdirectory(lib/sdl-mixer)
+add_subdirectory(lib/sdl-mixer EXCLUDE_FROM_ALL)
 
 set(SOURCE_DIRECTORY src)
 file(GLOB_RECURSE SOURCE_FILES CONFIGURE_DEPENDS ${SOURCE_DIRECTORY}/*.cpp)
@@ -59,6 +59,7 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
 #target_compile_definitions(${PROJECT_NAME} PUBLIC
 #    $<$<CONFIG:RELEASE>:TRACY_ENABLE>
 #)
+target_include_directories(${PROJECT_NAME} PRIVATE src/)
 
 target_include_directories(${PROJECT_NAME} PRIVATE 
     lib/stb
