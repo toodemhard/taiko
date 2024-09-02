@@ -212,7 +212,7 @@ void Editor::update(std::chrono::duration<double> delta_time) {
     float l = 25;
     style.padding = { l, l, l, l };
 
-    StringPrison strings;
+    StringCache strings;
 
 
     auto inactive_style = Style{};

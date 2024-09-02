@@ -97,8 +97,8 @@ private:
 
     std::vector<int> in_flight_notes_indices;
 
-    bool m_paused;
-    bool m_end_screen;
+    bool m_paused{};
+    bool m_end_screen{};
 
     BigNoteHits current_big_note_status;
 

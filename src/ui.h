@@ -41,7 +41,7 @@ struct Style {
     float font_size = 36;
     RGBA text_color = { 255, 255, 255, 255 };
     RGBA background_color = { 0, 0, 0, 0 };
-    RGBA border_color;
+    RGBA border_color = { 255, 0, 0, 255 };
 
     Padding padding;
 
