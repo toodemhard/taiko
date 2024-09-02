@@ -140,7 +140,7 @@ int run() {
         while (event_queue.pop_event(&event_union)) {
             switch (event_union.index()) {
             case EventType::TestMap:
-                game = std::make_unique<Game>(systems, game::InitConfig{}, editor->m_map);
+                game = std::make_unique<Game>(systems, game::InitConfig{ false, true }, editor->m_map);
                 context_stack.push_back(Context::Game);
                 break;
             case EventType::QuitTest:
@@ -182,6 +182,7 @@ int run() {
                     break;
                 case Context::Game:
                     game.reset();
+                    audio.stop();
                     break;
                 }
                 context_stack.pop_back();

@@ -144,7 +144,6 @@ void Game::update(std::chrono::duration<double> delta_time) {
             event_queue.push_event(Event::Return{});
         }
 
-        audio.stop();
         return;
     }
 
