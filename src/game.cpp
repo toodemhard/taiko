@@ -234,12 +234,13 @@ void Game::update(std::chrono::duration<double> delta_time) {
                         in_flight_notes_indices.push_back(current_note_index);
 
 
-                        current_note_index++;
                     }
                     else {
                         combo = 0;
                         miss_count++;
                     }
+                    current_note_index++;
+
                     update_accuracy();
                 }
             }
@@ -250,9 +251,9 @@ void Game::update(std::chrono::duration<double> delta_time) {
             if (elapsed - m_map.times[current_note_index] > ok_range.count() / 2) {
                 combo = 0;
                 miss_count++;
-                update_accuracy();
 
                 current_note_index++;
+                update_accuracy();
             }
         }
 
