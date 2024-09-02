@@ -231,15 +231,15 @@ void Game::update(std::chrono::duration<double> delta_time) {
                             ok_count++;
                         }
 
-                        in_flight_notes_indices.push_back(current_note_index);
-
-
-                        current_note_index++;
+                        in_flight_notes.times.push_back(elapsed);
+                        in_flight_notes.flags.push_back(m_map.flags_list[current_note_index]);
                     }
                     else {
                         combo = 0;
                         miss_count++;
                     }
+                    current_note_index++;
+
                     update_accuracy();
                 }
             }
@@ -250,20 +250,21 @@ void Game::update(std::chrono::duration<double> delta_time) {
             if (elapsed - m_map.times[current_note_index] > ok_range.count() / 2) {
                 combo = 0;
                 miss_count++;
-                update_accuracy();
 
                 current_note_index++;
+                update_accuracy();
             }
         }
 
-        for (int i = 0; i < in_flight_notes_indices.size(); i++) {
-            auto flight_elapsed = elapsed - m_map.times[in_flight_notes_indices[i]];
+        for (int i = 0; i < in_flight_notes.times.size(); i++) {
+            auto flight_elapsed = elapsed - in_flight_notes.times[i];
 
             if (flight_elapsed <= total_flight_time_seconds) {
                 break;
             }
 
-            in_flight_notes_indices.erase(in_flight_notes_indices.begin());
+            in_flight_notes.times.erase(in_flight_notes.times.begin());
+            in_flight_notes.flags.erase(in_flight_notes.flags.begin());
         }
 
         auto inner_drum = assets.get_image("inner_drum");
@@ -313,12 +314,12 @@ void Game::update(std::chrono::duration<double> delta_time) {
         SDL_RenderTexture(renderer, hit_target.texture, NULL, &hit_target_rect);
 
         auto flight_start_point = rect_center(hit_target_rect);
-        for (auto& note_index : in_flight_notes_indices) {
-            auto flight_elapsed = elapsed - m_map.times[note_index];
+        for (int i = 0; i < in_flight_notes.times.size(); i++) {
+            auto flight_elapsed = elapsed - in_flight_notes.times[i];
 
             auto pos = linear_interp({ flight_start_point.x, flight_start_point.y }, { 1920, 0 }, flight_elapsed / total_flight_time_seconds);
 
-            draw_note(renderer, assets, m_map.flags_list[note_index], pos);
+            draw_note(renderer, assets, in_flight_notes.flags[i], pos);
         }
 
 
