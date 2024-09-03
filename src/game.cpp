@@ -1,5 +1,6 @@
 #include "game.h"
 #include "constants.h"
+#include "assets.h"
 
 using namespace std::chrono_literals;
 
@@ -54,9 +55,9 @@ void Game::draw_map() {
         Vec2 center_pos = cam.world_to_screen({ (float)m_map.times[i], 0 });
 
         float scale = (m_map.flags_list[i] & NoteFlagBits::normal_or_big) ? 0.9f : 1.4f;
-        Image circle_image = (m_map.flags_list[i] & NoteFlagBits::don_or_kat) ? assets.get_image("don_circle") : assets.get_image("kat_circle");
-        Image circle_overlay = assets.get_image("circle_overlay");
-        Image select_circle = assets.get_image("select_circle");
+        Image circle_image = (m_map.flags_list[i] & NoteFlagBits::don_or_kat) ? assets.get_image(ImageID::don_circle) : assets.get_image(ImageID::kat_circle);
+        Image circle_overlay = assets.get_image(ImageID::circle_overlay);
+        Image select_circle = assets.get_image(ImageID::select_circle);
 
         Vec2 circle_pos = center_pos;
         circle_pos.x -= circle_image.width / 2 * scale;
@@ -73,9 +74,9 @@ void Game::draw_map() {
 
 void draw_note(SDL_Renderer* renderer, AssetLoader& assets, const NoteFlags& note_type, const Vec2& center_point) {
         float scale = (note_type & NoteFlagBits::normal_or_big) ? 0.9f : 1.4f;
-        Image circle_image = (note_type & NoteFlagBits::don_or_kat) ? assets.get_image("don_circle") : assets.get_image("kat_circle");
-        Image circle_overlay = assets.get_image("circle_overlay");
-        Image select_circle = assets.get_image("select_circle");
+        Image circle_image = (note_type & NoteFlagBits::don_or_kat) ? assets.get_image(ImageID::don_circle) : assets.get_image(ImageID::kat_circle);
+        Image circle_overlay = assets.get_image(ImageID::circle_overlay);
+        Image select_circle = assets.get_image(ImageID::select_circle);
 
         Vec2 circle_pos = center_point;
         circle_pos.x -= circle_image.width / 2 * scale;
@@ -193,10 +194,10 @@ void Game::update(std::chrono::duration<double> delta_time) {
 
         for (const auto& input : inputs) {
             if (input == DrumInput::don_left || input == DrumInput::don_right) {
-                Mix_PlayChannel(-1, assets.get_sound("don"), 0);
+                Mix_PlayChannel(-1, assets.get_sound(SoundID::don), 0);
             }
             else if (input == DrumInput::kat_left || input == DrumInput::kat_right) {
-                Mix_PlayChannel(-1, assets.get_sound("kat"), 0);
+                Mix_PlayChannel(-1, assets.get_sound(SoundID::kat), 0);
             }
         }
 
@@ -266,10 +267,10 @@ void Game::update(std::chrono::duration<double> delta_time) {
             in_flight_notes.flags.erase(in_flight_notes.flags.begin());
         }
 
-        auto inner_drum = assets.get_image("inner_drum");
-        auto outer_drum = assets.get_image("outer_drum");
+        auto inner_drum = assets.get_image(ImageID::inner_drum);
+        auto outer_drum = assets.get_image(ImageID::outer_drum);
 
-        auto hit_target = assets.get_image("circle_overlay");
+        auto hit_target = assets.get_image(ImageID::circle_overlay);
         auto hit_target_rect = SDL_FRect{ inner_drum.width * 2.0f, (window_height - hit_target.height) / 2.0f, (float)hit_target.width, (float)hit_target.height };
 
         cam.position.x = elapsed;
@@ -323,12 +324,12 @@ void Game::update(std::chrono::duration<double> delta_time) {
 
 
         if (m_current_hit_effect == hit_effect::perfect) {
-            auto hit_effect_image = assets.get_image("hit_effect_perfect");
+            auto hit_effect_image = assets.get_image(ImageID::hit_effect_perfect);
             auto dst_rect = rect_at_center_point(rect_center(hit_target_rect), hit_effect_image.width, hit_effect_image.height);
             SDL_RenderTexture(renderer, hit_effect_image.texture, NULL, &dst_rect);
         }
         else if (m_current_hit_effect == hit_effect::ok) {
-            auto hit_effect_image = assets.get_image("hit_effect_ok");
+            auto hit_effect_image = assets.get_image(ImageID::hit_effect_ok);
             auto dst_rect = rect_at_center_point(rect_center(hit_target_rect), hit_effect_image.width, hit_effect_image.height);
             SDL_RenderTexture(renderer, hit_effect_image.texture, NULL, &dst_rect);
         }

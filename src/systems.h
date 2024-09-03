@@ -4,6 +4,7 @@
 #include "audio.h"
 #include "events.h"
 #include "asset_loader.h"
+#include "assets.h"
 
 struct Systems {
     SDL_Renderer* renderer{};
