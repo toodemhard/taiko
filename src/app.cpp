@@ -10,6 +10,7 @@
 #include "main_menu.h"
 
 #include "serialize.h"
+#include "assets.h"
 
 using namespace constants;
 
@@ -51,19 +52,19 @@ int run() {
     init_font(renderer);
 
     std::vector<SoundLoadInfo> sound_list = {
-        {"don.wav", "don"},
-        {"kat.wav", "kat"},
+        {"don.wav", SoundID::don},
+        {"kat.wav", SoundID::kat},
     };
 
     std::vector<ImageLoadInfo> image_list = {
-        {"hit_effect_ok.png", "hit_effect_ok"},
-        {"hit_effect_perfect.png", "hit_effect_perfect"},
-        {"circle-overlay.png", "circle_overlay"},
-        {"circle-select.png", "select_circle"},
-        {"circle.png", "kat_circle", RGBA{ 60, 219, 226, 255 }},
-        {"circle.png", "don_circle", RGBA{ 252, 78, 60, 255 }},
-        {"drum-inner.png", "inner_drum"},
-        {"drum-outer.png", "outer_drum"},
+        {"hit_effect_ok.png", ImageID::hit_effect_ok},
+        {"hit_effect_perfect.png",ImageID::hit_effect_perfect},
+        {"circle-overlay.png", ImageID::circle_overlay},
+        {"circle-select.png", ImageID::select_circle},
+        {"circle.png", ImageID::kat_circle , RGBA{ 60, 219, 226, 255 }},
+        {"circle.png", ImageID::don_circle, RGBA{ 252, 78, 60, 255 }},
+        {"drum-inner.png", ImageID::inner_drum},
+        {"drum-outer.png", ImageID::outer_drum},
     };
 
     AssetLoader assets{};

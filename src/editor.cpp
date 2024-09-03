@@ -6,6 +6,8 @@
 #include "color.h"
 #include "game.h"
 
+#include "assets.h"
+
 using namespace constants;
 
 std::vector<int> note_box_intersection(const Map& map, Vec2 start_pos, Vec2 end_pos) {
@@ -66,9 +68,9 @@ void draw_map_editor(SDL_Renderer* renderer, AssetLoader& assets, const Map& map
         Vec2 center_pos = cam.world_to_screen({(float)map.times[i], 0});
 
         float scale = (map.flags_list[i] & NoteFlagBits::normal_or_big) ? 0.9f : 1.4f;
-        Image circle_image = (map.flags_list[i] & NoteFlagBits::don_or_kat) ? assets.get_image("don_circle") : assets.get_image("kat_circle");
-        Image circle_overlay = assets.get_image("circle_overlay");
-        Image select_circle = assets.get_image("select_circle");
+        Image circle_image = (map.flags_list[i] & NoteFlagBits::don_or_kat) ? assets.get_image(ImageID::don_circle) : assets.get_image(ImageID::kat_circle);
+        Image circle_overlay = assets.get_image(ImageID::circle_overlay);
+        Image select_circle = assets.get_image(ImageID::select_circle);
 
         Vec2 circle_pos = center_pos;
         circle_pos.x -= circle_image.width / 2 * scale;
@@ -686,16 +688,16 @@ void Editor::main_update() {
     if (!audio.paused() && current_note < m_map.times.size() && elapsed >= m_map.times[current_note]) {
         switch (m_map.flags_list[current_note]) {
         case (NoteFlagBits::don_or_kat | NoteFlagBits::normal_or_big):
-            Mix_PlayChannel(-1, assets.get_sound("don"), 0);
+            Mix_PlayChannel(-1, assets.get_sound(SoundID::don), 0);
             break;
         case (0 | NoteFlagBits::normal_or_big):
-            Mix_PlayChannel(-1, assets.get_sound("kat"), 0);
+            Mix_PlayChannel(-1, assets.get_sound(SoundID::kat), 0);
             break;
         case (NoteFlagBits::don_or_kat | 0):
-            Mix_PlayChannel(-1, assets.get_sound("kat"), 0);
+            Mix_PlayChannel(-1, assets.get_sound(SoundID::kat), 0);
             break;
         case (0 | 0):
-            Mix_PlayChannel(-1, assets.get_sound("kat"), 0);
+            Mix_PlayChannel(-1, assets.get_sound(SoundID::kat), 0);
             break;
         }
 

@@ -9,6 +9,8 @@
 #include "ui.h"
 #include "constants.h"
 
+#include "assets.h"
+
 class Cam {
 public:
     Vec2 position;
