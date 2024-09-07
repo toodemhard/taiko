@@ -3,7 +3,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 project (taiko LANGUAGES CXX)
-enable_language(ASM_NASM ASM)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 include(FetchContent)
 
@@ -52,6 +52,12 @@ if(MSVC)
     target_link_options(${PROJECT_NAME} PUBLIC "/INCREMENTAL")
 endif()
 
+# if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+#     target_compile_options(${PROJECT_NAME} PUBLIC "$<$<CONFIG:DEBUG>:/ZI>")
+#     target_link_options(${PROJECT_NAME} PUBLIC "/INCREMENTAL")
+
+# endif()
+
 target_compile_definitions(${PROJECT_NAME} PRIVATE
     $<$<CONFIG:Debug>:DEBUG>
 )
@@ -61,7 +67,7 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
 #)
 target_include_directories(${PROJECT_NAME} PRIVATE src/)
 
-target_include_directories(${PROJECT_NAME} PRIVATE 
+target_include_directories(${PROJECT_NAME} PRIVATE
     lib/stb
     lib/cereal/include
 )
