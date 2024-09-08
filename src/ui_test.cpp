@@ -19,9 +19,13 @@ void UI_Test::update() {
 
     auto st = Style{};
     st.position = Position::Anchor{ 0.5, 0 };
+    st.padding = {25, 25, 25, 25};
+    st.gap = 50;
 
     m_ui.begin_group(st);
         st = {};
+        st.background_color = RGBA{25, 65, 120, 255};
+        st.padding = {25, 25, 25, 25};
         m_ui.text_rect({"Thing 1"}, st);
         m_ui.text_rect({"Thing 2"}, st);
         m_ui.text_rect({"Thing 3"}, st);

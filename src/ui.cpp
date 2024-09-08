@@ -123,6 +123,9 @@ void UI::end_group() {
         break;
     }
 
+    float x_padding = group.style.padding.left + group.style.padding.right;
+    float y_padding = group.style.padding.top + group.style.padding.bottom;
+
     auto width = std::visit(
         overloaded{
             [=](Scale::Auto scale) -> float { return total_width; },
@@ -130,7 +133,7 @@ void UI::end_group() {
             [](Scale::Fixed scale) -> float { return scale.value; }
         },
         group.style.width
-    );
+    ) + x_padding;
 
     auto height = std::visit(
         overloaded{
@@ -139,7 +142,7 @@ void UI::end_group() {
             [](Scale::Fixed scale) -> float { return scale.value; }
         },
         group.style.height
-    );
+    ) + y_padding;
 
     rects.push_back(Rect{
         {},
@@ -151,8 +154,6 @@ void UI::end_group() {
     group.rect_index = (int)rects.size() - 1;
 
     if (group_stack.empty()) {
-        float x_padding = group.style.padding.left + group.style.padding.right;
-        float y_padding = group.style.padding.top + group.style.padding.bottom;
 
         Vec2 start_pos = std::visit(
             overloaded{
