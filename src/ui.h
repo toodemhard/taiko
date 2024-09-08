@@ -1,27 +1,33 @@
 ﻿#pragma once
 
-#include <vector>
-#include <stack>
 #include <functional>
 #include <optional>
 #include <string>
+#include <variant>
+#include <vector>
 
-#include "vec.h"
-#include "input.h"
 #include "color.h"
+#include "input.h"
+#include "vec.h"
 
 #include <SDL3/SDL.h>
 
-constexpr int string_array_size{ 10 };
+namespace color {
+constexpr RGBA white{255, 255, 255, 255};
+constexpr RGBA red{255, 0, 0, 255};
+constexpr RGBA grey{180, 180, 180, 255};
+constexpr RGBA none{0, 0, 0, 0};
+} // namespace color
 
-// keep strings alive in outer scope so that it can be drawn at end of update
-// can just ref const char* in inner scope
+constexpr int string_array_size{10};
+
 class StringCache {
-public:
+  public:
     const char* add(std::string&& string);
-private:
+
+  private:
     std::array<std::string, string_array_size> strings;
-    int count{ 0 };
+    int count{0};
 };
 
 enum class StackDirection {
@@ -36,31 +42,51 @@ struct Padding {
     float bottom;
 };
 
-struct Style {
-    Vec2 anchor;
-    float font_size = 36;
-    RGBA text_color = { 255, 255, 255, 255 };
-    RGBA background_color = { 0, 0, 0, 0 };
-    RGBA border_color;
+namespace Position {
 
-    Padding padding;
-
-    float min_width;
-    float min_height;
-
-    // group styling
-    StackDirection stack_direction = StackDirection::Horizontal;
-    float gap;
+// fraction of the screen
+struct Anchor {
+    Vec2 position;
 };
 
-struct GroupStyle {
-    Vec2 anchor;
+struct Absolute {
+    Vec2 position;
+};
 
-    RGBA background_color = { 0, 0, 0, 0 };
-    RGBA border_color;
+struct Relative {};
+
+using Variant = std::variant<Relative, Anchor, Absolute>;
+} // namespace Position
+
+
+namespace Scale {
+
+struct Fixed {
+    float value;
+};
+
+struct Min {
+    float value;
+};
+
+// scale to the content
+struct Auto {};
+
+using Variant = std::variant<Auto, Min, Fixed>;
+
+} // namespace Scale
+
+struct Style {
+    Position::Variant position;
+    RGBA background_color;
+    RGBA border_color = color::red;
 
     Padding padding;
 
+    Scale::Variant width;
+    Scale::Variant height;
+
+    // group styling
     StackDirection stack_direction = StackDirection::Horizontal;
     float gap;
 };
@@ -68,13 +94,22 @@ struct GroupStyle {
 struct Rect {
     Vec2 position;
     Vec2 scale;
-    float padding_left;
-    float padding_top;
+    RGBA background_color;
+    RGBA border_color;
+};
+
+struct Text {
+    Vec2 position;
+    Vec2 scale;
+    const char* text;
+    float font_size;
+    RGBA text_color;
+};
+
+struct TextInfo {
     const char* text;
     float font_size = 36;
-    RGBA text_color = { 255, 255, 255, 255 };
-    RGBA background_color = { 0, 0, 0, 0 };
-    RGBA border_color;
+    RGBA color = color::white;
 };
 
 struct Button {
@@ -89,11 +124,8 @@ struct Slider {
 };
 
 enum class ElementType {
-    button,
-    slider,
-    rect,
     group,
-    text_field,
+    text,
 };
 
 struct ElementHandle {
@@ -136,14 +168,15 @@ struct TextField {
 };
 
 class UI {
-public:
+  public:
     UI() = default;
     UI(int _screen_width, int _screen_height);
 
     void text_field(TextFieldState* state, Style style);
     void button(const char* text, Style style, std::function<void()> on_click);
     void slider(float fraction, std::function<void(float)> on_input);
-    void rect(const char* text, const Style& style);
+    void text_rect(const TextInfo& text_info, const Style& style);
+
     void begin_group(const Style& style);
     void end_group();
 
@@ -158,32 +191,28 @@ public:
 
     bool clicked = false;
 
-private:
+  private:
     int screen_width = 0;
     int screen_height = 0;
 
-
-    //properties
+    // properties
     std::vector<ClickRect> click_rects;
 
     std::vector<Rect> rects;
+
+    std::vector<Group> groups;
+    std::vector<Text> texts;
+
     std::vector<Button> buttons;
     std::vector<Slider> sliders;
-    std::vector<Group> groups;
     std::vector<TextField> text_fields;
+
 
     std::vector<int> group_stack;
 
     int internal_rect(const char* text, const Style& style);
-    Rect& element_rect(ElementHandle e);
+    Vec2& element_scale(ElementHandle e);
+    Vec2& element_position(ElementHandle e);
+
+    Vec2 contained_scale(int group_index);
 };
-
-namespace color {
-    constexpr RGBA white{ 255, 255, 255, 255 };
-    constexpr RGBA grey{ 180, 180, 180, 255 };
-}
-
-namespace styles {
-    constexpr Style active_option{ .text_color{color::white} };
-    constexpr Style inactive_option{ .text_color{color::grey} };
-}

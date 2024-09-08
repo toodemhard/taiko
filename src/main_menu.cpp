@@ -79,7 +79,7 @@ void MainMenu::update() {
 
     if (entry_mode == EntryMode::Edit) {
         Style style{};
-        style.anchor = { 0.25f, 0.5f };
+        style.position = Absolute{ 0.25f, 0.5f };
         ui.begin_group(style);
 
         ui.button("New Map", {}, [&]() {
@@ -92,7 +92,7 @@ void MainMenu::update() {
     auto group_style = Style{};
     group_style.stack_direction = StackDirection::Vertical;
     group_style.gap = 25;
-    group_style.anchor = { 1, 0.5 };
+    group_style.position = Absolute{ 1, 0.5 };
     group_style.padding = { .right = 25 };
 
     ui.begin_group(group_style);
