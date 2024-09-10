@@ -14,6 +14,7 @@
 
 namespace color {
 constexpr RGBA white{255, 255, 255, 255};
+constexpr RGBA black{0, 0, 0, 255};
 constexpr RGBA red{255, 0, 0, 255};
 constexpr RGBA grey{180, 180, 180, 255};
 constexpr RGBA none{0, 0, 0, 0};
@@ -89,6 +90,10 @@ struct Style {
     // group styling
     StackDirection stack_direction = StackDirection::Horizontal;
     float gap;
+
+    // text style
+    float font_size = 36;
+    RGBA text_color = color::white;
 };
 
 struct Rect {
@@ -104,12 +109,6 @@ struct Text {
     const char* text;
     float font_size;
     RGBA text_color;
-};
-
-struct TextInfo {
-    const char* text;
-    float font_size = 36;
-    RGBA color = color::white;
 };
 
 struct Button {
@@ -142,19 +141,15 @@ using OnClick = std::function<void(ClickInfo)>;
 struct Group {
     int rect_index;
     Style style;
+    std::optional<int> click_index;
     std::vector<ElementHandle> children;
-    OnClick click_property;
 };
 
 struct ClickRect {
     Vec2 position;
     Vec2 scale;
 
-    OnClick on_click;
-};
-
-struct Properties {
-    OnClick on_click;
+    int on_click_index;
 };
 
 struct TextFieldState {
@@ -173,14 +168,14 @@ class UI {
     UI(int _screen_width, int _screen_height);
 
     void text_field(TextFieldState* state, Style style);
-    void button(const char* text, Style style, std::function<void()> on_click);
+    void button(const char* text, Style style, OnClick&& on_click);
     void slider(float fraction, std::function<void(float)> on_input);
-    void text_rect(const TextInfo& text_info, const Style& style);
+    void text_rect(const char* text, const Style& style);
 
     void begin_group(const Style& style);
     void end_group();
 
-    void begin_group_v2(const Style& style, const Properties& properties);
+    void begin_group_button(const Style& style, OnClick&& on_click);
     void end_group_v2();
 
     void visit_group(Group& group, Vec2 start_pos);
@@ -207,12 +202,11 @@ class UI {
     std::vector<Slider> sliders;
     std::vector<TextField> text_fields;
 
+    std::vector<OnClick> on_click_callbacks;
+
 
     std::vector<int> group_stack;
 
-    int internal_rect(const char* text, const Style& style);
     Vec2& element_scale(ElementHandle e);
     Vec2& element_position(ElementHandle e);
-
-    Vec2 contained_scale(int group_index);
 };
