@@ -177,6 +177,12 @@ struct SliderStyle {
     RGBA fg_color;
 };
 
+struct SliderCallbacks {
+    std::function<void(float)> on_input;
+    std::optional<std::function<void()>> on_click;
+    std::optional<std::function<void()>> on_release;
+};
+
 struct DropDownMenu {
     int selected_opt_index;
     bool menu_dropped;
@@ -192,10 +198,10 @@ class UI {
 
     void text_field(TextFieldState* state, Style style);
     void button(const char* text, Style style, OnClick&& on_click);
-    void slider(Slider& state, SliderStyle style, float fraction, std::function<void(float)>&& on_input);
+    void slider(Slider& state, SliderStyle style, float fraction, SliderCallbacks&& callbacks);
     void drop_down_menu(Input& input, DropDownMenu& state, std::vector<const char*>& options, std::function<void(int)> on_input);
 
-    void rect(const char* text, const Style& style);
+    void text(const char* text, const Style& style);
 
     void begin_group(const Style& style);
     RectID end_group();
@@ -217,8 +223,8 @@ class UI {
     int screen_height = 0;
 
     std::vector<ClickRect> click_rects;
-
     std::vector<HeldRect> slider_input_rects;
+
 
     std::vector<Rect> rects;
 
@@ -231,6 +237,9 @@ class UI {
     std::vector<std::function<void()>> on_release_callbacks;
 
     std::vector<std::function<void(float)>> slider_on_input_callbacks;
+
+    std::vector<std::function<void()>> user_callbacks;
+
 
 
     std::vector<int> group_stack;

@@ -46,7 +46,7 @@ void UI::begin_group(const Style& style) {
 
     if (group_stack.size() > 0) {
         auto& parent_group = groups[group_stack.back()];
-         parent_group.children.push_back({ElementType::group, (int)groups.size() - 1});
+        parent_group.children.push_back({ElementType::group, (int)groups.size() - 1});
     }
 
     group_stack.push_back(groups.size() - 1);
@@ -74,35 +74,43 @@ void UI::begin_group_button(const Style& style, OnClick&& on_click) {
     this->begin_group_any(group);
 }
 
-void UI::slider(Slider& state, SliderStyle style, float fraction, std::function<void(float)>&& on_input) {
+void UI::slider(Slider& state, SliderStyle style, float fraction, SliderCallbacks&& callbacks) {
     auto container = Style{};
     container.position = style.position;
     container.width = Scale::Fixed{style.width};
     container.height = Scale::Fixed{style.height};
     container.border_color = color::white;
 
-    on_release_callbacks.push_back([&](){
-        state.held = false; 
-    });
+    if (state.held) {
+        on_release_callbacks.push_back([&, on_release = std::move(callbacks.on_release)]() {
+            state.held = false;
+            if (on_release.has_value()) {
+                user_callbacks.push_back(std::move(on_release.value()));
+            }
+        });
+    }
 
-    slider_on_input_callbacks.push_back(std::move(on_input));
+    slider_on_input_callbacks.push_back(std::move(callbacks.on_input));
     int on_input_index = slider_on_input_callbacks.size() - 1;
 
     auto group = Group{};
     group.style = container;
 
-    on_click_callbacks.push_back([&](ClickInfo click_info) {
+    on_click_callbacks.push_back([&, onclick = std::move(callbacks.on_click)](ClickInfo click_info) {
         state.held = true;
+        if (onclick.has_value()) {
+            user_callbacks.push_back(std::move(onclick.value()));
+        }
     });
+    
     group.on_click_index = on_click_callbacks.size() - 1;
 
     if (state.held) {
-        on_click_callbacks.push_back(
-            [&, on_input_index](ClickInfo click_info) {
-            auto new_fraction = std::min(std::max(0.0f, click_info.offset_pos.x / click_info.scale.x), 1.0f);
+        on_click_callbacks.push_back([&, on_input_index](ClickInfo click_info) {
+            auto new_fraction =
+                std::min(std::max(0.0f, click_info.offset_pos.x / click_info.scale.x), 1.0f);
             slider_on_input_callbacks[on_input_index](new_fraction);
-            }
-        );
+        });
         group.on_held_index = on_click_callbacks.size() - 1;
     }
 
@@ -115,7 +123,6 @@ void UI::slider(Slider& state, SliderStyle style, float fraction, std::function<
     this->begin_group(filling);
 
     this->end_group();
-
 
     auto rect_id = this->end_group();
     if (state.held) {
@@ -180,23 +187,27 @@ RectID UI::end_group() {
     float x_padding = group.style.padding.left + group.style.padding.right;
     float y_padding = group.style.padding.top + group.style.padding.bottom;
 
-    auto width = std::visit(
-        overloaded{
-            [=](Scale::Auto scale) -> float { return total_width; },
-            [=](Scale::Min scale) -> float { return std::max(total_width, scale.value); },
-            [](Scale::Fixed scale) -> float { return scale.value; }
-        },
-        group.style.width
-    ) + x_padding;
+    auto width =
+        std::visit(
+            overloaded{
+                [=](Scale::Auto scale) -> float { return total_width; },
+                [=](Scale::Min scale) -> float { return std::max(total_width, scale.value); },
+                [](Scale::Fixed scale) -> float { return scale.value; }
+            },
+            group.style.width
+        ) +
+        x_padding;
 
-    auto height = std::visit(
-        overloaded{
-            [=](Scale::Auto scale) -> float { return total_height; },
-            [=](Scale::Min scale) -> float { return std::max(total_height, scale.value); },
-            [](Scale::Fixed scale) -> float { return scale.value; }
-        },
-        group.style.height
-    ) + y_padding;
+    auto height =
+        std::visit(
+            overloaded{
+                [=](Scale::Auto scale) -> float { return total_height; },
+                [=](Scale::Min scale) -> float { return std::max(total_height, scale.value); },
+                [](Scale::Fixed scale) -> float { return scale.value; }
+            },
+            group.style.height
+        ) +
+        y_padding;
 
     rects.push_back(Rect{
         {},
@@ -233,31 +244,31 @@ RectID UI::end_group() {
 void UI::visit_group(Group& group, Vec2 start_pos) {
     ZoneScoped;
 
-   auto rect = rects[group.rect_index];
-   if (group.on_click_index.has_value()) {
-       click_rects.push_back({start_pos, rect.scale, group.on_click_index.value() });
-   }
-   if (group.on_held_index.has_value()) {
-       slider_input_rects.push_back({start_pos, rect.scale, group.on_held_index.value() });
-   }
+    auto rect = rects[group.rect_index];
+    if (group.on_click_index.has_value()) {
+        click_rects.push_back({start_pos, rect.scale, group.on_click_index.value()});
+    }
+    if (group.on_held_index.has_value()) {
+        slider_input_rects.push_back({start_pos, rect.scale, group.on_held_index.value()});
+    }
 
-   start_pos = start_pos + Vec2{group.style.padding.left, group.style.padding.top};
-   for (const auto& e : group.children) {
-       auto& position = element_position(e);
-       auto& scale = element_scale(e);
+    start_pos = start_pos + Vec2{group.style.padding.left, group.style.padding.top};
+    for (const auto& e : group.children) {
+        auto& position = element_position(e);
+        auto& scale = element_scale(e);
 
-       if (e.type == ElementType::group) {
-           visit_group(groups[e.index], start_pos);
-       }
+        if (e.type == ElementType::group) {
+            visit_group(groups[e.index], start_pos);
+        }
 
-       position = start_pos;
+        position = start_pos;
 
-       if (group.style.stack_direction == StackDirection::Horizontal) {
-           start_pos.x += scale.x + group.style.gap;
-       } else {
-           start_pos.y += scale.y + group.style.gap;
-       }
-   }
+        if (group.style.stack_direction == StackDirection::Horizontal) {
+            start_pos.x += scale.x + group.style.gap;
+        } else {
+            start_pos.y += scale.y + group.style.gap;
+        }
+    }
 }
 
 bool rect_point_intersect(const Rect& rect, const Vec2& point) {
@@ -288,10 +299,7 @@ void UI::input(Input& input) {
         if (input.mouse_down(SDL_BUTTON_LEFT) && input.mouse_pos.x > p1.x &&
             input.mouse_pos.y > p1.y && input.mouse_pos.x < p2.x && input.mouse_pos.y < p2.y) {
 
-            auto info = ClickInfo {
-                input.mouse_pos - e.position,
-                e.scale
-            };
+            auto info = ClickInfo{input.mouse_pos - e.position, e.scale};
 
             on_click_callbacks[e.on_click_index](info);
             break;
@@ -299,12 +307,15 @@ void UI::input(Input& input) {
     }
 
     for (auto& e : slider_input_rects) {
-        auto info = ClickInfo {
-            input.mouse_pos - e.position,
-            e.scale
-        };
+        auto info = ClickInfo{input.mouse_pos - e.position, e.scale};
         on_click_callbacks[e.on_held_index](info);
     }
+
+    for (auto& callback : user_callbacks) {
+        callback();
+    }
+
+    user_callbacks.clear();
 
     click_rects.clear();
     slider_input_rects.clear();
@@ -366,7 +377,7 @@ void UI::text_field(TextFieldState* state, Style style) {
     // }
 }
 
-void UI::rect(const char* text, const Style& style) {
+void UI::text(const char* text, const Style& style) {
     ZoneScoped;
 
     this->begin_group(style);
@@ -374,10 +385,7 @@ void UI::rect(const char* text, const Style& style) {
     auto& parent_group = groups[group_stack.back()];
     texts.push_back(Text{
         {},
-        Vec2{
-            font_width(text, style.font_size),
-            font_height(text, style.font_size)
-        },
+        Vec2{font_width(text, style.font_size), font_height(text, style.font_size)},
         text,
         style.font_size,
         style.text_color
@@ -388,40 +396,42 @@ void UI::rect(const char* text, const Style& style) {
     this->end_group();
 }
 
-void UI::drop_down_menu(Input& input, DropDownMenu& state, std::vector<const char*>& options, std::function<void(int)> on_input) {
+void UI::drop_down_menu(
+    Input& input,
+    DropDownMenu& state,
+    std::vector<const char*>& options,
+    std::function<void(int)> on_input
+) {
     auto active_st = Style{};
     active_st.background_color = color::white;
     active_st.text_color = color::black;
 
     auto st = Style{};
-    st.position = Position::Anchor{ 0.5, 0 };
+    st.position = Position::Anchor{0.5, 0};
     st.stack_direction = StackDirection::Vertical;
 
     this->begin_group(st);
-        this->button(options[state.selected_opt_index], {}, [&](ClickInfo info) {
-            state.menu_dropped = !state.menu_dropped;
-            state.clicked_last_frame = true;
-        });
-        if (state.menu_dropped) {
-            for (int i = 0; i < options.size(); i++) {
-                
-                auto st = (i == state.selected_opt_index) ? active_st : Style{};
+    this->button(options[state.selected_opt_index], {}, [&](ClickInfo info) {
+        state.menu_dropped = !state.menu_dropped;
+        state.clicked_last_frame = true;
+    });
+    if (state.menu_dropped) {
+        for (int i = 0; i < options.size(); i++) {
 
-                this->button(options[i], st, [&, i](ClickInfo info) {
-                    on_input(i);
-                });
-            }
+            auto st = (i == state.selected_opt_index) ? active_st : Style{};
+
+            this->button(options[i], st, [&, i](ClickInfo info) { on_input(i); });
         }
+    }
 
     this->end_group();
 
     if (input.mouse_down(SDL_BUTTON_LMASK) && !state.clicked_last_frame) {
         state.menu_dropped = false;
     }
-        
+
     state.clicked_last_frame = false;
 }
-
 
 void UI::button(const char* text, Style style, OnClick&& on_click) {
     ZoneScoped;
@@ -431,10 +441,7 @@ void UI::button(const char* text, Style style, OnClick&& on_click) {
     auto& parent_group = groups[group_stack.back()];
     texts.push_back(Text{
         {},
-        Vec2{
-            font_width(text, style.font_size),
-            font_height(text, style.font_size)
-        },
+        Vec2{font_width(text, style.font_size), font_height(text, style.font_size)},
         text,
         style.font_size,
         style.text_color
