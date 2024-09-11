@@ -116,12 +116,6 @@ struct Button {
     std::function<void()> on_click;
 };
 
-struct Slider {
-    Rect rect;
-    float fraction;
-    std::function<void(float)> callback;
-};
-
 enum class ElementType {
     group,
     text,
@@ -134,6 +128,7 @@ struct ElementHandle {
 
 struct ClickInfo {
     Vec2 offset_pos;
+    Vec2 scale;
 };
 
 using OnClick = std::function<void(ClickInfo)>;
@@ -141,7 +136,8 @@ using OnClick = std::function<void(ClickInfo)>;
 struct Group {
     int rect_index;
     Style style;
-    std::optional<int> click_index;
+    std::optional<uint16_t> on_click_index;
+    std::optional<uint16_t> on_held_index;
     std::vector<ElementHandle> children;
 };
 
@@ -149,7 +145,14 @@ struct ClickRect {
     Vec2 position;
     Vec2 scale;
 
-    int on_click_index;
+    uint16_t on_click_index;
+};
+
+struct HeldRect {
+    Vec2 position;
+    Vec2 scale;
+
+    int on_held_index;
 };
 
 struct TextFieldState {
@@ -162,6 +165,26 @@ struct TextField {
     int rect_index;
 };
 
+struct Slider {
+    bool held;
+};
+
+struct SliderStyle {
+    Position::Variant position;
+    float width;
+    float height;
+    RGBA bg_color;
+    RGBA fg_color;
+};
+
+struct DropDownMenu {
+    int selected_opt_index;
+    bool menu_dropped;
+    bool clicked_last_frame;
+};
+
+using RectID = int;
+
 class UI {
   public:
     UI() = default;
@@ -169,14 +192,16 @@ class UI {
 
     void text_field(TextFieldState* state, Style style);
     void button(const char* text, Style style, OnClick&& on_click);
-    void slider(float fraction, std::function<void(float)> on_input);
-    void text_rect(const char* text, const Style& style);
+    void slider(Slider& state, SliderStyle style, float fraction, std::function<void(float)>&& on_input);
+    void drop_down_menu(Input& input, DropDownMenu& state, std::vector<const char*>& options, std::function<void(int)> on_input);
+
+    void rect(const char* text, const Style& style);
 
     void begin_group(const Style& style);
-    void end_group();
+    RectID end_group();
+    Rect query_rect(RectID id);
 
     void begin_group_button(const Style& style, OnClick&& on_click);
-    void end_group_v2();
 
     void visit_group(Group& group, Vec2 start_pos);
 
@@ -184,28 +209,32 @@ class UI {
 
     void draw(SDL_Renderer* renderer);
 
+
     bool clicked = false;
 
   private:
     int screen_width = 0;
     int screen_height = 0;
 
-    // properties
     std::vector<ClickRect> click_rects;
+
+    std::vector<HeldRect> slider_input_rects;
 
     std::vector<Rect> rects;
 
     std::vector<Group> groups;
     std::vector<Text> texts;
 
-    std::vector<Button> buttons;
-    std::vector<Slider> sliders;
     std::vector<TextField> text_fields;
 
     std::vector<OnClick> on_click_callbacks;
+    std::vector<std::function<void()>> on_release_callbacks;
+
+    std::vector<std::function<void(float)>> slider_on_input_callbacks;
 
 
     std::vector<int> group_stack;
+    void begin_group_any(Group& group);
 
     Vec2& element_scale(ElementHandle e);
     Vec2& element_position(ElementHandle e);
