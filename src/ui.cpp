@@ -8,7 +8,7 @@
 #include <format>
 #include <variant>
 
-#include "debug_macros.h"
+#include "dev_macros.h"
 
 template <class... Ts> struct overloaded : Ts... {
     using Ts::operator()...;
@@ -317,6 +317,8 @@ void UI::input(Input& input) {
 }
 
 void UI::end_frame() {
+    m_end_frame_called = true;
+
     auto active_st = Style{};
     active_st.background_color = color::white;
     active_st.text_color = color::black;
@@ -524,8 +526,15 @@ void draw_wire_box(SDL_Renderer* renderer, const SDL_FRect& rect) {
     SDL_RenderLines(renderer, points, 5);
 }
 
+#define FUNCTION_NAME(func) #func
 void UI::draw(SDL_Renderer* renderer) {
     ZoneScoped;
+
+    if (!m_end_frame_called) {
+        DEV_PANIC("UI::end_frame() not called");
+    }
+    m_end_frame_called = false;
+
 
     for (int i = rects.size() - 1; i >= 0; i--) {
         auto& rect = rects[i];

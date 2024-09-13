@@ -12,7 +12,8 @@
         "CMAKE_C_COMPILER": "clang",
         "CMAKE_CXX_COMPILER": "clang",
         "CMAKE_CXX_FLAGS": "-Wno-error",
-        "CMAKE_C_COMPILER_WORKS": "YES"
+        "CMAKE_C_COMPILER_WORKS": "YES",
+        "CMAKE_CXX_COMPILER_WORKS": "YES"
       },
       "condition": {
         "type": "equals",
@@ -31,8 +32,8 @@
       },
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_CXX_FLAGS": "-g",
-        "CMAKE_C_FLAGS": "-g",
+        "CMAKE_CXX_FLAGS": "-g -DDEV",
+        "CMAKE_C_FLAGS": "-g -DDEV",
         "CMAKE_LIBRARY_OUTPUT_DIRECTORY": "${sourceDir}/out/build/${presetName}",
         "CMAKE_RUNTIME_OUTPUT_DIRECTORY": "${sourceDir}/out/build/${presetName}"
       }
@@ -44,6 +45,8 @@
       "inherits": "x64-debug",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_CXX_FLAGS": "-DDEV",
+        "CMAKE_C_FLAGS": "-DDEV",
         "CMAKE_LIBRARY_OUTPUT_DIRECTORY": "${sourceDir}/out/build/${presetName}",
         "CMAKE_RUNTIME_OUTPUT_DIRECTORY": "${sourceDir}/out/build/${presetName}"
       }

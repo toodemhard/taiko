@@ -269,4 +269,6 @@ class UI {
     void begin_group_any(const Group& group);
     Vec2& element_scale(ElementHandle e);
     Vec2& element_position(ElementHandle e);
+
+    bool m_end_frame_called{};
 };
