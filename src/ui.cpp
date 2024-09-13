@@ -1,9 +1,11 @@
 #include <algorithm>
+#include <optional>
 #include <tracy/Tracy.hpp>
 
 #include "SDL3/SDL_mouse.h"
 #include "font.h"
 #include "ui.h"
+#include <format>
 #include <variant>
 
 #include "debug_macros.h"
@@ -13,9 +15,12 @@ template <class... Ts> struct overloaded : Ts... {
 };
 
 const char* StringCache::add(std::string&& string) {
-    strings[count] = std::move(string);
-    count++;
-    return strings[count - 1].data();
+    strings.push_back(std::move(string));
+    return strings[strings.size() - 1].data();
+}
+
+void StringCache::clear() {
+    strings.clear();
 }
 
 UI::UI(int _screen_width, int _screen_height)
@@ -52,7 +57,7 @@ void UI::begin_group(const Style& style) {
     group_stack.push_back(groups.size() - 1);
 }
 
-void UI::begin_group_any(Group& group) {
+void UI::begin_group_any(const Group& group) {
     groups.push_back(group);
 
     if (group_stack.size() > 0) {
@@ -72,62 +77,6 @@ void UI::begin_group_button(const Style& style, OnClick&& on_click) {
     group.on_click_index = on_click_callbacks.size() - 1;
 
     this->begin_group_any(group);
-}
-
-void UI::slider(Slider& state, SliderStyle style, float fraction, SliderCallbacks&& callbacks) {
-    auto container = Style{};
-    container.position = style.position;
-    container.width = Scale::Fixed{style.width};
-    container.height = Scale::Fixed{style.height};
-    container.border_color = color::white;
-
-    if (state.held) {
-        on_release_callbacks.push_back([&, on_release = std::move(callbacks.on_release)]() {
-            state.held = false;
-            if (on_release.has_value()) {
-                user_callbacks.push_back(std::move(on_release.value()));
-            }
-        });
-    }
-
-    slider_on_input_callbacks.push_back(std::move(callbacks.on_input));
-    int on_input_index = slider_on_input_callbacks.size() - 1;
-
-    auto group = Group{};
-    group.style = container;
-
-    on_click_callbacks.push_back([&, onclick = std::move(callbacks.on_click)](ClickInfo click_info) {
-        state.held = true;
-        if (onclick.has_value()) {
-            user_callbacks.push_back(std::move(onclick.value()));
-        }
-    });
-    
-    group.on_click_index = on_click_callbacks.size() - 1;
-
-    if (state.held) {
-        on_click_callbacks.push_back([&, on_input_index](ClickInfo click_info) {
-            auto new_fraction =
-                std::min(std::max(0.0f, click_info.offset_pos.x / click_info.scale.x), 1.0f);
-            slider_on_input_callbacks[on_input_index](new_fraction);
-        });
-        group.on_held_index = on_click_callbacks.size() - 1;
-    }
-
-    this->begin_group_any(group);
-
-    auto filling = Style{};
-    filling.background_color = style.fg_color;
-    filling.width = Scale::Fixed{style.width * fraction};
-    filling.height = Scale::Fixed{style.height};
-    this->begin_group(filling);
-
-    this->end_group();
-
-    auto rect_id = this->end_group();
-    if (state.held) {
-        auto rect = rects[rect_id];
-    }
 }
 
 Rect UI::query_rect(RectID id) {
@@ -190,7 +139,7 @@ RectID UI::end_group() {
     auto width =
         std::visit(
             overloaded{
-                [=](Scale::Auto scale) -> float { return total_width; },
+                [=](Scale::FitContent scale) -> float { return total_width; },
                 [=](Scale::Min scale) -> float { return std::max(total_width, scale.value); },
                 [](Scale::Fixed scale) -> float { return scale.value; }
             },
@@ -201,7 +150,7 @@ RectID UI::end_group() {
     auto height =
         std::visit(
             overloaded{
-                [=](Scale::Auto scale) -> float { return total_height; },
+                [=](Scale::FitContent scale) -> float { return total_height; },
                 [=](Scale::Min scale) -> float { return std::max(total_height, scale.value); },
                 [](Scale::Fixed scale) -> float { return scale.value; }
             },
@@ -302,7 +251,6 @@ void UI::input(Input& input) {
             auto info = ClickInfo{input.mouse_pos - e.position, e.scale};
 
             on_click_callbacks[e.on_click_index](info);
-            break;
         }
     }
 
@@ -320,6 +268,15 @@ void UI::input(Input& input) {
     click_rects.clear();
     slider_input_rects.clear();
     on_click_callbacks.clear();
+
+    // for (auto& state : dropdown_clickoff_callbacks) {
+    //     if (input.mouse_down(SDL_BUTTON_LMASK) && !state->clicked_last_frame) {
+    //         state->menu_dropped = false;
+    //     }
+    //
+    //     state->clicked_last_frame = false;
+    //
+    // }
 
     for (auto& e : text_fields) {
         if (e.state->focused) {
@@ -356,6 +313,35 @@ void UI::input(Input& input) {
             auto& rect = rects[e.rect_index];
             e.state->focused = rect_point_intersect(rect, input.mouse_pos);
         }
+    }
+}
+
+void UI::end_frame() {
+    auto active_st = Style{};
+    active_st.background_color = color::white;
+    active_st.text_color = color::black;
+
+    if (post_overlay.has_value()) {
+        auto& overlay = post_overlay.value();
+
+        auto& hook = rects[overlay.rect_hook_index];
+        auto g_st = Style{};
+        g_st.position = Position::Absolute{hook.position + Vec2{0,hook.scale.y}};
+        g_st.width = Scale::Fixed{hook.scale.x};
+        g_st.stack_direction = StackDirection::Vertical;
+        g_st.background_color = color::red;
+        this->begin_group(g_st);
+        auto& options = *overlay.items;
+        for (int i = 0; i < options.size(); i++) {
+            auto st = (i == overlay.selected_index) ? active_st : Style{};
+
+            this->button(options[i], st, [this, i, on_click_index = overlay.on_click_index](ClickInfo info) {
+                on_select_callbacks[on_click_index](i);
+            });
+        }
+        this->end_group();
+
+        post_overlay = std::nullopt;
     }
 }
 
@@ -396,44 +382,113 @@ void UI::text(const char* text, const Style& style) {
     this->end_group();
 }
 
+void UI::slider(Slider& state, SliderStyle style, float fraction, SliderCallbacks&& callbacks) {
+    auto container = Style{};
+    container.position = style.position;
+    container.width = Scale::Fixed{style.width};
+    container.height = Scale::Fixed{style.height};
+    container.border_color = color::white;
+
+    if (state.held) {
+        on_release_callbacks.push_back([&, on_release = std::move(callbacks.on_release)]() {
+            state.held = false;
+            if (on_release.has_value()) {
+                user_callbacks.push_back(std::move(on_release.value()));
+            }
+        });
+    }
+
+    slider_on_input_callbacks.push_back(std::move(callbacks.on_input));
+    int on_input_index = slider_on_input_callbacks.size() - 1;
+
+    auto group = Group{};
+    group.style = container;
+
+    on_click_callbacks.push_back([&,
+                                  onclick = std::move(callbacks.on_click)](ClickInfo click_info) {
+        state.held = true;
+        if (onclick.has_value()) {
+            user_callbacks.push_back(std::move(onclick.value()));
+        }
+    });
+
+    group.on_click_index = on_click_callbacks.size() - 1;
+
+    if (state.held) {
+        on_click_callbacks.push_back([&, on_input_index](ClickInfo click_info) {
+            auto new_fraction =
+                std::min(std::max(0.0f, click_info.offset_pos.x / click_info.scale.x), 1.0f);
+            slider_on_input_callbacks[on_input_index](new_fraction);
+        });
+        group.on_held_index = on_click_callbacks.size() - 1;
+    }
+
+    this->begin_group_any(group);
+
+    auto filling = Style{};
+    filling.background_color = style.fg_color;
+    filling.width = Scale::Fixed{style.width * fraction};
+    filling.height = Scale::Fixed{style.height};
+    this->begin_group(filling);
+
+    this->end_group();
+
+    auto rect_id = this->end_group();
+    if (state.held) {
+        auto rect = rects[rect_id];
+    }
+}
+
 void UI::drop_down_menu(
-    Input& input,
-    DropDownMenu& state,
-    std::vector<const char*>& options,
+    int selected_opt_index,
+    std::vector<const char*>&& options,
+    DropDown& state,
     std::function<void(int)> on_input
 ) {
-    auto active_st = Style{};
-    active_st.background_color = color::white;
-    active_st.text_color = color::black;
+    m_options = std::move(options);
+    drop_down_menu(selected_opt_index, m_options, state, on_input);
+}
+
+void UI::drop_down_menu(
+    int selected_opt_index,
+    std::vector<const char*>& options,
+    DropDown& state,
+    std::function<void(int)> on_input
+) {
 
     auto st = Style{};
     st.position = Position::Anchor{0.5, 0};
     st.stack_direction = StackDirection::Vertical;
 
-    this->begin_group(st);
-    this->button(options[state.selected_opt_index], {}, [&](ClickInfo info) {
+    auto group = Group{};
+    on_click_callbacks.push_back([&](ClickInfo info) { state.clicked_last_frame = true; });
+    group.on_click_index = on_click_callbacks.size() - 1;
+    group.style = st;
+
+    this->begin_group_any(group);
+    auto thing = (state.menu_dropped)
+                     ? strings.add(std::format("{} \\/", options[selected_opt_index]))
+                     : strings.add(std::format("{} <", options[selected_opt_index]));
+    auto ref = this->button(thing, {}, [&](ClickInfo info) {
         state.menu_dropped = !state.menu_dropped;
         state.clicked_last_frame = true;
     });
+
+    on_select_callbacks.push_back(std::move(on_input));
+
     if (state.menu_dropped) {
-        for (int i = 0; i < options.size(); i++) {
-
-            auto st = (i == state.selected_opt_index) ? active_st : Style{};
-
-            this->button(options[i], st, [&, i](ClickInfo info) { on_input(i); });
-        }
+        post_overlay = DropDownOverlay{
+            ref,
+            (int)on_select_callbacks.size() - 1,
+            selected_opt_index,
+            &options,
+        };
     }
 
     this->end_group();
-
-    if (input.mouse_down(SDL_BUTTON_LMASK) && !state.clicked_last_frame) {
-        state.menu_dropped = false;
-    }
-
-    state.clicked_last_frame = false;
 }
 
-void UI::button(const char* text, Style style, OnClick&& on_click) {
+RectID UI::button(const char* text, Style style, OnClick&& on_click) {
     ZoneScoped;
 
     this->begin_group_button(style, std::move(on_click));
@@ -449,7 +504,7 @@ void UI::button(const char* text, Style style, OnClick&& on_click) {
 
     parent_group.children.push_back({ElementType::text, (int)texts.size() - 1});
 
-    this->end_group();
+    return this->end_group();
 }
 
 SDL_FPoint vec2_to_sdl_fpoint(const Vec2& vec) {
@@ -472,7 +527,8 @@ void draw_wire_box(SDL_Renderer* renderer, const SDL_FRect& rect) {
 void UI::draw(SDL_Renderer* renderer) {
     ZoneScoped;
 
-    for (auto& rect : rects) {
+    for (int i = rects.size() - 1; i >= 0; i--) {
+        auto& rect = rects[i];
         auto frect = SDL_FRect{rect.position.x, rect.position.y, rect.scale.x, rect.scale.y};
 
         {
@@ -483,10 +539,6 @@ void UI::draw(SDL_Renderer* renderer) {
             SDL_SetRenderDrawColor(renderer, bg_color.r, bg_color.g, bg_color.b, bg_color.a);
             SDL_RenderFillRect(renderer, &frect);
         }
-
-        // SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
-        // draw_wire_box(renderer, { text_pos.x, text_pos.y, font_width(rect.text,
-        // rect.font_size), font_height(rect.text, rect.font_size) });
 
         {
             ZoneNamedN(askdjh, "draw border", true);
@@ -505,6 +557,8 @@ void UI::draw(SDL_Renderer* renderer) {
     texts.clear();
 
     text_fields.clear();
+
+    strings.clear();
 
     clicked = false;
 }

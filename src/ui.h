@@ -25,10 +25,10 @@ constexpr int string_array_size{10};
 class StringCache {
   public:
     const char* add(std::string&& string);
+    void clear();
 
   private:
-    std::array<std::string, string_array_size> strings;
-    int count{0};
+    std::vector<std::string> strings;
 };
 
 enum class StackDirection {
@@ -59,7 +59,6 @@ struct Relative {};
 using Variant = std::variant<Relative, Anchor, Absolute>;
 } // namespace Position
 
-
 namespace Scale {
 
 struct Fixed {
@@ -71,9 +70,9 @@ struct Min {
 };
 
 // scale to the content
-struct Auto {};
+struct FitContent {};
 
-using Variant = std::variant<Auto, Min, Fixed>;
+using Variant = std::variant<FitContent, Min, Fixed>;
 
 } // namespace Scale
 
@@ -86,6 +85,7 @@ struct Style {
 
     Scale::Variant width;
     Scale::Variant height;
+    bool overlap;
 
     // group styling
     StackDirection stack_direction = StackDirection::Horizontal;
@@ -183,13 +183,19 @@ struct SliderCallbacks {
     std::optional<std::function<void()>> on_release;
 };
 
-struct DropDownMenu {
-    int selected_opt_index;
+struct DropDown {
     bool menu_dropped;
     bool clicked_last_frame;
 };
 
 using RectID = int;
+
+struct DropDownOverlay {
+    int rect_hook_index;
+    int on_click_index;
+    int selected_index;
+    std::vector<const char*>* items;
+};
 
 class UI {
   public:
@@ -197,9 +203,20 @@ class UI {
     UI(int _screen_width, int _screen_height);
 
     void text_field(TextFieldState* state, Style style);
-    void button(const char* text, Style style, OnClick&& on_click);
+    RectID button(const char* text, Style style, OnClick&& on_click);
     void slider(Slider& state, SliderStyle style, float fraction, SliderCallbacks&& callbacks);
-    void drop_down_menu(Input& input, DropDownMenu& state, std::vector<const char*>& options, std::function<void(int)> on_input);
+    void drop_down_menu(
+        int selected_opt_index,
+        std::vector<const char*>&& options,
+        DropDown& state,
+        std::function<void(int)> on_input
+    );
+    void drop_down_menu(
+        int selected_opt_index,
+        std::vector<const char*>& options,
+        DropDown& state,
+        std::function<void(int)> on_input
+    );
 
     void text(const char* text, const Style& style);
 
@@ -213,10 +230,15 @@ class UI {
 
     void input(Input& input);
 
+    void begin_frame();
+
+    void end_frame();
+
     void draw(SDL_Renderer* renderer);
 
-
     bool clicked = false;
+
+    StringCache strings{};
 
   private:
     int screen_width = 0;
@@ -225,7 +247,6 @@ class UI {
     std::vector<ClickRect> click_rects;
     std::vector<HeldRect> slider_input_rects;
 
-
     std::vector<Rect> rects;
 
     std::vector<Group> groups;
@@ -233,18 +254,19 @@ class UI {
 
     std::vector<TextField> text_fields;
 
-    std::vector<OnClick> on_click_callbacks;
     std::vector<std::function<void()>> on_release_callbacks;
-
-    std::vector<std::function<void(float)>> slider_on_input_callbacks;
-
     std::vector<std::function<void()>> user_callbacks;
+    std::vector<OnClick> on_click_callbacks;
+    std::vector<std::function<void(float)>> slider_on_input_callbacks;
+    std::vector<std::function<void(int)>> on_select_callbacks;
 
-
+    std::vector<const char*> m_options;
+    std::optional<DropDownOverlay> post_overlay;
+    std::vector<DropDown*> dropdown_clickoff_callbacks;
 
     std::vector<int> group_stack;
-    void begin_group_any(Group& group);
 
+    void begin_group_any(const Group& group);
     Vec2& element_scale(ElementHandle e);
     Vec2& element_position(ElementHandle e);
 };
