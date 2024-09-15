@@ -1,5 +1,7 @@
 ﻿#pragma once
 
+#include <chrono>
+#include <cstdint>
 #include <functional>
 #include <optional>
 #include <string>
@@ -76,6 +78,10 @@ using Variant = std::variant<FitContent, Min, Fixed>;
 
 } // namespace Scale
 
+struct Inherit{};
+
+using TextColor = std::variant<RGBA, Inherit>;
+
 struct Style {
     Position::Variant position;
     RGBA background_color;
@@ -93,7 +99,18 @@ struct Style {
 
     // text style
     float font_size = 36;
-    RGBA text_color = color::white;
+    TextColor text_color = color::white;
+};
+
+struct AnimState {
+    bool target_hover;
+    float mix;
+};
+
+struct AnimStyle {
+    const Style& primary_style;
+    const Style& hover_style;
+    float duration;
 };
 
 struct Rect {
@@ -136,6 +153,9 @@ using OnClick = std::function<void(ClickInfo)>;
 struct Group {
     int rect_index;
     Style style;
+
+    AnimState* anim_state;
+    
     std::optional<uint16_t> on_click_index;
     std::optional<uint16_t> on_held_index;
     std::vector<ElementHandle> children;
@@ -153,6 +173,13 @@ struct HeldRect {
     Vec2 scale;
 
     int on_held_index;
+};
+
+struct HoverRect {
+    Vec2 position;
+    Vec2 scale;
+
+    AnimState& anim_state;
 };
 
 struct TextFieldState {
@@ -225,13 +252,13 @@ class UI {
     Rect query_rect(RectID id);
 
     void begin_group_button(const Style& style, OnClick&& on_click);
+    void begin_group_button_anim(AnimState* anim_state, AnimStyle anim_style, OnClick&& on_click);
 
     void visit_group(Group& group, Vec2 start_pos);
 
     void input(Input& input);
 
     void begin_frame();
-
     void end_frame();
 
     void draw(SDL_Renderer* renderer);
@@ -245,6 +272,7 @@ class UI {
     int screen_height = 0;
 
     std::vector<ClickRect> click_rects;
+    std::vector<HoverRect> hover_rects;
     std::vector<HeldRect> slider_input_rects;
 
     std::vector<Rect> rects;
@@ -257,6 +285,7 @@ class UI {
     std::vector<std::function<void()>> on_release_callbacks;
     std::vector<std::function<void()>> user_callbacks;
     std::vector<OnClick> on_click_callbacks;
+    std::vector<std::function<void()>> on_hover_callbacks;
     std::vector<std::function<void(float)>> slider_on_input_callbacks;
     std::vector<std::function<void(int)>> on_select_callbacks;
 

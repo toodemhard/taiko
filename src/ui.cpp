@@ -1,4 +1,7 @@
 #include <algorithm>
+#include <chrono>
+#include <cmath>
+#include <cstdint>
 #include <optional>
 #include <tracy/Tracy.hpp>
 
@@ -75,6 +78,57 @@ void UI::begin_group_button(const Style& style, OnClick&& on_click) {
     auto group = Group{};
     group.style = style;
     group.on_click_index = on_click_callbacks.size() - 1;
+
+    this->begin_group_any(group);
+}
+
+uint8_t lerp(uint8_t a, uint8_t b, float t) {
+    return a + (b - a) * t;
+}
+
+RGBA lerp_rgba(RGBA a, RGBA b, float t) {
+    return {
+        lerp(a.r, b.r, t),
+        lerp(a.g, b.g, t),
+        lerp(a.b, b.b, t),
+    };
+}
+
+void UI::begin_group_button_anim(AnimState* anim_state, AnimStyle anim_style, OnClick&& on_click) {
+    ZoneScoped;
+
+    float new_mix;
+    if (anim_style.duration == 0) {
+        if (anim_state->target_hover) {
+            anim_state->mix = 1;
+        } else {
+            anim_state->mix = 0;
+        }
+    } else {
+        if (anim_state->target_hover) {
+            new_mix = anim_state->mix + 0.002f;
+        } else {
+            new_mix = anim_state->mix - 0.002f;
+        }
+        anim_state->mix = std::min(std::max(0.0f, new_mix), 1.0f);
+    }
+
+    anim_state->target_hover = false;
+
+    auto& a = anim_style.primary_style;
+    auto& b = anim_style.hover_style;
+    auto style = anim_style.primary_style;
+    style.text_color = lerp_rgba(
+        *std::get_if<RGBA>(&a.text_color), *std::get_if<RGBA>(&b.text_color), anim_state->mix
+    );
+
+    on_click_callbacks.push_back(std::move(on_click));
+
+    auto group = Group{};
+    group.style = style;
+    group.on_click_index = on_click_callbacks.size() - 1;
+
+    group.anim_state = anim_state;
 
     this->begin_group_any(group);
 }
@@ -194,9 +248,15 @@ void UI::visit_group(Group& group, Vec2 start_pos) {
     ZoneScoped;
 
     auto rect = rects[group.rect_index];
+
+    if (group.anim_state != nullptr) {
+        hover_rects.push_back({start_pos, rect.scale, *group.anim_state});
+    }
+
     if (group.on_click_index.has_value()) {
         click_rects.push_back({start_pos, rect.scale, group.on_click_index.value()});
     }
+
     if (group.on_held_index.has_value()) {
         slider_input_rects.push_back({start_pos, rect.scale, group.on_held_index.value()});
     }
@@ -220,11 +280,11 @@ void UI::visit_group(Group& group, Vec2 start_pos) {
     }
 }
 
-bool rect_point_intersect(const Rect& rect, const Vec2& point) {
-    const Vec2& p1 = rect.position;
-    const Vec2 p2 = rect.position + rect.scale;
+bool rect_point_intersect(Vec2 point, Vec2 position, Vec2 scale) {
+    const Vec2& p1 = position;
+    const Vec2 p2 = position + scale;
 
-    if (point.x > p1.x && point.y > p1.y && point.x < p2.x && point.y < p2.y) {
+    if (point.x >= p1.x && point.y >= p1.y && point.x <= p2.x && point.y <= p2.y) {
         return true;
     }
 
@@ -243,31 +303,35 @@ void UI::input(Input& input) {
     on_release_callbacks.clear();
 
     for (auto& e : click_rects) {
-        const Vec2& p1 = e.position;
-        const Vec2 p2 = e.position + e.scale;
-        if (input.mouse_down(SDL_BUTTON_LEFT) && input.mouse_pos.x > p1.x &&
-            input.mouse_pos.y > p1.y && input.mouse_pos.x < p2.x && input.mouse_pos.y < p2.y) {
-
+        if (input.mouse_down(SDL_BUTTON_LEFT) &&
+            rect_point_intersect(input.mouse_pos, e.position, e.scale)) {
             auto info = ClickInfo{input.mouse_pos - e.position, e.scale};
 
             on_click_callbacks[e.on_click_index](info);
         }
     }
+    click_rects.clear();
+
+    for (auto& e : hover_rects) {
+        if (rect_point_intersect(input.mouse_pos, e.position, e.scale)) {
+            e.anim_state.target_hover = true;
+        }
+    }
+    hover_rects.clear();
 
     for (auto& e : slider_input_rects) {
         auto info = ClickInfo{input.mouse_pos - e.position, e.scale};
         on_click_callbacks[e.on_held_index](info);
     }
+    slider_input_rects.clear();
+    on_click_callbacks.clear();
 
     for (auto& callback : user_callbacks) {
         callback();
-    }
 
+    }
     user_callbacks.clear();
 
-    click_rects.clear();
-    slider_input_rects.clear();
-    on_click_callbacks.clear();
 
     // for (auto& state : dropdown_clickoff_callbacks) {
     //     if (input.mouse_down(SDL_BUTTON_LMASK) && !state->clicked_last_frame) {
@@ -311,7 +375,7 @@ void UI::input(Input& input) {
 
         if (input.mouse_down(SDL_BUTTON_LEFT)) {
             auto& rect = rects[e.rect_index];
-            e.state->focused = rect_point_intersect(rect, input.mouse_pos);
+            e.state->focused = rect_point_intersect(input.mouse_pos, rect.position, rect.scale);
         }
     }
 }
@@ -328,7 +392,7 @@ void UI::end_frame() {
 
         auto& hook = rects[overlay.rect_hook_index];
         auto g_st = Style{};
-        g_st.position = Position::Absolute{hook.position + Vec2{0,hook.scale.y}};
+        g_st.position = Position::Absolute{hook.position + Vec2{0, hook.scale.y}};
         g_st.width = Scale::Fixed{hook.scale.x};
         g_st.stack_direction = StackDirection::Vertical;
         g_st.background_color = color::red;
@@ -337,9 +401,13 @@ void UI::end_frame() {
         for (int i = 0; i < options.size(); i++) {
             auto st = (i == overlay.selected_index) ? active_st : Style{};
 
-            this->button(options[i], st, [this, i, on_click_index = overlay.on_click_index](ClickInfo info) {
-                on_select_callbacks[on_click_index](i);
-            });
+            this->button(
+                options[i],
+                st,
+                [this, i, on_click_index = overlay.on_click_index](ClickInfo info) {
+                    on_select_callbacks[on_click_index](i);
+                }
+            );
         }
         this->end_group();
 
@@ -368,18 +436,27 @@ void UI::text_field(TextFieldState* state, Style style) {
 void UI::text(const char* text, const Style& style) {
     ZoneScoped;
 
-    this->begin_group(style);
-
     auto& parent_group = groups[group_stack.back()];
+    RGBA text_color = std::visit(
+        overloaded{
+            [](RGBA color) { return color; },
+            [=](Inherit scale) { return std::get<RGBA>(parent_group.style.text_color); },
+        },
+        style.text_color
+    );
+
+    this->begin_group(style);
+    auto& text_group = groups[group_stack.back()];
+
     texts.push_back(Text{
         {},
         Vec2{font_width(text, style.font_size), font_height(text, style.font_size)},
         text,
         style.font_size,
-        style.text_color
+        text_color
     });
 
-    parent_group.children.push_back({ElementType::text, (int)texts.size() - 1});
+    text_group.children.push_back({ElementType::text, (int)texts.size() - 1});
 
     this->end_group();
 }
@@ -496,12 +573,21 @@ RectID UI::button(const char* text, Style style, OnClick&& on_click) {
     this->begin_group_button(style, std::move(on_click));
 
     auto& parent_group = groups[group_stack.back()];
+
+    RGBA text_color = std::visit(
+        overloaded{
+            [](RGBA color) { return color; },
+            [=](Inherit scale) { return std::get<RGBA>(parent_group.style.text_color); },
+        },
+        style.text_color
+    );
+
     texts.push_back(Text{
         {},
         Vec2{font_width(text, style.font_size), font_height(text, style.font_size)},
         text,
         style.font_size,
-        style.text_color
+        text_color
     });
 
     parent_group.children.push_back({ElementType::text, (int)texts.size() - 1});
@@ -534,7 +620,6 @@ void UI::draw(SDL_Renderer* renderer) {
         DEV_PANIC("UI::end_frame() not called");
     }
     m_end_frame_called = false;
-
 
     for (int i = rects.size() - 1; i >= 0; i--) {
         auto& rect = rects[i];
