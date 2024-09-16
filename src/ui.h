@@ -78,7 +78,7 @@ using Variant = std::variant<FitContent, Min, Fixed>;
 
 } // namespace Scale
 
-struct Inherit{};
+struct Inherit {};
 
 using TextColor = std::variant<RGBA, Inherit>;
 
@@ -108,8 +108,9 @@ struct AnimState {
 };
 
 struct AnimStyle {
-    const Style& primary_style;
-    const Style& hover_style;
+    RGBA alt_text_color;
+    RGBA alt_background_color;
+
     float duration;
 };
 
@@ -155,7 +156,7 @@ struct Group {
     Style style;
 
     AnimState* anim_state;
-    
+
     std::optional<uint16_t> on_click_index;
     std::optional<uint16_t> on_held_index;
     std::vector<ElementHandle> children;
@@ -231,6 +232,7 @@ class UI {
 
     void text_field(TextFieldState* state, Style style);
     RectID button(const char* text, Style style, OnClick&& on_click);
+    RectID button_anim(const char* text, AnimState* anim_state, const Style& style, const AnimStyle& anim_style, OnClick&& on_click);
     void slider(Slider& state, SliderStyle style, float fraction, SliderCallbacks&& callbacks);
     void drop_down_menu(
         int selected_opt_index,
@@ -252,7 +254,7 @@ class UI {
     Rect query_rect(RectID id);
 
     void begin_group_button(const Style& style, OnClick&& on_click);
-    void begin_group_button_anim(AnimState* anim_state, AnimStyle anim_style, OnClick&& on_click);
+    void begin_group_button_anim(AnimState* anim_state, Style style, const AnimStyle& anim_style, OnClick&& on_click);
 
     void visit_group(Group& group, Vec2 start_pos);
 

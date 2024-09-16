@@ -91,10 +91,40 @@ RGBA lerp_rgba(RGBA a, RGBA b, float t) {
         lerp(a.r, b.r, t),
         lerp(a.g, b.g, t),
         lerp(a.b, b.b, t),
+        lerp(a.a, b.a, t),
     };
 }
+    // RGBA text_color = std::visit(
+    //     overloaded{
+    //         [](RGBA color) { return color; },
+    //         [=](Inherit scale) { return std::get<RGBA>(parent_group.style.text_color); },
+    //     },
+    //     style.text_color
+    // );
 
-void UI::begin_group_button_anim(AnimState* anim_state, AnimStyle anim_style, OnClick&& on_click) {
+RectID UI::button_anim(const char* text, AnimState* anim_state, const Style& style, const AnimStyle& anim_style, OnClick&& on_click) {
+    ZoneScoped;
+
+    this->begin_group_button_anim(anim_state, style, anim_style, std::move(on_click));
+
+    auto& parent_group = groups[group_stack.back()];
+
+    RGBA text_color = *std::get_if<RGBA>(&parent_group.style.text_color);
+
+    texts.push_back(Text{
+        {},
+        Vec2{font_width(text, style.font_size), font_height(text, style.font_size)},
+        text,
+        style.font_size,
+        text_color
+    });
+
+    parent_group.children.push_back({ElementType::text, (int)texts.size() - 1});
+
+    return this->end_group();
+}
+
+void UI::begin_group_button_anim(AnimState* anim_state, Style style, const AnimStyle& anim_style, OnClick&& on_click) {
     ZoneScoped;
 
     float new_mix;
@@ -115,12 +145,10 @@ void UI::begin_group_button_anim(AnimState* anim_state, AnimStyle anim_style, On
 
     anim_state->target_hover = false;
 
-    auto& a = anim_style.primary_style;
-    auto& b = anim_style.hover_style;
-    auto style = anim_style.primary_style;
     style.text_color = lerp_rgba(
-        *std::get_if<RGBA>(&a.text_color), *std::get_if<RGBA>(&b.text_color), anim_state->mix
+        *std::get_if<RGBA>(&style.text_color), anim_style.alt_text_color, anim_state->mix
     );
+    style.background_color = lerp_rgba(style.background_color, anim_style.alt_background_color, anim_state->mix);
 
     on_click_callbacks.push_back(std::move(on_click));
 
