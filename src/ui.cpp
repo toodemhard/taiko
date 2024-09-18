@@ -32,43 +32,43 @@ UI::UI(int _screen_width, int _screen_height)
 Vec2& UI::element_scale(ElementHandle e) {
     switch (e.type) {
     case ElementType::group:
-        return rects[groups[e.index].rect_index].scale;
+        return m_rects[m_groups[e.index].rect_index].scale;
     case ElementType::text:
-        return texts[e.index].scale;
+        return m_texts[e.index].scale;
     };
 }
 
 Vec2& UI::element_position(ElementHandle e) {
     switch (e.type) {
     case ElementType::group:
-        return rects[groups[e.index].rect_index].position;
+        return m_rects[m_groups[e.index].rect_index].position;
     case ElementType::text:
-        return texts[e.index].position;
+        return m_texts[e.index].position;
     };
 }
 
 void UI::begin_group(const Style& style) {
     ZoneScoped;
 
-    groups.push_back(Group{(int)rects.size() - 1, style});
+    m_groups.push_back(Group{(int)m_rects.size() - 1, style});
 
     if (group_stack.size() > 0) {
-        auto& parent_group = groups[group_stack.back()];
-        parent_group.children.push_back({ElementType::group, (int)groups.size() - 1});
+        auto& parent_group = m_groups[group_stack.back()];
+        parent_group.children.push_back({ElementType::group, (int)m_groups.size() - 1});
     }
 
-    group_stack.push_back(groups.size() - 1);
+    group_stack.push_back(m_groups.size() - 1);
 }
 
 void UI::begin_group_any(const Group& group) {
-    groups.push_back(group);
+    m_groups.push_back(group);
 
     if (group_stack.size() > 0) {
-        auto& parent_group = groups[group_stack.back()];
-        parent_group.children.push_back({ElementType::group, (int)groups.size() - 1});
+        auto& parent_group = m_groups[group_stack.back()];
+        parent_group.children.push_back({ElementType::group, (int)m_groups.size() - 1});
     }
 
-    group_stack.push_back(groups.size() - 1);
+    group_stack.push_back(m_groups.size() - 1);
 }
 
 void UI::begin_group_button(const Style& style, OnClick&& on_click) {
@@ -107,11 +107,11 @@ RectID UI::button_anim(const char* text, AnimState* anim_state, const Style& sty
 
     this->begin_group_button_anim(anim_state, style, anim_style, std::move(on_click));
 
-    auto& parent_group = groups[group_stack.back()];
+    auto& parent_group = m_groups[group_stack.back()];
 
     RGBA text_color = *std::get_if<RGBA>(&parent_group.style.text_color);
 
-    texts.push_back(Text{
+    m_texts.push_back(Text{
         {},
         Vec2{font_width(text, style.font_size), font_height(text, style.font_size)},
         text,
@@ -119,7 +119,7 @@ RectID UI::button_anim(const char* text, AnimState* anim_state, const Style& sty
         text_color
     });
 
-    parent_group.children.push_back({ElementType::text, (int)texts.size() - 1});
+    parent_group.children.push_back({ElementType::text, (int)m_texts.size() - 1});
 
     return this->end_group();
 }
@@ -162,13 +162,13 @@ void UI::begin_group_button_anim(AnimState* anim_state, Style style, const AnimS
 }
 
 Rect UI::query_rect(RectID id) {
-    return rects[id];
+    return m_rects[id];
 }
 
 RectID UI::end_group() {
     ZoneScoped;
 
-    Group& group = groups[group_stack.back()];
+    Group& group = m_groups[group_stack.back()];
     group_stack.pop_back();
 
     auto length_axis = [](StackDirection stack_direction) -> float (*)(const Vec2&) {
@@ -240,14 +240,17 @@ RectID UI::end_group() {
         ) +
         y_padding;
 
-    rects.push_back(Rect{
+    m_rects.push_back(Rect{
         {},
         {width, height},
+    });
+    m_draw_rects.push_back(DrawRect{
+        (int)m_rects.size() - 1,
         {group.style.background_color},
         {group.style.border_color},
     });
 
-    group.rect_index = (int)rects.size() - 1;
+    group.rect_index = (int)m_rects.size() - 1;
 
     if (group_stack.empty()) {
 
@@ -265,7 +268,7 @@ RectID UI::end_group() {
             group.style.position
         );
 
-        rects[group.rect_index].position = start_pos;
+        m_rects[group.rect_index].position = start_pos;
         visit_group(group, start_pos);
     }
 
@@ -275,18 +278,18 @@ RectID UI::end_group() {
 void UI::visit_group(Group& group, Vec2 start_pos) {
     ZoneScoped;
 
-    auto rect = rects[group.rect_index];
+    auto rect = m_rects[group.rect_index];
 
     if (group.anim_state != nullptr) {
-        hover_rects.push_back({start_pos, rect.scale, *group.anim_state});
+        m_hover_rects.push_back({start_pos, rect.scale, *group.anim_state});
     }
 
     if (group.on_click_index.has_value()) {
-        click_rects.push_back({start_pos, rect.scale, group.on_click_index.value()});
+        m_click_rects.push_back({start_pos, rect.scale, group.on_click_index.value()});
     }
 
     if (group.on_held_index.has_value()) {
-        slider_input_rects.push_back({start_pos, rect.scale, group.on_held_index.value()});
+        m_slider_input_rects.push_back({start_pos, rect.scale, group.on_held_index.value()});
     }
 
     start_pos = start_pos + Vec2{group.style.padding.left, group.style.padding.top};
@@ -295,7 +298,7 @@ void UI::visit_group(Group& group, Vec2 start_pos) {
         auto& scale = element_scale(e);
 
         if (e.type == ElementType::group) {
-            visit_group(groups[e.index], start_pos);
+            visit_group(m_groups[e.index], start_pos);
         }
 
         position = start_pos;
@@ -330,7 +333,7 @@ void UI::input(Input& input) {
 
     on_release_callbacks.clear();
 
-    for (auto& e : click_rects) {
+    for (auto& e : m_click_rects) {
         if (input.mouse_down(SDL_BUTTON_LEFT) &&
             rect_point_intersect(input.mouse_pos, e.position, e.scale)) {
             auto info = ClickInfo{input.mouse_pos - e.position, e.scale};
@@ -338,25 +341,24 @@ void UI::input(Input& input) {
             on_click_callbacks[e.on_click_index](info);
         }
     }
-    click_rects.clear();
+    m_click_rects.clear();
 
-    for (auto& e : hover_rects) {
+    for (auto& e : m_hover_rects) {
         if (rect_point_intersect(input.mouse_pos, e.position, e.scale)) {
             e.anim_state.target_hover = true;
         }
     }
-    hover_rects.clear();
+    m_hover_rects.clear();
 
-    for (auto& e : slider_input_rects) {
+    for (auto& e : m_slider_input_rects) {
         auto info = ClickInfo{input.mouse_pos - e.position, e.scale};
         on_click_callbacks[e.on_held_index](info);
     }
-    slider_input_rects.clear();
+    m_slider_input_rects.clear();
     on_click_callbacks.clear();
 
     for (auto& callback : user_callbacks) {
         callback();
-
     }
     user_callbacks.clear();
 
@@ -370,7 +372,7 @@ void UI::input(Input& input) {
     //
     // }
 
-    for (auto& e : text_fields) {
+    for (auto& e : m_text_field_inputs) {
         if (e.state->focused) {
             auto& text = e.state->text;
             if (input.key_down_repeat(SDL_SCANCODE_BACKSPACE) && text.length() > 0) {
@@ -402,13 +404,18 @@ void UI::input(Input& input) {
         }
 
         if (input.mouse_down(SDL_BUTTON_LEFT)) {
-            auto& rect = rects[e.rect_index];
+            auto& rect = m_rects[e.rect_index];
             e.state->focused = rect_point_intersect(input.mouse_pos, rect.position, rect.scale);
         }
     }
+    m_text_field_inputs.clear();
+    m_rects.clear();
 }
 
 void UI::end_frame() {
+    if (group_stack.size() > 0) {
+        DEV_PANIC("UI::begin_group() not closed")
+    }
     m_end_frame_called = true;
 
     auto active_st = Style{};
@@ -418,7 +425,7 @@ void UI::end_frame() {
     if (post_overlay.has_value()) {
         auto& overlay = post_overlay.value();
 
-        auto& hook = rects[overlay.rect_hook_index];
+        auto& hook = m_rects[overlay.rect_hook_index];
         auto g_st = Style{};
         g_st.position = Position::Absolute{hook.position + Vec2{0, hook.scale.y}};
         g_st.width = Scale::Fixed{hook.scale.x};
@@ -446,14 +453,16 @@ void UI::end_frame() {
 void UI::text_field(TextFieldState* state, Style style) {
     ZoneScoped;
 
-    // if (state->focused) {
-    //     style.border_color = {255, 255, 255, 255};
-    // }
-    //
-    // text_fields.push_back({
-    //     state,
-    //     internal_rect(state->text.data(), style),
-    // });
+    if (state->focused) {
+        style.border_color = {255, 255, 255, 255};
+    }
+
+    auto rect_id = this->text(state->text.data(), style);
+
+    m_text_field_inputs.push_back({
+        state,
+        rect_id
+    });
     //
     // if (group_stack.size() > 0) {
     //     auto& group = groups[group_stack.back()];
@@ -461,10 +470,10 @@ void UI::text_field(TextFieldState* state, Style style) {
     // }
 }
 
-void UI::text(const char* text, const Style& style) {
+RectID UI::text(const char* text, const Style& style) {
     ZoneScoped;
 
-    auto& parent_group = groups[group_stack.back()];
+    auto& parent_group = m_groups[group_stack.back()];
     RGBA text_color = std::visit(
         overloaded{
             [](RGBA color) { return color; },
@@ -474,9 +483,9 @@ void UI::text(const char* text, const Style& style) {
     );
 
     this->begin_group(style);
-    auto& text_group = groups[group_stack.back()];
+    auto& text_group = m_groups[group_stack.back()];
 
-    texts.push_back(Text{
+    m_texts.push_back(Text{
         {},
         Vec2{font_width(text, style.font_size), font_height(text, style.font_size)},
         text,
@@ -484,9 +493,9 @@ void UI::text(const char* text, const Style& style) {
         text_color
     });
 
-    text_group.children.push_back({ElementType::text, (int)texts.size() - 1});
+    text_group.children.push_back({ElementType::text, (int)m_texts.size() - 1});
 
-    this->end_group();
+    return this->end_group();
 }
 
 void UI::slider(Slider& state, SliderStyle style, float fraction, SliderCallbacks&& callbacks) {
@@ -542,7 +551,7 @@ void UI::slider(Slider& state, SliderStyle style, float fraction, SliderCallback
 
     auto rect_id = this->end_group();
     if (state.held) {
-        auto rect = rects[rect_id];
+        auto rect = m_rects[rect_id];
     }
 }
 
@@ -600,7 +609,7 @@ RectID UI::button(const char* text, Style style, OnClick&& on_click) {
 
     this->begin_group_button(style, std::move(on_click));
 
-    auto& parent_group = groups[group_stack.back()];
+    auto& parent_group = m_groups[group_stack.back()];
 
     RGBA text_color = std::visit(
         overloaded{
@@ -610,7 +619,7 @@ RectID UI::button(const char* text, Style style, OnClick&& on_click) {
         style.text_color
     );
 
-    texts.push_back(Text{
+    m_texts.push_back(Text{
         {},
         Vec2{font_width(text, style.font_size), font_height(text, style.font_size)},
         text,
@@ -618,7 +627,7 @@ RectID UI::button(const char* text, Style style, OnClick&& on_click) {
         text_color
     });
 
-    parent_group.children.push_back({ElementType::text, (int)texts.size() - 1});
+    parent_group.children.push_back({ElementType::text, (int)m_texts.size() - 1});
 
     return this->end_group();
 }
@@ -649,14 +658,15 @@ void UI::draw(SDL_Renderer* renderer) {
     }
     m_end_frame_called = false;
 
-    for (int i = rects.size() - 1; i >= 0; i--) {
-        auto& rect = rects[i];
+    for (int i = m_draw_rects.size() - 1; i >= 0; i--) {
+        auto draw_rect = m_draw_rects[i];
+        auto& rect = m_rects[draw_rect.rect_index];
         auto frect = SDL_FRect{rect.position.x, rect.position.y, rect.scale.x, rect.scale.y};
 
         {
             ZoneNamedN(asdf, "draw rect", true);
 
-            auto& bg_color = rect.background_color;
+            auto& bg_color = draw_rect.background_color;
             SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
             SDL_SetRenderDrawColor(renderer, bg_color.r, bg_color.g, bg_color.b, bg_color.a);
             SDL_RenderFillRect(renderer, &frect);
@@ -664,21 +674,19 @@ void UI::draw(SDL_Renderer* renderer) {
 
         {
             ZoneNamedN(askdjh, "draw border", true);
-            auto& color = rect.border_color;
+            auto& color = draw_rect.border_color;
             SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
             draw_wire_box(renderer, {rect.position.x, rect.position.y, rect.scale.x, rect.scale.y});
         }
     }
 
-    for (auto& text : texts) {
+    for (auto& text : m_texts) {
         draw_text(renderer, text.text, text.font_size, text.position, text.text_color);
     }
 
-    rects.clear();
-    groups.clear();
-    texts.clear();
-
-    text_fields.clear();
+    m_draw_rects.clear();
+    m_groups.clear();
+    m_texts.clear();
 
     strings.clear();
 

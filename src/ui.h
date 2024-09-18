@@ -1,6 +1,5 @@
 ﻿#pragma once
 
-#include <chrono>
 #include <cstdint>
 #include <functional>
 #include <optional>
@@ -45,6 +44,10 @@ struct Padding {
     float bottom;
 };
 
+inline Padding even_padding(float amount) {
+    return {amount, amount, amount, amount};
+}
+
 namespace Position {
 
 // fraction of the screen
@@ -85,7 +88,7 @@ using TextColor = std::variant<RGBA, Inherit>;
 struct Style {
     Position::Variant position;
     RGBA background_color;
-    RGBA border_color = color::red;
+    RGBA border_color;
 
     Padding padding;
 
@@ -108,7 +111,7 @@ struct AnimState {
 };
 
 struct AnimStyle {
-    RGBA alt_text_color;
+    RGBA alt_text_color = color::white;
     RGBA alt_background_color;
 
     float duration;
@@ -117,6 +120,10 @@ struct AnimStyle {
 struct Rect {
     Vec2 position;
     Vec2 scale;
+};
+
+struct DrawRect {
+    int rect_index;
     RGBA background_color;
     RGBA border_color;
 };
@@ -188,7 +195,7 @@ struct TextFieldState {
     bool focused;
 };
 
-struct TextField {
+struct TextFieldInputRect {
     TextFieldState* state;
     int rect_index;
 };
@@ -247,7 +254,7 @@ class UI {
         std::function<void(int)> on_input
     );
 
-    void text(const char* text, const Style& style);
+    RectID text(const char* text, const Style& style);
 
     void begin_group(const Style& style);
     RectID end_group();
@@ -273,21 +280,26 @@ class UI {
     int screen_width = 0;
     int screen_height = 0;
 
-    std::vector<ClickRect> click_rects;
-    std::vector<HoverRect> hover_rects;
-    std::vector<HeldRect> slider_input_rects;
 
-    std::vector<Rect> rects;
+    std::vector<Rect> m_rects;
 
-    std::vector<Group> groups;
-    std::vector<Text> texts;
+    std::vector<ClickRect> m_click_rects;
+    std::vector<HoverRect> m_hover_rects;
+    std::vector<HeldRect> m_slider_input_rects;
 
-    std::vector<TextField> text_fields;
+
+    std::vector<DrawRect> m_draw_rects;
+    std::vector<Group> m_groups;
+    std::vector<Text> m_texts;
+
+    std::vector<TextFieldInputRect> m_text_field_inputs;
 
     std::vector<std::function<void()>> on_release_callbacks;
+
     std::vector<std::function<void()>> user_callbacks;
     std::vector<OnClick> on_click_callbacks;
     std::vector<std::function<void()>> on_hover_callbacks;
+
     std::vector<std::function<void(float)>> slider_on_input_callbacks;
     std::vector<std::function<void(int)>> on_select_callbacks;
 
