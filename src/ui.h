@@ -156,7 +156,7 @@ struct ClickInfo {
     Vec2 scale;
 };
 
-using OnClick = std::function<void(ClickInfo)>;
+using OnClick = std::function<void()>;
 
 struct Group {
     int rect_index;
@@ -165,7 +165,7 @@ struct Group {
     AnimState* anim_state;
 
     std::optional<uint16_t> on_click_index;
-    std::optional<uint16_t> on_held_index;
+    std::optional<uint16_t> silder_on_held_index;
     std::vector<ElementHandle> children;
 };
 
@@ -176,7 +176,7 @@ struct ClickRect {
     uint16_t on_click_index;
 };
 
-struct HeldRect {
+struct SliderHeldRect {
     Vec2 position;
     Vec2 scale;
 
@@ -232,6 +232,11 @@ struct DropDownOverlay {
     std::vector<const char*>* items;
 };
 
+struct SliderOnInputInfo {
+    Slider& sldier;
+    int on_input_index;
+};
+
 class UI {
   public:
     UI() = default;
@@ -280,12 +285,11 @@ class UI {
     int screen_width = 0;
     int screen_height = 0;
 
-
     std::vector<Rect> m_rects;
 
     std::vector<ClickRect> m_click_rects;
     std::vector<HoverRect> m_hover_rects;
-    std::vector<HeldRect> m_slider_input_rects;
+    std::vector<SliderHeldRect> m_slider_input_rects;
 
 
     std::vector<DrawRect> m_draw_rects;
@@ -296,12 +300,14 @@ class UI {
 
     std::vector<std::function<void()>> on_release_callbacks;
 
-    std::vector<std::function<void()>> user_callbacks;
     std::vector<OnClick> on_click_callbacks;
-    std::vector<std::function<void()>> on_hover_callbacks;
 
-    std::vector<std::function<void(float)>> slider_on_input_callbacks;
-    std::vector<std::function<void(int)>> on_select_callbacks;
+    //slider callbacks
+    std::vector<std::function<void()>> user_callbacks; // slider on_click and on_release
+    std::vector<std::function<void(float)>> m_slider_on_held_callbacks;
+
+    //dropdown callbacks
+    std::vector<std::function<void(int)>> dropdown_on_select_callbacks; 
 
     std::vector<const char*> m_options;
     std::optional<DropDownOverlay> post_overlay;

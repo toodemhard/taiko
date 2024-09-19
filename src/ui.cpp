@@ -288,8 +288,8 @@ void UI::visit_group(Group& group, Vec2 start_pos) {
         m_click_rects.push_back({start_pos, rect.scale, group.on_click_index.value()});
     }
 
-    if (group.on_held_index.has_value()) {
-        m_slider_input_rects.push_back({start_pos, rect.scale, group.on_held_index.value()});
+    if (group.silder_on_held_index.has_value()) {
+        m_slider_input_rects.push_back({start_pos, rect.scale, group.silder_on_held_index.value()});
     }
 
     start_pos = start_pos + Vec2{group.style.padding.left, group.style.padding.top};
@@ -338,10 +338,12 @@ void UI::input(Input& input) {
             rect_point_intersect(input.mouse_pos, e.position, e.scale)) {
             auto info = ClickInfo{input.mouse_pos - e.position, e.scale};
 
-            on_click_callbacks[e.on_click_index](info);
+            on_click_callbacks[e.on_click_index]();
         }
     }
     m_click_rects.clear();
+    on_click_callbacks.clear();
+    dropdown_on_select_callbacks.clear();
 
     for (auto& e : m_hover_rects) {
         if (rect_point_intersect(input.mouse_pos, e.position, e.scale)) {
@@ -351,11 +353,12 @@ void UI::input(Input& input) {
     m_hover_rects.clear();
 
     for (auto& e : m_slider_input_rects) {
-        auto info = ClickInfo{input.mouse_pos - e.position, e.scale};
-        on_click_callbacks[e.on_held_index](info);
+        auto offset_position = input.mouse_pos - e.position;
+        auto new_fraction = std::min(std::max(0.0f, offset_position.x / e.scale.x), 1.0f);
+        m_slider_on_held_callbacks[e.on_held_index](new_fraction);
     }
     m_slider_input_rects.clear();
-    on_click_callbacks.clear();
+    m_slider_on_held_callbacks.clear();
 
     for (auto& callback : user_callbacks) {
         callback();
@@ -439,8 +442,8 @@ void UI::end_frame() {
             this->button(
                 options[i],
                 st,
-                [this, i, on_click_index = overlay.on_click_index](ClickInfo info) {
-                    on_select_callbacks[on_click_index](i);
+                [this, i, on_click_index = overlay.on_click_index]() {
+                    dropdown_on_select_callbacks[on_click_index](i);
                 }
             );
         }
@@ -514,14 +517,11 @@ void UI::slider(Slider& state, SliderStyle style, float fraction, SliderCallback
         });
     }
 
-    slider_on_input_callbacks.push_back(std::move(callbacks.on_input));
-    int on_input_index = slider_on_input_callbacks.size() - 1;
 
     auto group = Group{};
     group.style = container;
 
-    on_click_callbacks.push_back([&,
-                                  onclick = std::move(callbacks.on_click)](ClickInfo click_info) {
+    on_click_callbacks.push_back([&, onclick = std::move(callbacks.on_click)]() {
         state.held = true;
         if (onclick.has_value()) {
             user_callbacks.push_back(std::move(onclick.value()));
@@ -531,12 +531,8 @@ void UI::slider(Slider& state, SliderStyle style, float fraction, SliderCallback
     group.on_click_index = on_click_callbacks.size() - 1;
 
     if (state.held) {
-        on_click_callbacks.push_back([&, on_input_index](ClickInfo click_info) {
-            auto new_fraction =
-                std::min(std::max(0.0f, click_info.offset_pos.x / click_info.scale.x), 1.0f);
-            slider_on_input_callbacks[on_input_index](new_fraction);
-        });
-        group.on_held_index = on_click_callbacks.size() - 1;
+        m_slider_on_held_callbacks.push_back(std::move(callbacks.on_input));
+        group.silder_on_held_index = m_slider_on_held_callbacks.size() - 1;
     }
 
     this->begin_group_any(group);
@@ -577,7 +573,7 @@ void UI::drop_down_menu(
     st.stack_direction = StackDirection::Vertical;
 
     auto group = Group{};
-    on_click_callbacks.push_back([&](ClickInfo info) { state.clicked_last_frame = true; });
+    on_click_callbacks.push_back([&]() { state.clicked_last_frame = true; });
     group.on_click_index = on_click_callbacks.size() - 1;
     group.style = st;
 
@@ -585,17 +581,17 @@ void UI::drop_down_menu(
     auto thing = (state.menu_dropped)
                      ? strings.add(std::format("{} \\/", options[selected_opt_index]))
                      : strings.add(std::format("{} <", options[selected_opt_index]));
-    auto ref = this->button(thing, {}, [&](ClickInfo info) {
+    auto ref = this->button(thing, {}, [&]() {
         state.menu_dropped = !state.menu_dropped;
         state.clicked_last_frame = true;
     });
 
-    on_select_callbacks.push_back(std::move(on_input));
+    dropdown_on_select_callbacks.push_back(std::move(on_input));
 
     if (state.menu_dropped) {
         post_overlay = DropDownOverlay{
             ref,
-            (int)on_select_callbacks.size() - 1,
+            (int)dropdown_on_select_callbacks.size() - 1,
             selected_opt_index,
             &options,
         };
