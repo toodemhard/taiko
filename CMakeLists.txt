@@ -45,19 +45,11 @@ add_subdirectory(lib/sdl-mixer EXCLUDE_FROM_ALL)
 set(SOURCE_DIRECTORY src)
 file(GLOB_RECURSE SOURCE_FILES CONFIGURE_DEPENDS ${SOURCE_DIRECTORY}/*.cpp)
 
-list(REMOVE_ITEM SOURCE_FILES 
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/main_menu.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/game.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor.cpp"
-)
+# list(REMOVE_ITEM SOURCE_FILES 
+#     "${CMAKE_CURRENT_SOURCE_DIR}/src/game.cpp"
+#     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor.cpp"
+# )
 
-message(STATUS ${CMAKE_CURRENT_SOURCE_DIR})
-message(STATUS "${SOURCE_DIRECTORY}/src/main_menu.cpp")
-
-message(STATUS "Files after filtering:")
-foreach(file ${SOURCE_FILES})
-    message(STATUS "${file}")
-endforeach()
 
 add_executable(${PROJECT_NAME} ${SOURCE_FILES})
 
