@@ -4,6 +4,7 @@
 #include <format>
 
 #include "audio.h"
+#include "SDL3_mixer/SDL_mixer.h"
 
 Audio::Audio() {
     Mix_OpenAudio(0, NULL);

@@ -33,8 +33,8 @@ std::vector<char> read_file(const char* file_name) {
 }
 
 void init_font(SDL_Renderer* renderer) {
-    //auto ttf_buffer = read_file("JetBrainsMonoNLNerdFont-Regular.ttf");
-    auto ttf_buffer = read_file("taiko.ttf");
+    auto ttf_buffer = read_file("Avenir LT Std 95 Black.ttf");
+    // auto ttf_buffer = read_file("taiko.ttf");
     stbtt_InitFont(&font_info, (unsigned char*)ttf_buffer.data(), 0);
 
 
@@ -71,7 +71,7 @@ void draw_text(SDL_Renderer* renderer, const char* text, float font_size, Vec2 p
         float w = char_info.x1 - char_info.x0;
         float h = char_info.y1 - char_info.y0;
         auto src = SDL_FRect{ (float)char_info.x0, (float)char_info.y0, w, h };
-        auto dst = SDL_FRect{ x, font_size + position.y + char_info.yoff * size_ratio, w * size_ratio, h * size_ratio};
+        auto dst = SDL_FRect{ x + char_info.xoff, font_size + position.y + char_info.yoff * size_ratio, w * size_ratio, h * size_ratio};
 
         SDL_RenderTexture(renderer, font_texture, &src, &dst);
 

@@ -60,8 +60,8 @@ void Game::draw_map() {
         Image select_circle = assets.get_image(ImageID::select_circle);
 
         Vec2 circle_pos = center_pos;
-        circle_pos.x -= circle_image.width / 2 * scale;
-        circle_pos.y -= circle_image.height / 2 * scale;
+        circle_pos.x -= circle_image.width / 2.0f * scale;
+        circle_pos.y -= circle_image.height / 2.0f * scale;
 
         {
             SDL_FRect rect = { circle_pos.x, circle_pos.y, circle_image.width * scale, circle_image.height * scale };
@@ -79,8 +79,8 @@ void draw_note(SDL_Renderer* renderer, AssetLoader& assets, const NoteFlags& not
         Image select_circle = assets.get_image(ImageID::select_circle);
 
         Vec2 circle_pos = center_point;
-        circle_pos.x -= circle_image.width / 2 * scale;
-        circle_pos.y -= circle_image.height / 2 * scale;
+        circle_pos.x -= circle_image.width / 2.0f * scale;
+        circle_pos.y -= circle_image.height / 2.0f * scale;
 
         {
             SDL_FRect rect = { circle_pos.x, circle_pos.y, circle_image.width * scale, circle_image.height * scale };
@@ -137,6 +137,8 @@ void Game::update(std::chrono::duration<double> delta_time) {
 
     double elapsed = audio.get_position();
 
+    ui.input(input);
+
     if (input.key_down(SDL_SCANCODE_ESCAPE)) {
         if (m_test_mode) {
             event_queue.push_event(Event::QuitTest{});
@@ -148,7 +150,6 @@ void Game::update(std::chrono::duration<double> delta_time) {
         return;
     }
 
-    StringCache strings{};
 
     if (!m_end_screen) {
         if (elapsed >= m_map.times.back() + end_screen_delay.count()) {
@@ -281,23 +282,23 @@ void Game::update(std::chrono::duration<double> delta_time) {
 
 
         Style style{};
-        style.anchor = { 1,0 };
+        style.position = Position::Anchor{ 1,0 };
         style.stack_direction = StackDirection::Vertical;
 
-        auto f = strings.add("idk");
-        auto g = strings.add("wut");
+        auto f = ui.strings.add("idk");
+        auto g = ui.strings.add("wut");
 
         ui.begin_group(style);
-        ui.rect(strings.add(std::format("{}", score)), {});
+        ui.text(ui.strings.add(std::format("{}", score)), {.font_size=54});
 
 
         //std::cerr << std::format("{}", )
 
-        ui.rect(strings.add(std::format("{:.2f}%", accuracy_fraction * 100)), {});
+        ui.text(ui.strings.add(std::format("{:.2f}%", accuracy_fraction * 100)), {});
         ui.end_group();
 
-        ui.begin_group(Style{ {0,1} });
-        ui.rect(strings.add(std::format("{}x", combo)), {});
+        ui.begin_group(Style{ Position::Anchor{0,1} });
+        ui.text(ui.strings.add(std::format("{}x", combo)), {.font_size=48});
         ui.end_group();
 
 
@@ -336,7 +337,7 @@ void Game::update(std::chrono::duration<double> delta_time) {
 
         this->draw_map();
 
-        const Vec2 drum_pos = { 0, (window_height - inner_drum.height) / 2 };
+        const Vec2 drum_pos = { 0, ((float)window_height - inner_drum.height) / 2 };
         auto left_rect = SDL_FRect{ drum_pos.x, drum_pos.y, (float)inner_drum.width, (float)inner_drum.height };
         auto right_rect = SDL_FRect{ drum_pos.x + inner_drum.width, drum_pos.y, (float)inner_drum.width, (float)inner_drum.height };
 
@@ -364,27 +365,22 @@ void Game::update(std::chrono::duration<double> delta_time) {
 
     } else {
         Style style{};
-        style.anchor = { 0.5, 0.5 };
+        style.position = Position::Anchor{ 0.5, 0.5 };
         style.stack_direction = StackDirection::Vertical;
         
-        ui.begin_group_v2(style, {});
-        ui.rect(strings.add(std::format("{}", score)), {});
-        ui.rect(strings.add(std::format("{:.2f}%", accuracy_fraction * 100)), {});
-        ui.rect(strings.add(std::format("{} Perfect", perfect_count)), {});
-        ui.rect(strings.add(std::format("{} Ok", ok_count)), {});
-        ui.rect(strings.add(std::format("{} Miss", miss_count)), {});
-        ui.end_group_v2();
+        ui.begin_group(style);
+        ui.text(ui.strings.add(std::format("{}", score)), {});
+        ui.text(ui.strings.add(std::format("{:.2f}%", accuracy_fraction * 100)), {});
+        ui.text(ui.strings.add(std::format("{} Perfect", perfect_count)), {});
+        ui.text(ui.strings.add(std::format("{} Ok", ok_count)), {});
+        ui.text(ui.strings.add(std::format("{} Miss", miss_count)), {});
+        ui.end_group();
 
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
         SDL_RenderClear(renderer);
     }
 
-    ui.begin_group(Style{ {1,1} });
-    auto frame_time = std::to_string(((float)std::chrono::duration_cast<std::chrono::microseconds>(delta_time).count()) / 1000) + " ms";
-    ui.rect(frame_time.data(), {});
-    ui.end_group();
+    ui.end_frame();
 
     ui.draw(renderer);
-
-    SDL_RenderPresent(renderer);
 }

@@ -1,27 +1,35 @@
 ﻿#pragma once
 
-#include <vector>
-#include <stack>
+#include <cstdint>
 #include <functional>
 #include <optional>
 #include <string>
+#include <variant>
+#include <vector>
 
-#include "vec.h"
-#include "input.h"
 #include "color.h"
+#include "input.h"
+#include "vec.h"
 
 #include <SDL3/SDL.h>
 
-constexpr int string_array_size{ 10 };
+namespace color {
+constexpr RGBA white{255, 255, 255, 255};
+constexpr RGBA black{0, 0, 0, 255};
+constexpr RGBA red{255, 0, 0, 255};
+constexpr RGBA grey{180, 180, 180, 255};
+constexpr RGBA none{0, 0, 0, 0};
+} // namespace color
 
-// keep strings alive in outer scope so that it can be drawn at end of update
-// can just ref const char* in inner scope
+constexpr int string_array_size{10};
+
 class StringCache {
-public:
+  public:
     const char* add(std::string&& string);
-private:
-    std::array<std::string, string_array_size> strings;
-    int count{ 0 };
+    void clear();
+
+  private:
+    std::vector<std::string> strings;
 };
 
 enum class StackDirection {
@@ -36,45 +44,96 @@ struct Padding {
     float bottom;
 };
 
+inline Padding even_padding(float amount) {
+    return {amount, amount, amount, amount};
+}
+
+namespace Position {
+
+// fraction of the screen
+struct Anchor {
+    Vec2 position;
+};
+
+struct Absolute {
+    Vec2 position;
+};
+
+struct Relative {};
+
+using Variant = std::variant<Relative, Anchor, Absolute>;
+} // namespace Position
+
+namespace Scale {
+
+struct Fixed {
+    float value;
+};
+
+struct Min {
+    float value;
+};
+
+// scale to the content
+struct FitContent {};
+
+using Variant = std::variant<FitContent, Min, Fixed>;
+
+} // namespace Scale
+
+struct Inherit {};
+
+using TextColor = std::variant<RGBA, Inherit>;
+
 struct Style {
-    Vec2 anchor;
-    float font_size = 36;
-    RGBA text_color = { 255, 255, 255, 255 };
-    RGBA background_color = { 0, 0, 0, 0 };
+    Position::Variant position;
+    RGBA background_color;
     RGBA border_color;
 
     Padding padding;
 
-    float min_width;
-    float min_height;
+    Scale::Variant width;
+    Scale::Variant height;
+    bool overlap;
 
     // group styling
     StackDirection stack_direction = StackDirection::Horizontal;
     float gap;
+
+    // text style
+    float font_size = 36;
+    TextColor text_color = color::white;
 };
 
-struct GroupStyle {
-    Vec2 anchor;
+struct AnimState {
+    bool target_hover;
+    float mix;
+};
 
-    RGBA background_color = { 0, 0, 0, 0 };
-    RGBA border_color;
+struct AnimStyle {
+    RGBA alt_text_color = color::white;
+    RGBA alt_background_color;
 
-    Padding padding;
-
-    StackDirection stack_direction = StackDirection::Horizontal;
-    float gap;
+    float duration;
 };
 
 struct Rect {
     Vec2 position;
     Vec2 scale;
-    float padding_left;
-    float padding_top;
-    const char* text;
-    float font_size = 36;
-    RGBA text_color = { 255, 255, 255, 255 };
-    RGBA background_color = { 0, 0, 0, 0 };
+};
+
+struct DrawRect {
+    int rect_index;
+    RGBA background_color;
     RGBA border_color;
+};
+
+struct Text {
+    Vec2 position;
+    Vec2 scale;
+    const char* text;
+    float font_size;
+    RGBA text_color;
 };
 
 struct Button {
@@ -82,18 +141,9 @@ struct Button {
     std::function<void()> on_click;
 };
 
-struct Slider {
-    Rect rect;
-    float fraction;
-    std::function<void(float)> callback;
-};
-
 enum class ElementType {
-    button,
-    slider,
-    rect,
     group,
-    text_field,
+    text,
 };
 
 struct ElementHandle {
@@ -103,26 +153,41 @@ struct ElementHandle {
 
 struct ClickInfo {
     Vec2 offset_pos;
+    Vec2 scale;
 };
 
-using OnClick = std::function<void(ClickInfo)>;
+using OnClick = std::function<void()>;
 
 struct Group {
     int rect_index;
     Style style;
+
+    AnimState* anim_state;
+
+    std::optional<uint16_t> on_click_index;
+    std::optional<uint16_t> silder_on_held_index;
     std::vector<ElementHandle> children;
-    OnClick click_property;
 };
 
 struct ClickRect {
     Vec2 position;
     Vec2 scale;
 
-    OnClick on_click;
+    uint16_t on_click_index;
 };
 
-struct Properties {
-    OnClick on_click;
+struct SliderHeldRect {
+    Vec2 position;
+    Vec2 scale;
+
+    int on_held_index;
+};
+
+struct HoverRect {
+    Vec2 position;
+    Vec2 scale;
+
+    AnimState& anim_state;
 };
 
 struct TextFieldState {
@@ -130,60 +195,129 @@ struct TextFieldState {
     bool focused;
 };
 
-struct TextField {
+struct TextFieldInputRect {
     TextFieldState* state;
     int rect_index;
 };
 
+struct Slider {
+    bool held;
+};
+
+struct SliderStyle {
+    Position::Variant position;
+    float width;
+    float height;
+    RGBA bg_color;
+    RGBA fg_color;
+};
+
+struct SliderCallbacks {
+    std::function<void(float)> on_input;
+    std::optional<std::function<void()>> on_click;
+    std::optional<std::function<void()>> on_release;
+};
+
+struct DropDown {
+    bool menu_dropped;
+    bool clicked_last_frame;
+};
+
+using RectID = int;
+
+struct DropDownOverlay {
+    int rect_hook_index;
+    int on_click_index;
+    int selected_index;
+    std::vector<const char*>* items;
+};
+
+struct SliderOnInputInfo {
+    Slider& sldier;
+    int on_input_index;
+};
+
 class UI {
-public:
+  public:
     UI() = default;
     UI(int _screen_width, int _screen_height);
 
     void text_field(TextFieldState* state, Style style);
-    void button(const char* text, Style style, std::function<void()> on_click);
-    void slider(float fraction, std::function<void(float)> on_input);
-    void rect(const char* text, const Style& style);
-    void begin_group(const Style& style);
-    void end_group();
+    RectID button(const char* text, Style style, OnClick&& on_click);
+    RectID button_anim(const char* text, AnimState* anim_state, const Style& style, const AnimStyle& anim_style, OnClick&& on_click);
+    void slider(Slider& state, SliderStyle style, float fraction, SliderCallbacks&& callbacks);
+    void drop_down_menu(
+        int selected_opt_index,
+        std::vector<const char*>&& options,
+        DropDown& state,
+        std::function<void(int)> on_input
+    );
+    void drop_down_menu(
+        int selected_opt_index,
+        std::vector<const char*>& options,
+        DropDown& state,
+        std::function<void(int)> on_input
+    );
 
-    void begin_group_v2(const Style& style, const Properties& properties);
-    void end_group_v2();
+    RectID text(const char* text, const Style& style);
+
+    void begin_group(const Style& style);
+    RectID end_group();
+    Rect query_rect(RectID id);
+
+    void begin_group_button(const Style& style, OnClick&& on_click);
+    void begin_group_button_anim(AnimState* anim_state, Style style, const AnimStyle& anim_style, OnClick&& on_click);
 
     void visit_group(Group& group, Vec2 start_pos);
 
     void input(Input& input);
 
+    void begin_frame();
+    void end_frame();
+
     void draw(SDL_Renderer* renderer);
 
     bool clicked = false;
 
-private:
+    StringCache strings{};
+
+  private:
     int screen_width = 0;
     int screen_height = 0;
 
+    std::vector<Rect> m_rects;
 
-    //properties
-    std::vector<ClickRect> click_rects;
+    std::vector<ClickRect> m_click_rects;
+    std::vector<HoverRect> m_hover_rects;
+    std::vector<SliderHeldRect> m_slider_input_rects;
 
-    std::vector<Rect> rects;
-    std::vector<Button> buttons;
-    std::vector<Slider> sliders;
-    std::vector<Group> groups;
-    std::vector<TextField> text_fields;
+
+    std::vector<DrawRect> m_draw_rects;
+    std::vector<Group> m_groups;
+    std::vector<Text> m_texts;
+
+    std::vector<TextFieldInputRect> m_text_field_inputs;
+
+    std::vector<std::function<void()>> on_release_callbacks;
+
+    std::vector<OnClick> on_click_callbacks;
+
+    //slider callbacks
+    std::vector<std::function<void()>> user_callbacks; // slider on_click and on_release
+    std::vector<std::function<void(float)>> m_slider_on_held_callbacks;
+
+    //dropdown callbacks
+    std::vector<std::function<void(int)>> dropdown_on_select_callbacks; 
+
+    std::vector<const char*> m_options;
+    std::optional<DropDownOverlay> post_overlay;
+    std::vector<DropDown*> dropdown_clickoff_callbacks;
 
     std::vector<int> group_stack;
 
-    int internal_rect(const char* text, const Style& style);
-    Rect& element_rect(ElementHandle e);
+    void begin_group_any(const Group& group);
+    Vec2& element_scale(ElementHandle e);
+    Vec2& element_position(ElementHandle e);
+
+    bool m_end_frame_called{};
 };
-
-namespace color {
-    constexpr RGBA white{ 255, 255, 255, 255 };
-    constexpr RGBA grey{ 180, 180, 180, 255 };
-}
-
-namespace styles {
-    constexpr Style active_option{ .text_color{color::white} };
-    constexpr Style inactive_option{ .text_color{color::grey} };
-}

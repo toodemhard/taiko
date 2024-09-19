@@ -7,6 +7,7 @@
 #include "game.h"
 
 #include "assets.h"
+#include "ui.h"
 
 using namespace constants;
 
@@ -73,8 +74,8 @@ void draw_map_editor(SDL_Renderer* renderer, AssetLoader& assets, const Map& map
         Image select_circle = assets.get_image(ImageID::select_circle);
 
         Vec2 circle_pos = center_pos;
-        circle_pos.x -= circle_image.width / 2 * scale;
-        circle_pos.y -= circle_image.height / 2 * scale;
+        circle_pos.x -= circle_image.width / 2.0f * scale;
+        circle_pos.y -= circle_image.height / 2.0f * scale;
 
 
         {
@@ -90,8 +91,8 @@ void draw_map_editor(SDL_Renderer* renderer, AssetLoader& assets, const Map& map
 
         if (map.selected[i]) {
             SDL_FRect rect = {
-                center_pos.x - select_circle.width / 2 * scale,
-                center_pos.y - select_circle.height / 2 * scale,
+                center_pos.x - select_circle.width / 2.0f * scale,
+                center_pos.y - select_circle.height / 2.0f * scale,
                 select_circle.width * scale,
                 select_circle.height * scale,
             };
@@ -210,8 +211,10 @@ int Editor::load_song(const char* file_path) {
 void Editor::update(std::chrono::duration<double> delta_time) {
     ZoneScoped;
 
+    ui.input(input);
+
     Style style{};
-    style.anchor = { 0.5, 0.5 };
+    style.position = Position::Anchor{ 0.5, 0.5 };
     style.stack_direction = StackDirection::Vertical;
     style.background_color = { 9, 30, 64, 255 };
 
@@ -222,7 +225,7 @@ void Editor::update(std::chrono::duration<double> delta_time) {
 
 
     auto inactive_style = Style{};
-    inactive_style.text_color = { 128, 128, 128, 255 };
+    inactive_style.text_color = RGBA{ 128, 128, 128, 255 };
 
 
     ui.begin_group({});
@@ -246,13 +249,13 @@ void Editor::update(std::chrono::duration<double> delta_time) {
         ui.begin_group(style);
 
         ui.begin_group({});
-        ui.rect("title: ", {});
-        ui.text_field(&title, { .border_color = {255, 255, 255, 0}, .min_width = 200 });
+        ui.text("title: ", {});
+        ui.text_field(&title, { .border_color = {255, 255, 255, 0}, .width = Scale::Min{200} });
         ui.end_group();
 
         ui.begin_group({});
-        ui.rect("artist: ", {});
-        ui.text_field(&artist, { .border_color = {255, 255, 255, 0}, .min_width = 200 });
+        ui.text("artist: ", {});
+        ui.text_field(&artist, { .border_color = {255, 255, 255, 0}, .width = Scale::Min{200} });
         ui.end_group();
 
         const char* text = (m_song_path.has_value()) ? strings.add(m_song_path.value().filename().string()) : "choose song";
@@ -303,13 +306,6 @@ void Editor::update(std::chrono::duration<double> delta_time) {
         ui.end_group();
     }
 
-    ui.begin_group(Style{ {1,1} }); 
-    auto frame_time = std::format("{}ms", ((float)std::chrono::duration_cast<std::chrono::microseconds>(delta_time).count()) / 1000);
-    ui.rect(frame_time.data(), {});
-    ui.end_group();
-
-    SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
-    SDL_RenderClear(renderer);
 
     switch (view) {
     case EditorView::Main: {
@@ -337,16 +333,16 @@ void Editor::update(std::chrono::duration<double> delta_time) {
         }
 
         Style style = {};
-        style.anchor = { 0.25, 0.25 };
+        style.position = Position::Anchor{ 0.25, 0.25 };
         style.stack_direction = StackDirection::Vertical;
         ui.begin_group(style);
-        ui.rect(mapset_info.title.data(), {.font_size = 52});
-        ui.rect(mapset_info.artist.data(), { .text_color = {180, 180, 180, 255} });
+        ui.text(mapset_info.title.data(), {.font_size = 52});
+        ui.text(mapset_info.artist.data(), { .text_color = RGBA{180, 180, 180, 255} });
 
         ui.end_group();
 
         style = {};
-        style.anchor = { 0.5, 0.5 };
+        style.position = Position::Anchor{ 0.5, 0.5 };
         style.stack_direction = StackDirection::Vertical;
         style.gap = 36;
         ui.begin_group(style);
@@ -359,14 +355,14 @@ void Editor::update(std::chrono::duration<double> delta_time) {
         selected_style.border_color = { 255, 255, 255, 255 };
 
         auto deselected_style = Style{};
-        deselected_style.text_color = { 180, 180, 180, 255 };
+        deselected_style.text_color = RGBA{ 180, 180, 180, 255 };
         
         
         for (int i = 0; i < m_map_infos.size(); i++) {
             auto& diff = m_map_infos[i];
             
             if (i == m_current_map_index && m_renaming_map) {
-                ui.text_field(&m_map_rename_field, { .text_color{255, 0, 0, 255} });
+                ui.text_field(&m_map_rename_field, { .text_color{RGBA{255, 0, 0, 255}} });
                 continue;
             }
 
@@ -378,7 +374,7 @@ void Editor::update(std::chrono::duration<double> delta_time) {
                 }
             }();
 
-            ui.begin_group_v2({}, {});
+            ui.begin_group_button({}, {});
 
             ui.button(diff.difficulty_name.data(), entry_style, [&, i]() {
                 this->load_map(i);
@@ -388,7 +384,7 @@ void Editor::update(std::chrono::duration<double> delta_time) {
                 this->remove_map(i);
             });
 
-            ui.end_group_v2();
+            ui.end_group();
         }
 
         ui.end_group();
@@ -414,36 +410,34 @@ void Editor::update(std::chrono::duration<double> delta_time) {
 
         auto button_style = Style{};
         button_style.background_color = { 255, 255, 255, 255 };
-        button_style.text_color = { 0, 0, 0, 255 };
-        button_style.padding = { 10, 10, 10, 10 };
+        button_style.text_color = RGBA{ 0, 0, 0, 255 };
+        button_style.padding = even_padding(10);
         ui.button("Add Difficulty", button_style, func);
 
 
         ui.end_group();
 
-        ui.input(input);
-        ui.draw(renderer);
         break;
     }
     case EditorView::Timing: {
         auto style = Style{};
-        style.anchor = { 0.5, 0.5 };
+        style.position = Position::Anchor{ 0.5, 0.5 };
         style.stack_direction = StackDirection::Vertical;
         ui.begin_group(style);
 
-        ui.rect("KYS!!!!!", {});
+        ui.text("KYS!!!!!", {});
 
         auto fs = Style{};
-        fs.min_width = 200;
+        fs.width = Scale::Min{200};
 
         if (!bpm.focused) {
             bpm.text = std::format("{}", m_map.m_meta_data.bpm);
         }
 
-        ui.begin_group_v2({ .gap{10} }, {});
-        ui.rect("bpm", {});
+        ui.begin_group({ .gap{10} });
+        ui.text("bpm", {});
         ui.text_field(&bpm, fs);
-        ui.end_group_v2();
+        ui.end_group();
 
         if (bpm.focused && input.key_down(SDL_SCANCODE_RETURN)) {
             bpm.focused = false;
@@ -454,10 +448,10 @@ void Editor::update(std::chrono::duration<double> delta_time) {
             offset.text = std::format("{:.2f}", m_map.m_meta_data.offset);
         }
 
-        ui.begin_group_v2({ .gap{10} }, {});
-        ui.rect("offset", {});
+        ui.begin_group({ .gap{10} });
+        ui.text("offset", {});
         ui.text_field(&offset, fs);
-        ui.end_group_v2();
+        ui.end_group();
 
         if (offset.focused && input.key_down(SDL_SCANCODE_RETURN)) {
             offset.focused = false;
@@ -465,21 +459,18 @@ void Editor::update(std::chrono::duration<double> delta_time) {
         }
 
         ui.end_group();
-
-        ui.input(input);
-        ui.draw(renderer);
         break;
     }
-    default:
-        ui.input(input);
-        ui.draw(renderer);
-        break;
     }
 
-    {
-        ZoneNamedN(jksfdgjh, "Render Present", true);
-        SDL_RenderPresent(renderer);
-    }
+    ui.end_frame();
+
+    ui.draw(renderer);
+
+    // {
+    //     ZoneNamedN(jksfdgjh, "Render Present", true);
+    //     SDL_RenderPresent(renderer);
+    // }
 }
 
 void set_draw_color(SDL_Renderer* renderer, RGBA color) {
@@ -493,7 +484,7 @@ void Editor::main_update() {
     last_pos = elapsed;
 
     Style style = {};
-    style.anchor = { 0, 0.5 };
+    style.position = Position::Anchor{ 0, 0.5 };
     style.stack_direction = StackDirection::Vertical;
 
     ui.begin_group(style); {
@@ -530,9 +521,9 @@ void Editor::main_update() {
     }
     ui.end_group();
 
-    ui.begin_group(Style{ {0,1} });
+    ui.begin_group(Style{ Position::Anchor{0,1} });
         std::string time = std::to_string(cam.position.x) + " s";
-        ui.rect(time.data(), {});
+        ui.text(time.data(), {});
     //ui.slider(elapsed / GetMusicTimeLength(music), [&](float fraction) {
     //    SeekMusicStream(music, fraction * GetMusicTimeLength(music));
     //});
@@ -765,7 +756,4 @@ void Editor::main_update() {
         set_draw_color(renderer, { 255, 255, 255, 40 });
         SDL_RenderRect(renderer, &rect);
     }
-
-    ui.input(input);
-    ui.draw(renderer);
 }
