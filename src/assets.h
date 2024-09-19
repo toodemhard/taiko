@@ -1,4 +1,5 @@
 #pragma once
+#include "asset_loader.h"
 
 namespace ImageID {
 enum ImageID {

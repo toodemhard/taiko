@@ -1,16 +1,22 @@
-#include <tracy/Tracy.hpp>
+#include <chrono>
 #include <filesystem>
+#include <ratio>
+#include <tracy/Tracy.hpp>
 
 #include "app.h"
 #include "constants.h"
 #include "font.h"
-#include "systems.h"
+
 #include "editor.h"
 #include "game.h"
 #include "main_menu.h"
 
-#include "serialize.h"
+#include "systems.h"
+
 #include "assets.h"
+#include "serialize.h"
+
+#include "ui_test.h"
 
 using namespace constants;
 
@@ -25,6 +31,7 @@ enum class Context {
     Menu,
     Editor,
     Game,
+    UI_Test,
 };
 
 int run() {
@@ -38,16 +45,14 @@ int run() {
     SDL_Window* window;
     SDL_Renderer* renderer;
 
-    SDL_CreateWindowAndRenderer("", window_width, window_height, 0, &window, &renderer);
+    SDL_CreateWindowAndRenderer("taiko", window_width, window_height, 0, &window, &renderer);
     SDL_SetWindowFullscreen(window, true);
 
     Input input{};
     Audio audio{};
-    
 
     Mix_MasterVolume(MIX_MAX_VOLUME * 0.3);
     Mix_VolumeMusic(MIX_MAX_VOLUME * 0.2);
-
 
     init_font(renderer);
 
@@ -58,11 +63,11 @@ int run() {
 
     std::vector<ImageLoadInfo> image_list = {
         {"hit_effect_ok.png", ImageID::hit_effect_ok},
-        {"hit_effect_perfect.png",ImageID::hit_effect_perfect},
+        {"hit_effect_perfect.png", ImageID::hit_effect_perfect},
         {"circle-overlay.png", ImageID::circle_overlay},
         {"circle-select.png", ImageID::select_circle},
-        {"circle.png", ImageID::kat_circle , RGBA{ 60, 219, 226, 255 }},
-        {"circle.png", ImageID::don_circle, RGBA{ 252, 78, 60, 255 }},
+        {"circle.png", ImageID::kat_circle, RGBA{60, 219, 226, 255}},
+        {"circle.png", ImageID::don_circle, RGBA{252, 78, 60, 255}},
         {"drum-inner.png", ImageID::inner_drum},
         {"drum-outer.png", ImageID::outer_drum},
     };
@@ -72,26 +77,30 @@ int run() {
 
     EventQueue event_queue{};
 
-    Systems systems{
-        renderer,
-        input,
-        audio,
-        assets,
-        event_queue
-    };
+    Systems systems{renderer, input, audio, assets, event_queue};
 
-    std::vector<Context> context_stack{ Context::Menu };
+    std::vector<Context> context_stack{Context::Menu};
 
     std::unique_ptr<Editor> editor{};
     std::unique_ptr<Game> game{};
-    std::unique_ptr<MainMenu> menu{ std::make_unique<MainMenu>(renderer, input, audio, assets, event_queue) };
+    std::unique_ptr<MainMenu> menu{
+        std::make_unique<MainMenu>(renderer, input, audio, assets, event_queue)
+    };
+
+    UI_Test ui_test{input};
 
     SDL_StartTextInput(window);
 
-    auto last_frame = std::chrono::high_resolution_clock::now();
+    UI frame_time_ui{constants::window_width, constants::window_height};
+
+
+    auto last_frame_start = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> last_frame_duration{};
+
+
     while (1) {
-        auto now = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<double> delta_time = now - last_frame;
+        auto frame_start = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> delta_time = frame_start - last_frame_start;
 
         if (delta_time < 1ms) {
             continue;
@@ -99,7 +108,7 @@ int run() {
 
         ZoneNamedN(var, "update", true);
 
-        last_frame = now;
+        last_frame_start = frame_start;
 
         bool quit = false;
 
@@ -141,7 +150,8 @@ int run() {
         while (event_queue.pop_event(&event_union)) {
             switch (event_union.index()) {
             case EventType::TestMap:
-                game = std::make_unique<Game>(systems, game::InitConfig{ false, true }, editor->m_map);
+                game =
+                    std::make_unique<Game>(systems, game::InitConfig{false, true}, editor->m_map);
                 context_stack.push_back(Context::Game);
                 break;
             case EventType::QuitTest:
@@ -161,8 +171,7 @@ int run() {
                 context_stack.push_back(Context::Editor);
                 editor = std::make_unique<Editor>(renderer, input, audio, assets, event_queue);
                 editor->load_mapset(event.map_directory);
-            }
-            break;
+            } break;
             case EventType::PlayMap: {
                 auto& event = std::get<Event::PlayMap>(event_union);
                 context_stack.push_back(Context::Game);
@@ -173,8 +182,7 @@ int run() {
                     audio.load_music(music_file.value().string().data());
                 }
                 game = std::make_unique<Game>(systems, game::InitConfig{}, map);
-            }
-            break;
+            } break;
             case EventType::Return:
                 switch (context_stack.back()) {
                 case Context::Editor:
@@ -191,28 +199,68 @@ int run() {
             }
         }
 
+
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
+        SDL_RenderClear(renderer);
+
         switch (context_stack.back()) {
         case Context::Menu:
-            menu->update();
-            break;
-        case Context::Editor:
-            editor->update(delta_time);
+            menu->update(delta_time.count());
             break;
         case Context::Game:
             game->update(delta_time);
             break;
+        case Context::Editor:
+            editor->update(delta_time);
+            break;
+        case Context::UI_Test:
+            ui_test.update(delta_time.count());
+            break;
         }
+
+        auto frame_time_string = std::format("{:.3f} ms", std::chrono::duration<double,std::milli>(last_frame_duration).count());
+
+        auto st = Style{};
+        st.text_color = color::white;
+        st.position = Position::Anchor{{1, 1}};
+        // st.padding = Padding{10,10,10,10};
+        frame_time_ui.begin_group(st);
+        frame_time_ui.text(frame_time_string.data(), st);
+        frame_time_ui.end_group();
+        frame_time_ui.end_frame();
+
+        frame_time_ui.draw(renderer);
+
+        // if (input.key_down(SDL_SCANCODE_F)) {
+        //     std::cout << std::format("{}\n", frame_time_string);
+        // }
+
+        {
+            SDL_RenderPresent(renderer);
+            ZoneNamedN(v, "Render Present", true);
+        }
+
+
+        // case Context::Editor:
+        //   editor->update(delta_time);
+        //   break;
+        // case Context::Game:
+        //   game->update(delta_time);
+        //   break;
+
+        last_frame_duration = std::chrono::high_resolution_clock::now() - frame_start;
 
         input.end_frame();
 
         FrameMark;
     }
 
-
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
 
     SDL_Quit();
+
+    return 0;
 }
 
-}
+} // namespace app

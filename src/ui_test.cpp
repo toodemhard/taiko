@@ -1,66 +1,77 @@
 #include <iostream>
 
 #include "ui_test.h"
+#include "SDL3/SDL_mouse.h"
 #include "SDL3/SDL_scancode.h"
 #include "constants.h"
 #include "ui.h"
 
+
 UI_Test::UI_Test(Input& input) : 
     m_input{ input } {}
 
-void UI_Test::update() {
-    if (m_input.key_down(SDL_SCANCODE_LEFT) && m_selected > 0) {
-        m_selected--;
-    }
+float linear_interp(float v1, float v2, float t) {
+    return v1 + (v2 - v1) * t;
+}
 
-    if (m_input.key_down(SDL_SCANCODE_RIGHT) && m_selected < elements.size() - 1) {
-        m_selected++;
-    }
+void UI_Test::update(double delta_time) {
+    m_ui.input(m_input);
 
     auto st = Style{};
-    st.position = Position::Anchor{ 0.5, 0 };
-    st.padding = {25, 25, 25, 25};
-    st.gap = 50;
+    // // st.position = Position::Anchor{0, 0.5};
+    // st.position = Position::Absolute{0, 500};
+    // st.stack_direction = StackDirection::Vertical;
+    //
+    // m_ui.begin_group(st);
+    // st = {};
+    // m_ui.begin_group(st);
+    // m_ui.text("resolution", {});
+    // m_ui.drop_down_menu(m_selected_resolution_index, m_resolutions, m_resolution_dropdown, [&](int new_selected){
+    //     m_selected_resolution_index = new_selected;
+    // });
+    // m_ui.end_group();
+    // m_ui.text("asdlfkjh asdkfh djsafh dalhjsfk jl", {});
+    //
+    // m_ui.end_group();
+    //
+    //
+    // m_ui.begin_group({.position{Position::Anchor{0.5,0.5}}});
+    // m_ui.text("kasfd", {});
+    // st = {};
+    // st.position = Position::Absolute{500, 500};
+    // m_ui.text("fucked off", {});
+    // m_ui.text("kasfd", {});
+    //
+    // m_ui.end_group();
 
-    m_ui.begin_group(st);
-        st = {};
-        st.background_color = RGBA{25, 65, 120, 255};
-        st.padding = {25, 25, 25, 25};
-        m_ui.text_rect({"Thing 1"}, st);
-        m_ui.text_rect({"Thing 2"}, st);
-        m_ui.text_rect({"Thing 3"}, st);
-        m_ui.text_rect({"Thing 4"}, st);
+
+    auto inactive_st = Style{};
+    inactive_st.text_color = color::white;
+    // inactive_st.text_color = RGBA{160, 160, 160, 255};
+
+
+    auto anim_st = AnimStyle{
+        color::red,
+        RGBA{255, 255, 255, 255}
+    };
+
+    m_ui.begin_group({.position = Position::Anchor{0.5, 0.5}});
+    // m_ui.begin_group_button_anim(&m_button, inactive_st, anim_st, [](ClickInfo info){});
+    // m_ui.text("ASkjahsdjkhflkashjfJKHASashdkjHDASKLDJHS", {.text_color = Inherit{}});
+    // m_ui.end_group();
+
+    m_ui.button_anim("BUTTON", &m_other_button, inactive_st, anim_st, [](){});
+
     m_ui.end_group();
-    
+    // m_ui.button("THING", {}, [&](ClickInfo info) {
+    //     
+    //     });
+    // m_ui.button("NOTHING", {}, [&](ClickInfo info) {
+    //
+    //         });
 
-    st = Style{};
 
-    float gap{0};
-    float item_width{150};
-    float item_height{400};
-    auto start_pos = Vec2 { (constants::window_width - item_width) / 2.0f, (constants::window_height - item_height) / 2.0f};
-
-    for(int i = 0; i < elements.size(); i++) {
-        auto index_offset = m_selected - i;
-        st = {};
-        auto offset = index_offset * Vec2{ item_width + gap, 0};
-        st.position = Position::Absolute{ start_pos - offset };
-        st.border_color = color::white;
-        st.width = Scale::Fixed{item_width};
-        st.height = Scale::Fixed{item_height};
-
-        if (m_selected == i) {
-            st.background_color = color::red;
-        }
-
-        m_ui.begin_group(st);
-
-        m_ui.text_rect({elements[i]}, {});
-
-        m_ui.end_group();
-    }
-
-    m_ui.input(m_input);
+    m_ui.end_frame();
 }
 
 void UI_Test::render(SDL_Renderer* renderer) {

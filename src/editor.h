@@ -19,7 +19,6 @@ enum class EditorView {
 
 class Editor {
 public:
-    Editor() = default;
     Editor(SDL_Renderer* _renderer, Input& _input, Audio& _audio, AssetLoader& _assets, EventQueue& _event_queue);
     ~Editor();
     void update(std::chrono::duration<double> delta_time);
