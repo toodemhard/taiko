@@ -52,7 +52,7 @@ class MainMenu {
     float m_scroll_pos{};
 
     // maps
-    std::vector<MapMeta> m_maps;
+    std::vector<MapMeta> m_mapmetas;
     std::vector<int> m_parent_mapset;
 
     // mapsets

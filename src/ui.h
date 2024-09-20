@@ -85,6 +85,12 @@ struct Inherit {};
 
 using TextColor = std::variant<RGBA, Inherit>;
 
+enum class TextAlign {
+    Left,
+    Right,
+    Center,
+};
+
 struct Style {
     Position::Variant position;
     RGBA background_color;
@@ -103,6 +109,7 @@ struct Style {
     // text style
     float font_size = 36;
     TextColor text_color = color::white;
+
 };
 
 struct AnimState {
@@ -282,8 +289,8 @@ class UI {
     StringCache strings{};
 
   private:
-    int screen_width = 0;
-    int screen_height = 0;
+    int m_screen_width = 0;
+    int m_screen_height = 0;
 
     std::vector<Rect> m_rects;
 
@@ -298,22 +305,22 @@ class UI {
 
     std::vector<TextFieldInputRect> m_text_field_inputs;
 
-    std::vector<std::function<void()>> on_release_callbacks;
+    std::vector<OnClick> m_on_click_callbacks;
 
-    std::vector<OnClick> on_click_callbacks;
 
     //slider callbacks
-    std::vector<std::function<void()>> user_callbacks; // slider on_click and on_release
+    std::vector<std::function<void()>> m_slider_user_callbacks; // slider on_click and on_release
     std::vector<std::function<void(float)>> m_slider_on_held_callbacks;
+    std::vector<std::function<void()>> m_slider_on_release_callbacks;
 
     //dropdown callbacks
-    std::vector<std::function<void(int)>> dropdown_on_select_callbacks; 
+    std::vector<std::function<void(int)>> m_dropdown_on_select_callbacks; 
 
     std::vector<const char*> m_options;
-    std::optional<DropDownOverlay> post_overlay;
-    std::vector<DropDown*> dropdown_clickoff_callbacks;
+    std::optional<DropDownOverlay> m_post_overlay;
+    std::vector<DropDown*> m_dropdown_clickoff_callbacks;
 
-    std::vector<int> group_stack;
+    std::vector<int> m_group_stack;
 
     void begin_group_any(const Group& group);
     Vec2& element_scale(ElementHandle e);

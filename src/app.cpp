@@ -151,7 +151,7 @@ int run() {
             switch (event_union.index()) {
             case EventType::TestMap:
                 game =
-                    std::make_unique<Game>(systems, game::InitConfig{false, true}, editor->m_map);
+                    std::make_unique<Game>(systems, game::InitConfig{false, true}, std::move(editor->copy_map()));
                 context_stack.push_back(Context::Game);
                 break;
             case EventType::QuitTest:

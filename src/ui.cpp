@@ -27,7 +27,7 @@ void StringCache::clear() {
 }
 
 UI::UI(int _screen_width, int _screen_height)
-    : screen_width{_screen_width}, screen_height{_screen_height} {}
+    : m_screen_width{_screen_width}, m_screen_height{_screen_height} {}
 
 Vec2& UI::element_scale(ElementHandle e) {
     switch (e.type) {
@@ -52,32 +52,36 @@ void UI::begin_group(const Style& style) {
 
     m_groups.push_back(Group{(int)m_rects.size() - 1, style});
 
-    if (group_stack.size() > 0) {
-        auto& parent_group = m_groups[group_stack.back()];
+    if (m_group_stack.size() > 0) {
+        auto& parent_group = m_groups[m_group_stack.back()];
         parent_group.children.push_back({ElementType::group, (int)m_groups.size() - 1});
     }
 
-    group_stack.push_back(m_groups.size() - 1);
+    m_group_stack.push_back(m_groups.size() - 1);
 }
 
 void UI::begin_group_any(const Group& group) {
     m_groups.push_back(group);
 
-    if (group_stack.size() > 0) {
-        auto& parent_group = m_groups[group_stack.back()];
+    if (m_group_stack.size() > 0) {
+        auto& parent_group = m_groups[m_group_stack.back()];
         parent_group.children.push_back({ElementType::group, (int)m_groups.size() - 1});
     }
 
-    group_stack.push_back(m_groups.size() - 1);
+    m_group_stack.push_back(m_groups.size() - 1);
 }
 
 void UI::begin_group_button(const Style& style, OnClick&& on_click) {
     ZoneScoped;
 
-    on_click_callbacks.push_back(std::move(on_click));
+    if (!on_click) {
+        DEV_PANIC("empty on_click std::function passed\n");
+    }
+
+    m_on_click_callbacks.push_back(std::move(on_click));
     auto group = Group{};
     group.style = style;
-    group.on_click_index = on_click_callbacks.size() - 1;
+    group.on_click_index = m_on_click_callbacks.size() - 1;
 
     this->begin_group_any(group);
 }
@@ -107,7 +111,7 @@ RectID UI::button_anim(const char* text, AnimState* anim_state, const Style& sty
 
     this->begin_group_button_anim(anim_state, style, anim_style, std::move(on_click));
 
-    auto& parent_group = m_groups[group_stack.back()];
+    auto& parent_group = m_groups[m_group_stack.back()];
 
     RGBA text_color = *std::get_if<RGBA>(&parent_group.style.text_color);
 
@@ -150,11 +154,11 @@ void UI::begin_group_button_anim(AnimState* anim_state, Style style, const AnimS
     );
     style.background_color = lerp_rgba(style.background_color, anim_style.alt_background_color, anim_state->mix);
 
-    on_click_callbacks.push_back(std::move(on_click));
+    m_on_click_callbacks.push_back(std::move(on_click));
 
     auto group = Group{};
     group.style = style;
-    group.on_click_index = on_click_callbacks.size() - 1;
+    group.on_click_index = m_on_click_callbacks.size() - 1;
 
     group.anim_state = anim_state;
 
@@ -168,8 +172,8 @@ Rect UI::query_rect(RectID id) {
 RectID UI::end_group() {
     ZoneScoped;
 
-    Group& group = m_groups[group_stack.back()];
-    group_stack.pop_back();
+    Group& group = m_groups[m_group_stack.back()];
+    m_group_stack.pop_back();
 
     auto length_axis = [](StackDirection stack_direction) -> float (*)(const Vec2&) {
         switch (stack_direction) {
@@ -252,14 +256,14 @@ RectID UI::end_group() {
 
     group.rect_index = (int)m_rects.size() - 1;
 
-    if (group_stack.empty()) {
+    if (m_group_stack.empty()) {
 
         Vec2 start_pos = std::visit(
             overloaded{
                 [=, this](Position::Anchor anchor) {
                     return Vec2{
-                        (screen_width - (width + x_padding)) * anchor.position.x,
-                        (screen_height - (height + y_padding)) * anchor.position.y
+                        (m_screen_width - (width + x_padding)) * anchor.position.x,
+                        (m_screen_height - (height + y_padding)) * anchor.position.y
                     };
                 },
                 [](Position::Absolute absolute) { return absolute.position; },
@@ -326,24 +330,24 @@ void UI::input(Input& input) {
     ZoneScoped;
 
     if (input.mouse_up(SDL_BUTTON_LMASK)) {
-        for (auto& callback : on_release_callbacks) {
+        for (auto& callback : m_slider_on_release_callbacks) {
             callback();
         }
     }
 
-    on_release_callbacks.clear();
+    m_slider_on_release_callbacks.clear();
 
     for (auto& e : m_click_rects) {
         if (input.mouse_down(SDL_BUTTON_LEFT) &&
             rect_point_intersect(input.mouse_pos, e.position, e.scale)) {
             auto info = ClickInfo{input.mouse_pos - e.position, e.scale};
 
-            on_click_callbacks[e.on_click_index]();
+            m_on_click_callbacks[e.on_click_index]();
         }
     }
     m_click_rects.clear();
-    on_click_callbacks.clear();
-    dropdown_on_select_callbacks.clear();
+    m_on_click_callbacks.clear();
+    m_dropdown_on_select_callbacks.clear();
 
     for (auto& e : m_hover_rects) {
         if (rect_point_intersect(input.mouse_pos, e.position, e.scale)) {
@@ -360,10 +364,10 @@ void UI::input(Input& input) {
     m_slider_input_rects.clear();
     m_slider_on_held_callbacks.clear();
 
-    for (auto& callback : user_callbacks) {
+    for (auto& callback : m_slider_user_callbacks) {
         callback();
     }
-    user_callbacks.clear();
+    m_slider_user_callbacks.clear();
 
 
     // for (auto& state : dropdown_clickoff_callbacks) {
@@ -416,7 +420,7 @@ void UI::input(Input& input) {
 }
 
 void UI::end_frame() {
-    if (group_stack.size() > 0) {
+    if (m_group_stack.size() > 0) {
         DEV_PANIC("UI::begin_group() not closed")
     }
     m_end_frame_called = true;
@@ -425,8 +429,8 @@ void UI::end_frame() {
     active_st.background_color = color::white;
     active_st.text_color = color::black;
 
-    if (post_overlay.has_value()) {
-        auto& overlay = post_overlay.value();
+    if (m_post_overlay.has_value()) {
+        auto& overlay = m_post_overlay.value();
 
         auto& hook = m_rects[overlay.rect_hook_index];
         auto g_st = Style{};
@@ -443,13 +447,13 @@ void UI::end_frame() {
                 options[i],
                 st,
                 [this, i, on_click_index = overlay.on_click_index]() {
-                    dropdown_on_select_callbacks[on_click_index](i);
+                    m_dropdown_on_select_callbacks[on_click_index](i);
                 }
             );
         }
         this->end_group();
 
-        post_overlay = std::nullopt;
+        m_post_overlay = std::nullopt;
     }
 }
 
@@ -476,7 +480,7 @@ void UI::text_field(TextFieldState* state, Style style) {
 RectID UI::text(const char* text, const Style& style) {
     ZoneScoped;
 
-    auto& parent_group = m_groups[group_stack.back()];
+    auto& parent_group = m_groups[m_group_stack.back()];
     RGBA text_color = std::visit(
         overloaded{
             [](RGBA color) { return color; },
@@ -486,7 +490,7 @@ RectID UI::text(const char* text, const Style& style) {
     );
 
     this->begin_group(style);
-    auto& text_group = m_groups[group_stack.back()];
+    auto& text_group = m_groups[m_group_stack.back()];
 
     m_texts.push_back(Text{
         {},
@@ -509,10 +513,10 @@ void UI::slider(Slider& state, SliderStyle style, float fraction, SliderCallback
     container.border_color = color::white;
 
     if (state.held) {
-        on_release_callbacks.push_back([&, on_release = std::move(callbacks.on_release)]() {
+        m_slider_on_release_callbacks.push_back([&, on_release = std::move(callbacks.on_release)]() {
             state.held = false;
             if (on_release.has_value()) {
-                user_callbacks.push_back(std::move(on_release.value()));
+                m_slider_user_callbacks.push_back(std::move(on_release.value()));
             }
         });
     }
@@ -521,14 +525,14 @@ void UI::slider(Slider& state, SliderStyle style, float fraction, SliderCallback
     auto group = Group{};
     group.style = container;
 
-    on_click_callbacks.push_back([&, onclick = std::move(callbacks.on_click)]() {
+    m_on_click_callbacks.push_back([&, onclick = std::move(callbacks.on_click)]() {
         state.held = true;
         if (onclick.has_value()) {
-            user_callbacks.push_back(std::move(onclick.value()));
+            m_slider_user_callbacks.push_back(std::move(onclick.value()));
         }
     });
 
-    group.on_click_index = on_click_callbacks.size() - 1;
+    group.on_click_index = m_on_click_callbacks.size() - 1;
 
     if (state.held) {
         m_slider_on_held_callbacks.push_back(std::move(callbacks.on_input));
@@ -573,8 +577,8 @@ void UI::drop_down_menu(
     st.stack_direction = StackDirection::Vertical;
 
     auto group = Group{};
-    on_click_callbacks.push_back([&]() { state.clicked_last_frame = true; });
-    group.on_click_index = on_click_callbacks.size() - 1;
+    m_on_click_callbacks.push_back([&]() { state.clicked_last_frame = true; });
+    group.on_click_index = m_on_click_callbacks.size() - 1;
     group.style = st;
 
     this->begin_group_any(group);
@@ -586,12 +590,12 @@ void UI::drop_down_menu(
         state.clicked_last_frame = true;
     });
 
-    dropdown_on_select_callbacks.push_back(std::move(on_input));
+    m_dropdown_on_select_callbacks.push_back(std::move(on_input));
 
     if (state.menu_dropped) {
-        post_overlay = DropDownOverlay{
+        m_post_overlay = DropDownOverlay{
             ref,
-            (int)dropdown_on_select_callbacks.size() - 1,
+            (int)m_dropdown_on_select_callbacks.size() - 1,
             selected_opt_index,
             &options,
         };
@@ -605,7 +609,7 @@ RectID UI::button(const char* text, Style style, OnClick&& on_click) {
 
     this->begin_group_button(style, std::move(on_click));
 
-    auto& parent_group = m_groups[group_stack.back()];
+    auto& parent_group = m_groups[m_group_stack.back()];
 
     RGBA text_color = std::visit(
         overloaded{

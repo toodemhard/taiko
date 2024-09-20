@@ -152,7 +152,8 @@ void Game::update(std::chrono::duration<double> delta_time) {
 
 
     if (!m_end_screen) {
-        if (elapsed >= m_map.times.back() + end_screen_delay.count()) {
+        double last_note_time = (m_map.times.size() == 0) ? 0 : m_map.times.back();
+        if (elapsed >= last_note_time + end_screen_delay.count()) {
             m_end_screen = true;
         }
 

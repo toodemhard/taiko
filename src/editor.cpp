@@ -2,6 +2,7 @@
 #include <tracy/Tracy.hpp>
 
 #include "editor.h"
+#include "map.h"
 #include "serialize.h"
 #include "color.h"
 #include "game.h"
@@ -10,6 +11,24 @@
 #include "ui.h"
 
 using namespace constants;
+
+
+Map Editor::copy_map() {
+    return m_map;
+}
+
+void insert_note(Map& map, std::vector<bool>& selected, double time, NoteFlags flags) {
+    int i = std::upper_bound(map.times.begin(), map.times.end(), time) - map.times.begin();
+    map.times.insert(map.times.begin() + i, time);
+    map.flags_list.insert(map.flags_list.begin() + i, flags);
+    selected.insert(selected.begin() + i, false);
+}
+
+void remove_note(Map& map, std::vector<bool>& selected, int i) {
+    map.times.erase(map.times.begin() + i);
+    map.flags_list.erase(map.flags_list.begin() + i);
+    selected.erase(selected.begin() + i);
+}
 
 std::vector<int> note_box_intersection(const Map& map, Vec2 start_pos, Vec2 end_pos) {
     if (end_pos.x < start_pos.x) {
@@ -36,7 +55,7 @@ std::vector<int> note_box_intersection(const Map& map, Vec2 start_pos, Vec2 end_
     return hits;
 }
 
-void draw_map_editor(SDL_Renderer* renderer, AssetLoader& assets, const Map& map, const Cam& cam, int current_note) {
+void draw_map_editor(SDL_Renderer* renderer, AssetLoader& assets, const Map& map, const std::vector<bool>& selected, const Cam& cam, int current_note) {
     ZoneScoped;
 
     if (map.times.size() == 0) {
@@ -89,7 +108,7 @@ void draw_map_editor(SDL_Renderer* renderer, AssetLoader& assets, const Map& map
         //draw_wire_box(hitbox_pos, hitbox_bounds, RED);
 
 
-        if (map.selected[i]) {
+        if (selected[i]) {
             SDL_FRect rect = {
                 center_pos.x - select_circle.width / 2.0f * scale,
                 center_pos.y - select_circle.height / 2.0f * scale,
@@ -144,6 +163,7 @@ void Editor::load_mapset(std::filesystem::path& mapset_directory) {
     m_mapset_directory = mapset_directory;
 
     load_binary(mapset_info, (m_mapset_directory / mapset_filename));
+    m_selected = std::vector<bool>(m_map.times.size(), false);
 
     auto music_file = find_music_file(mapset_directory);
 
@@ -164,6 +184,7 @@ void Editor::load_map(int map_index) {
     m_current_map_index = map_index;
 
     load_binary(m_map, m_map_paths[map_index]);
+    m_selected = std::vector<bool>(m_map.times.size(), false);
 
     audio.set_position(0);
 }
@@ -184,7 +205,7 @@ void Editor::refresh_maps() {
             m_map_paths.push_back(entry.path());
 
             m_map_infos.push_back({});
-            load_binary(m_map_infos.back(), entry.path());
+            partial_load_map_metadata(m_map_infos.back(), entry.path());
         }
     }
 }
@@ -374,7 +395,7 @@ void Editor::update(std::chrono::duration<double> delta_time) {
                 }
             }();
 
-            ui.begin_group_button({}, {});
+            ui.begin_group({});
 
             ui.button(diff.difficulty_name.data(), entry_style, [&, i]() {
                 this->load_map(i);
@@ -389,7 +410,11 @@ void Editor::update(std::chrono::duration<double> delta_time) {
 
         ui.end_group();
 
-        auto func = [&]() {
+        auto button_style = Style{};
+        button_style.background_color = { 255, 255, 255, 255 };
+        button_style.text_color = RGBA{ 0, 0, 0, 255 };
+        button_style.padding = even_padding(10);
+        ui.button("Add Difficulty", button_style, [&]() {
             int duplicate_number = 0;
             auto unique_file_name = std::string("new difficulty");
 
@@ -406,13 +431,7 @@ void Editor::update(std::chrono::duration<double> delta_time) {
             save_binary(m_map, m_mapset_directory / (unique_file_name + map_file_extension));
 
             refresh_maps();
-        };
-
-        auto button_style = Style{};
-        button_style.background_color = { 255, 255, 255, 255 };
-        button_style.text_color = RGBA{ 0, 0, 0, 255 };
-        button_style.padding = even_padding(10);
-        ui.button("Add Difficulty", button_style, func);
+        });
 
 
         ui.end_group();
@@ -466,11 +485,6 @@ void Editor::update(std::chrono::duration<double> delta_time) {
     ui.end_frame();
 
     ui.draw(renderer);
-
-    // {
-    //     ZoneNamedN(jksfdgjh, "Render Present", true);
-    //     SDL_RenderPresent(renderer);
-    // }
 }
 
 void set_draw_color(SDL_Renderer* renderer, RGBA color) {
@@ -537,17 +551,17 @@ void Editor::main_update() {
         event_queue.push_event(Event::Return{});
     }
 
-    std::optional<int> to_select = note_point_intersection(m_map, cursor_pos, current_note);
-    if (input.mouse_down(SDL_BUTTON_RMASK) && to_select.has_value()) {
-        if (m_map.selected[to_select.value()]) {
-            for (int i = m_map.selected.size() - 1; i >= 0; i--) {
-                if (m_map.selected[i]) {
-                    m_map.remove_note(i);
+    std::optional<int> note_at_cursor_index = note_point_intersection(m_map, cursor_pos, current_note);
+    if (input.mouse_down(SDL_BUTTON_RMASK) && note_at_cursor_index.has_value()) {
+        if (m_selected[note_at_cursor_index.value()]) {
+            for (int i = m_selected.size() - 1; i >= 0; i--) {
+                if (m_selected[i]) {
+                    remove_note(m_map, m_selected, i);
                 }
             }
         }
         else {
-            m_map.remove_note(to_select.value());
+            remove_note(m_map, m_selected, note_at_cursor_index.value());
         }
     }
 
@@ -556,7 +570,7 @@ void Editor::main_update() {
     }
 
     if (input.key_down(SDL_SCANCODE_A) && input.modifier(SDL_KMOD_LCTRL)) {
-        std::fill(m_map.selected.begin(), m_map.selected.end(), true);
+        std::fill(m_selected.begin(), m_selected.end(), true);
     }
 
     float seek = 0;
@@ -597,8 +611,8 @@ void Editor::main_update() {
     switch (editor_mode) {
     case EditorMode::select:
         if (!ui.clicked && input.mouse_down(SDL_BUTTON_LMASK)) {
-            if (to_select.has_value()) {
-                m_map.selected[to_select.value()] = !m_map.selected[to_select.value()];
+            if (note_at_cursor_index.has_value()) {
+                m_selected[note_at_cursor_index.value()] = m_selected[note_at_cursor_index.value()];
             } else { 
                 box_select_begin = cursor_pos;
             }
@@ -607,10 +621,10 @@ void Editor::main_update() {
         if (input.mouse_held(SDL_BUTTON_LMASK)) {
             if (box_select_begin.has_value()) {
                 auto hits = note_box_intersection(m_map, box_select_begin.value(), cursor_pos);
-                std::fill(m_map.selected.begin(), m_map.selected.end(), false);
+                std::fill(m_selected.begin(), m_selected.end(), false);
 
                 for (auto& i : hits) {
-                    m_map.selected[i] = true;
+                    m_selected[i] = true;
                 }
             }
 
@@ -637,7 +651,7 @@ void Editor::main_update() {
             }
 
             if (!collision) {
-                m_map.insert_note(time, insert_flags);
+                insert_note(m_map, m_selected, time, insert_flags);
 
                 if (time < elapsed) {
                     current_note++;
@@ -732,7 +746,7 @@ void Editor::main_update() {
     SDL_SetRenderDrawColor(renderer, 255, 255, 0, SDL_ALPHA_OPAQUE);
     SDL_RenderLine(renderer, p1.x, p1.y, p2.x, p2.y);
 
-    draw_map_editor(renderer, assets, m_map, cam, current_note);
+    draw_map_editor(renderer, assets, m_map, m_selected, cam, current_note);
 
     if (box_select_begin.has_value()) {
         Vec2 start_pos = cam.world_to_screen(box_select_begin.value());
@@ -753,7 +767,7 @@ void Editor::main_update() {
 
         SDL_FRect rect = { start_pos.x, start_pos.y, end_pos.x - start_pos.x, end_pos.y - start_pos.y };
 
-        set_draw_color(renderer, { 255, 255, 255, 40 });
+        set_draw_color(renderer, { 255, 255, 255, 255 });
         SDL_RenderRect(renderer, &rect);
     }
 }

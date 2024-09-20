@@ -1,8 +1,15 @@
 #pragma once
 
+#include <cereal/cereal.hpp>
+#include <cereal/archives/binary.hpp>
+#include <cereal/types/vector.hpp>
+#include <cereal/types/string.hpp>
+
+#include <cstdint>
 #include <string>
 #include <vector>
 #include <filesystem>
+#include <fstream>
 #include <optional>
 
 std::optional<std::filesystem::path> find_music_file(std::filesystem::path mapset_directory);
@@ -19,35 +26,34 @@ struct MapSetInfo {
     std::string artist;
 
     template<class Archive>
-    void save(Archive& ar) const {
-        ar(title, artist);
-    }
-
-    template<class Archive>
-    void load(Archive& ar) {
+    void serialize(Archive& ar, const uint32_t version) {
         ar(title, artist);
     }
 };
 
+CEREAL_CLASS_VERSION(MapSetInfo, 0);
+
 struct MapMeta {
     std::string difficulty_name;
-
     double bpm = 160;
     double offset = 0;
 
     template<class Archive>
-    void save(Archive& ar) const {
-        ar(difficulty_name, bpm, offset);
-    }
-
-    template<class Archive>
-    void load(Archive& ar) {
+    void serialize(Archive& ar, const uint32_t version) {
         ar(difficulty_name, bpm, offset);
     }
 };
 
-class Map {
-public:
+CEREAL_CLASS_VERSION(MapMeta, 0);
+
+inline void partial_load_map_metadata(MapMeta& object, std::filesystem::path path) {
+    std::ifstream file(path, std::ios::binary);
+    file.seekg(sizeof(uint32_t)); // skip the version number of Map
+    cereal::BinaryInputArchive ar(file);
+    ar(object);
+}
+
+struct Map {
     Map() = default;
     Map(MapMeta meta_data);
 
@@ -55,20 +61,11 @@ public:
     
     std::vector<double> times{};
     std::vector<NoteFlags> flags_list{};
-    std::vector<bool> selected{};
-
-    void insert_note(double time, NoteFlags flags);
-    void remove_note(int i);
 
     template<class Archive>
-    void save(Archive& ar) const {
+    void serialize(Archive& ar, const uint32_t version) {
         ar(m_meta_data, times, flags_list);
-    }
-
-    template<class Archive>
-    void load(Archive& ar) {
-        ar(m_meta_data, times, flags_list);
-
-        selected = std::vector<bool>(times.size(), false);
     }
 };
+
+CEREAL_CLASS_VERSION(Map, 0);
