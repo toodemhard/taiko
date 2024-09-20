@@ -1,6 +1,6 @@
 #pragma once
 
-#include "systems.h"
+// #include "systems.h"
 #include "map.h"
 #include "ui.h"
 #include "constants.h"
@@ -25,10 +25,10 @@ public:
     void load_mapset(std::filesystem::path& map_path);
     void refresh_maps();
     void quit();
+    Map copy_map();
 
     int load_song(const char* file_path);
 
-    Map m_map{};
 
     double last_pos{};
 
@@ -46,9 +46,11 @@ private:
 
     MapSetInfo mapset_info{};
 
+    Map m_map{};
+    std::vector<bool> m_selected{};
+
     EditorView view = EditorView::Main;
     EditorMode editor_mode = EditorMode::select;
-    std::vector<int> selected;
     std::optional<Vec2> box_select_begin;
     NoteFlags insert_flags = NoteFlagBits::don_or_kat | NoteFlagBits::normal_or_big;
 

@@ -2,6 +2,7 @@
 
 #include "SDL3/SDL_scancode.h"
 #include "SDL3_mixer/SDL_mixer.h"
+#include "map.h"
 #include "serialize.h"
 #include "ui.h"
 
@@ -19,7 +20,7 @@ MainMenu::MainMenu(
 }
 
 void MainMenu::reload_maps() {
-    m_maps.clear();
+    m_mapmetas.clear();
     m_parent_mapset.clear();
     m_mapsets.clear();
     m_mapset_paths.clear();
@@ -29,14 +30,14 @@ void MainMenu::reload_maps() {
         m_mapsets.push_back({});
         int mapset_index = m_mapsets.size() - 1;
 
-        auto maps_buffer = BufferHandle{(int)m_maps.size()};
+        auto maps_buffer = BufferHandle{(int)m_mapmetas.size()};
 
         load_binary(m_mapsets.back(), mapset.path() / mapset_filename);
 
         for (const auto& entry : std::filesystem::directory_iterator(mapset.path())) {
             if (entry.path().extension().string().compare(map_file_extension) == 0) {
-                m_maps.push_back({});
-                load_binary(m_maps.back(), entry.path());
+                m_mapmetas.push_back({});
+                partial_load_map_metadata(m_mapmetas.back(), entry.path());
                 m_parent_mapset.push_back(mapset_index);
 
                 maps_buffer.count++;
@@ -186,7 +187,7 @@ void MainMenu::update(double delta_time) {
             m_choosing_mapset_index = {};
         }
         if (input.key_down(SDL_SCANCODE_RETURN)) {
-            auto& map = m_maps[map_buffer.index + m_selected_diff_index];
+            auto& map = m_mapmetas[map_buffer.index + m_selected_diff_index];
             event_queue.push_event(
                 Event::PlayMap{m_mapset_paths[mapset_index], (map.difficulty_name + map_file_extension)}
             );
@@ -207,7 +208,7 @@ void MainMenu::update(double delta_time) {
             }
 
             m_ui.button_anim(
-                m_maps[map_buffer.index + i].difficulty_name.data(),
+                m_mapmetas[map_buffer.index + i].difficulty_name.data(),
                 &m_diff_buttons[i],
                 diff_st,
                 anim_style,
@@ -279,6 +280,19 @@ void MainMenu::update(double delta_time) {
             if (input.key_down(SDL_SCANCODE_RETURN)) {
                 event_queue.push_event(Event::EditMap{m_mapset_paths[m_selected_mapset_index], {}});
             }
+
+
+            auto st = Style{};
+            st.position = Position::Anchor{1, 0.5};
+            m_ui.begin_group(st);
+
+            m_ui.button("New Map", {}, [&]() {
+                event_queue.push_event(Event::EditNewMap{});
+            });
+
+            m_ui.end_group();
+
+            
             // enter_mapset = [&]() {
             //
             // };
