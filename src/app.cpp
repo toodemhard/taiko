@@ -52,6 +52,8 @@ int run() {
     Input input{};
     Audio audio{};
 
+    Mix_AllocateChannels(32);
+
     Mix_MasterVolume(MIX_MAX_VOLUME * 0.3);
     Mix_VolumeMusic(MIX_MAX_VOLUME * 0.2);
 
