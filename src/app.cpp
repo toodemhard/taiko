@@ -23,6 +23,7 @@ using namespace constants;
 void create_dirs() {
     ZoneScoped;
     std::filesystem::create_directory(maps_directory);
+    std::filesystem::create_directory("temp");
 }
 
 namespace app {
