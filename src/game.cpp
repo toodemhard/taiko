@@ -54,8 +54,8 @@ void Game::draw_map() {
 
         Vec2 center_pos = cam.world_to_screen({ (float)m_map.times[i], 0 });
 
-        float scale = (m_map.flags_list[i] & NoteFlagBits::normal_or_big) ? 0.9f : 1.4f;
-        Image circle_image = (m_map.flags_list[i] & NoteFlagBits::don_or_kat) ? assets.get_image(ImageID::don_circle) : assets.get_image(ImageID::kat_circle);
+        float scale = (m_map.flags_list[i] & NoteFlagBits::small) ? 0.9f : 1.4f;
+        Image circle_image = (m_map.flags_list[i] & NoteFlagBits::don) ? assets.get_image(ImageID::don_circle) : assets.get_image(ImageID::kat_circle);
         Image circle_overlay = assets.get_image(ImageID::circle_overlay);
         Image select_circle = assets.get_image(ImageID::select_circle);
 
@@ -73,8 +73,8 @@ void Game::draw_map() {
 }
 
 void draw_note(SDL_Renderer* renderer, AssetLoader& assets, const NoteFlags& note_type, const Vec2& center_point) {
-        float scale = (note_type & NoteFlagBits::normal_or_big) ? 0.9f : 1.4f;
-        Image circle_image = (note_type & NoteFlagBits::don_or_kat) ? assets.get_image(ImageID::don_circle) : assets.get_image(ImageID::kat_circle);
+        float scale = (note_type & NoteFlagBits::small) ? 0.9f : 1.4f;
+        Image circle_image = (note_type & NoteFlagBits::don) ? assets.get_image(ImageID::don_circle) : assets.get_image(ImageID::kat_circle);
         Image circle_overlay = assets.get_image(ImageID::circle_overlay);
         Image select_circle = assets.get_image(ImageID::select_circle);
 
@@ -162,7 +162,7 @@ void Game::update(std::chrono::duration<double> delta_time) {
         if (m_auto_mode) {
             if (current_note_index < m_map.times.size()) {
                 if (elapsed >= m_map.times[current_note_index]) {
-                    if (m_map.flags_list[current_note_index] & NoteFlagBits::don_or_kat) {
+                    if (m_map.flags_list[current_note_index] & NoteFlagBits::don) {
                         input_history.push_back(InputRecord{ DrumInput::don_left, elapsed });
                         inputs.push_back(DrumInput::don_left);
                     }
@@ -216,7 +216,7 @@ void Game::update(std::chrono::duration<double> delta_time) {
             for (const auto& thing : inputs) {
                 auto error_duration = elapsed - m_map.times[current_note_index];
                 if (std::abs(error_duration) <= ok_range.count() / 2) {
-                    auto actual_type = (uint8_t)(m_map.flags_list[current_note_index] & NoteFlagBits::don_or_kat);
+                    auto actual_type = (uint8_t)(m_map.flags_list[current_note_index] & NoteFlagBits::don);
                     auto input_type = (uint8_t)(thing & DrumInputFlagBits::don_kat);
                     if (actual_type == input_type) {
                         note_alive_list[current_note_index] = false;

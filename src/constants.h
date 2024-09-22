@@ -7,6 +7,7 @@ namespace constants {
 
     const inline std::filesystem::path maps_directory{ "data/maps/" };
     constexpr const char* map_file_extension = ".tko";
+    constexpr const char* osu_file_extension = ".osu";
     constexpr const char* mapset_filename = "mapset";
     constexpr int window_width = 1920;
     constexpr int window_height = 1080;

@@ -1,3 +1,4 @@
+#include <cmath>
 #include <iostream>
 #include <tracy/Tracy.hpp>
 
@@ -87,8 +88,8 @@ void draw_map_editor(SDL_Renderer* renderer, AssetLoader& assets, const Map& map
     for(int i = right; i >= left; i--) {
         Vec2 center_pos = cam.world_to_screen({(float)map.times[i], 0});
 
-        float scale = (map.flags_list[i] & NoteFlagBits::normal_or_big) ? 0.9f : 1.4f;
-        Image circle_image = (map.flags_list[i] & NoteFlagBits::don_or_kat) ? assets.get_image(ImageID::don_circle) : assets.get_image(ImageID::kat_circle);
+        float scale = (map.flags_list[i] & NoteFlagBits::small) ? 0.9f : 1.4f;
+        Image circle_image = (map.flags_list[i] & NoteFlagBits::don) ? assets.get_image(ImageID::don_circle) : assets.get_image(ImageID::kat_circle);
         Image circle_overlay = assets.get_image(ImageID::circle_overlay);
         Image select_circle = assets.get_image(ImageID::select_circle);
 
@@ -502,9 +503,9 @@ void Editor::main_update() {
     style.stack_direction = StackDirection::Vertical;
 
     ui.begin_group(style); {
-        const char* note_color_text = (insert_flags & NoteFlagBits::don_or_kat) ? "Don" : "Kat";
+        const char* note_color_text = (insert_flags & NoteFlagBits::don) ? "Don" : "Kat";
 
-        const char* note_size_text = (insert_flags & NoteFlagBits::normal_or_big) ? "Normal" : "Big";
+        const char* note_size_text = (insert_flags & NoteFlagBits::small) ? "Normal" : "Big";
 
         const char* editor_mode_text;
         switch (editor_mode) {
@@ -526,11 +527,11 @@ void Editor::main_update() {
         });
 
         ui.button(note_size_text, {}, [&]() {
-            insert_flags = insert_flags ^ NoteFlagBits::normal_or_big;
+            insert_flags = insert_flags ^ NoteFlagBits::small;
         });
 
         ui.button(note_color_text, {}, [&]() {
-            insert_flags = insert_flags ^ NoteFlagBits::don_or_kat;
+            insert_flags = insert_flags ^ NoteFlagBits::don;
         });
     }
     ui.end_group();
@@ -674,11 +675,11 @@ void Editor::main_update() {
     }
 
     if (input.key_down(SDL_SCANCODE_E)) {
-        insert_flags = insert_flags ^ NoteFlagBits::normal_or_big;
+        insert_flags = insert_flags ^ NoteFlagBits::small;
     }
 
     if (input.key_down(SDL_SCANCODE_R)) {
-        insert_flags = insert_flags ^ NoteFlagBits::don_or_kat;
+        insert_flags = insert_flags ^ NoteFlagBits::don;
     }
 
     if (input.key_down(SDL_SCANCODE_SPACE)) {
@@ -692,13 +693,13 @@ void Editor::main_update() {
 
     if (!audio.paused() && current_note < m_map.times.size() && elapsed >= m_map.times[current_note]) {
         switch (m_map.flags_list[current_note]) {
-        case (NoteFlagBits::don_or_kat | NoteFlagBits::normal_or_big):
+        case (NoteFlagBits::don | NoteFlagBits::small):
             Mix_PlayChannel(-1, assets.get_sound(SoundID::don), 0);
             break;
-        case (0 | NoteFlagBits::normal_or_big):
+        case (0 | NoteFlagBits::small):
             Mix_PlayChannel(-1, assets.get_sound(SoundID::kat), 0);
             break;
-        case (NoteFlagBits::don_or_kat | 0):
+        case (NoteFlagBits::don | 0):
             Mix_PlayChannel(-1, assets.get_sound(SoundID::kat), 0);
             break;
         case (0 | 0):

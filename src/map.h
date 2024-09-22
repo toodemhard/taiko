@@ -4,6 +4,7 @@
 #include <cereal/archives/binary.hpp>
 #include <cereal/types/vector.hpp>
 #include <cereal/types/string.hpp>
+#include <elzip.hpp>
 
 #include <cstdint>
 #include <string>
@@ -13,10 +14,13 @@
 #include <optional>
 
 std::optional<std::filesystem::path> find_music_file(std::filesystem::path mapset_directory);
+void load_osz(std::filesystem::path osz_file_path);
 
 enum NoteFlagBits : uint8_t {
-    don_or_kat = 1 << 0,
-    normal_or_big = 1 << 1,
+    kat = 0,
+    don = 1 << 0,
+    big = 0,
+    small = 1 << 1,
 };
 
 using NoteFlags = uint8_t;
@@ -24,6 +28,7 @@ using NoteFlags = uint8_t;
 struct MapSetInfo {
     std::string title;
     std::string artist;
+    double preview_time;
 
     template<class Archive>
     void serialize(Archive& ar, const uint32_t version) {

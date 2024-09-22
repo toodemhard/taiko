@@ -52,7 +52,7 @@ private:
     EditorView view = EditorView::Main;
     EditorMode editor_mode = EditorMode::select;
     std::optional<Vec2> box_select_begin;
-    NoteFlags insert_flags = NoteFlagBits::don_or_kat | NoteFlagBits::normal_or_big;
+    NoteFlags insert_flags = NoteFlagBits::don | NoteFlagBits::small;
 
     std::filesystem::path m_mapset_directory;
     std::vector<MapMeta> m_map_infos;
