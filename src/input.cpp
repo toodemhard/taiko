@@ -1,4 +1,5 @@
 #include <tracy/Tracy.hpp>
+#include <cstring>
 #include "input.h"
 
 void Input::begin_frame() {
