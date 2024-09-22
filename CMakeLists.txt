@@ -2,7 +2,7 @@
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-project (taiko LANGUAGES CXX)
+project (taiko LANGUAGES C CXX)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 include(FetchContent)
@@ -15,7 +15,7 @@ else()
 endif ()
 
 add_subdirectory(lib/tracy EXCLUDE_FROM_ALL)
-
+add_subdirectory(lib/elzip)
 add_subdirectory(lib/sdl3 EXCLUDE_FROM_ALL)
 
 option(SDL3IMAGE_AVIF "Support loading AVIF images" OFF)
@@ -78,7 +78,10 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     lib/cereal/include
 )
 
-target_link_libraries(${PROJECT_NAME} PUBLIC Tracy::TracyClient)
+target_link_libraries(${PROJECT_NAME} PUBLIC 
+    Tracy::TracyClient
+    elzip
+)
 
 target_link_libraries(${PROJECT_NAME} PRIVATE 
     SDL3::SDL3
@@ -86,7 +89,15 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     SDL3_mixer::SDL3_mixer
 )
 
+# target_link_libraries(${PROJECT_NAME} PUBLI elzip)
+
 add_custom_target(copy_assets
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/data ${CMAKE_CURRENT_BINARY_DIR}/data
 )
+
 add_dependencies(${PROJECT_NAME} copy_assets)
+
+add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_RUNTIME_DLLS:${PROJECT_NAME}> $<TARGET_FILE_DIR:${PROJECT_NAME}>
+    COMMAND_EXPAND_LISTS
+)
