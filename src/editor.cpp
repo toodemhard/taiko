@@ -1,5 +1,6 @@
 #include <cmath>
 #include <iostream>
+#include <limits>
 #include <tracy/Tracy.hpp>
 
 #include "editor.h"
@@ -170,6 +171,7 @@ void Editor::load_mapset(std::filesystem::path& mapset_directory) {
 
     if (music_file.has_value()) {
         audio.load_music(music_file.value().string().data());
+        audio.play(std::numeric_limits<int>::max());
     }
 
     m_map_infos.clear();
@@ -271,7 +273,7 @@ void Editor::update(std::chrono::duration<double> delta_time) {
         ui.begin_group(style);
 
         ui.begin_group({});
-        ui.text("title: ", {});
+        ui.text("title: ", {});;
         ui.text_field(&title, { .border_color = {255, 255, 255, 0}, .width = Scale::Min{200} });
         ui.end_group();
 
@@ -537,8 +539,7 @@ void Editor::main_update() {
     ui.end_group();
 
     ui.begin_group(Style{ Position::Anchor{0,1} });
-        std::string time = std::to_string(cam.position.x) + " s";
-        ui.text(time.data(), {});
+        ui.text(ui.strings.add(std::to_string(cam.position.x) + " s"), {});
     //ui.slider(elapsed / GetMusicTimeLength(music), [&](float fraction) {
     //    SeekMusicStream(music, fraction * GetMusicTimeLength(music));
     //});

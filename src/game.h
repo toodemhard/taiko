@@ -111,5 +111,8 @@ private:
 
     bool initialized = false;
 
+    double m_buffer_elapsed{};
+    bool m_audio_started = false;
+
     void draw_map();
 };

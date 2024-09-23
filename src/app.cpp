@@ -4,6 +4,7 @@
 #include <tracy/Tracy.hpp>
 
 #include "app.h"
+#include "SDL3_mixer/SDL_mixer.h"
 #include "constants.h"
 #include "font.h"
 
@@ -11,6 +12,7 @@
 #include "game.h"
 #include "main_menu.h"
 
+#include "map.h"
 #include "systems.h"
 
 #include "assets.h"
@@ -38,6 +40,13 @@ enum class Context {
 int run() {
     create_dirs();
 
+    // try {
+    //     load_osz(std::filesystem::path("1815703 Hiiragi Magnetite - Marshall Maximizer feat. KAFU.osz"));
+    // } catch (std::runtime_error& e) {
+    //     std::cout << e.what();
+    // }
+
+
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) < 0) {
         SDL_Log("SDL_Init failed (%s)", SDL_GetError());
         return 1;
@@ -48,6 +57,7 @@ int run() {
 
     SDL_CreateWindowAndRenderer("taiko", window_width, window_height, 0, &window, &renderer);
     SDL_SetWindowFullscreen(window, true);
+
 
     Input input{};
     Audio audio{};
@@ -202,6 +212,8 @@ int run() {
             }
         }
 
+        if (input.key_down(SDL_SCANCODE_R)) {
+        }
 
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
         SDL_RenderClear(renderer);

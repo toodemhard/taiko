@@ -125,9 +125,19 @@ Game::Game(Systems systems, game::InitConfig config, Map map) :
     note_alive_list{ std::vector<bool>(m_map.times.size(), true) }
 {}
 
+const static double min_buffer_duration = 1;
+
 void Game::start() {
-    audio.resume();
+    // audio.resume();
+    if (m_map.times[current_note_index] < min_buffer_duration)  {
+        m_buffer_elapsed = m_map.times[current_note_index] - min_buffer_duration;
+
+    } else {
+        audio.play(0);
+        m_audio_started = true;
+    }
 }
+
 
 void Game::update(std::chrono::duration<double> delta_time) {
     if (!initialized) {
@@ -135,7 +145,20 @@ void Game::update(std::chrono::duration<double> delta_time) {
         initialized = true;
     }
 
-    double elapsed = audio.get_position();
+    double elapsed{};
+    if (!m_audio_started) {
+        if (m_buffer_elapsed >= 0) {
+            audio.play(0);
+            m_audio_started = true;
+        } else {
+            m_buffer_elapsed += delta_time.count();
+            elapsed = m_buffer_elapsed;
+        }
+    }
+
+    if (m_audio_started) {
+        elapsed = audio.get_position();
+    }
 
     ui.input(input);
 
