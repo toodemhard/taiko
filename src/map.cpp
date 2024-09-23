@@ -1,4 +1,5 @@
 #include "map.h"
+#include <filesystem>
 
 Map::Map(MapMeta meta_data) : m_meta_data{ meta_data } {}
 
@@ -41,8 +42,15 @@ inline std::string& ltrim(std::string& s, const char* t = " \t\n\r\f\v")
 
 Map load_osu_map(std::filesystem::path map_file_path);
 
-void load_osz(std::filesystem::path osz_file_path) {
-    auto extracted_dir = std::filesystem::path("temp") / osz_file_path.stem();
+int load_osz(std::filesystem::path osz_file_path) {
+    if (osz_file_path.extension() != ".osz") {
+        return 1;
+    }
+
+    auto extracted_dir = std::filesystem::path("temp");
+    std::filesystem::remove_all(extracted_dir);
+    std::filesystem::create_directory(extracted_dir);
+
     elz::extractZip(osz_file_path, extracted_dir);
 
 
@@ -119,6 +127,8 @@ void load_osz(std::filesystem::path osz_file_path) {
     }
 
     std::filesystem::remove_all(extracted_dir);
+
+    return 0;
 }
 
 Map load_osu_map(std::filesystem::path map_file_path) {

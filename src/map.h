@@ -14,7 +14,7 @@
 #include <optional>
 
 std::optional<std::filesystem::path> find_music_file(std::filesystem::path mapset_directory);
-void load_osz(std::filesystem::path osz_file_path);
+int load_osz(std::filesystem::path osz_file_path);
 
 enum NoteFlagBits : uint8_t {
     kat = 0,

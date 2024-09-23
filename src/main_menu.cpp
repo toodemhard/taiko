@@ -5,6 +5,7 @@
 #include "map.h"
 #include "serialize.h"
 #include "ui.h"
+#include <limits>
 
 using namespace constants;
 
@@ -24,6 +25,7 @@ void MainMenu::reload_maps() {
     m_parent_mapset.clear();
     m_mapsets.clear();
     m_mapset_paths.clear();
+    m_map_buffers.clear();
 
     for (const auto& mapset : std::filesystem::directory_iterator(maps_directory)) {
         m_mapset_paths.push_back(mapset.path());
@@ -78,6 +80,7 @@ void MainMenu::update(double delta_time) {
         auto music_file = find_music_file(mapset_directory);
         if (music_file.has_value()) {
             audio.load_music(music_file.value().string().data());
+            audio.play(std::numeric_limits<int>::max());
             audio.set_position(Mix_MusicDuration(audio.m_music) * (1 / 4.0f));
             audio.resume();
         }
@@ -158,10 +161,25 @@ void MainMenu::update(double delta_time) {
     group_st = {};
     group_st.position = Position::Anchor{0, 0.5};
     m_ui.begin_group(group_st);
-    m_ui.text("resolution", {});
-    m_ui.drop_down_menu(m_selected_resolution_index, m_resolutions, m_resolution_dropdown, [&](int new_selected) {
-        m_selected_resolution_index = new_selected;
-    });
+
+    auto cb = [this]() {
+        auto callback = [](void* userdata, const char* const* filelist, int filter) {
+            int i = 0;
+            while(filelist[i] != nullptr) {
+                std::cerr << std::format("{}\n", filelist[i]);
+                if (load_osz(std::filesystem::path(filelist[i])) != 0) {
+                    std::cerr << "failed to load: not osz\n";
+                }
+
+                (*(MainMenu*)userdata).reload_maps();
+
+                i++;
+            }
+        };
+        SDL_ShowOpenFileDialog(callback, this, NULL, NULL, 0, NULL, 1);
+    };
+
+    m_ui.button("Load .osz", {.border_color=color::white}, std::move(cb));
     m_ui.end_group();
 
     float map_item_width{500};
