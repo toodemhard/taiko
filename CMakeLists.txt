@@ -79,14 +79,14 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 )
 
 target_link_libraries(${PROJECT_NAME} PUBLIC 
-    Tracy::TracyClient
-    elzip
 )
 
 target_link_libraries(${PROJECT_NAME} PRIVATE 
+    elzip
     SDL3::SDL3
     SDL3_image::SDL3_image
     SDL3_mixer::SDL3_mixer
+    Tracy::TracyClient
 )
 
 # target_link_libraries(${PROJECT_NAME} PUBLI elzip)
