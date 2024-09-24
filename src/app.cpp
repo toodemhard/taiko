@@ -4,6 +4,7 @@
 #include <tracy/Tracy.hpp>
 
 #include "app.h"
+#include "SDL3_mixer/SDL_mixer.h"
 #include "constants.h"
 #include "font.h"
 
@@ -11,6 +12,7 @@
 #include "game.h"
 #include "main_menu.h"
 
+#include "map.h"
 #include "systems.h"
 
 #include "assets.h"
@@ -23,6 +25,7 @@ using namespace constants;
 void create_dirs() {
     ZoneScoped;
     std::filesystem::create_directory(maps_directory);
+    std::filesystem::create_directory("temp");
 }
 
 namespace app {
@@ -37,6 +40,13 @@ enum class Context {
 int run() {
     create_dirs();
 
+    // try {
+    //     load_osz(std::filesystem::path("1815703 Hiiragi Magnetite - Marshall Maximizer feat. KAFU.osz"));
+    // } catch (std::runtime_error& e) {
+    //     std::cout << e.what();
+    // }
+
+
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) < 0) {
         SDL_Log("SDL_Init failed (%s)", SDL_GetError());
         return 1;
@@ -48,8 +58,11 @@ int run() {
     SDL_CreateWindowAndRenderer("taiko", window_width, window_height, 0, &window, &renderer);
     SDL_SetWindowFullscreen(window, true);
 
+
     Input input{};
     Audio audio{};
+
+    Mix_AllocateChannels(32);
 
     Mix_MasterVolume(MIX_MAX_VOLUME * 0.3);
     Mix_VolumeMusic(MIX_MAX_VOLUME * 0.2);
@@ -192,6 +205,7 @@ int run() {
                 case Context::Game:
                     game.reset();
                     audio.stop();
+                    menu->play_selected_music();
                     break;
                 }
                 context_stack.pop_back();
@@ -199,6 +213,8 @@ int run() {
             }
         }
 
+        if (input.key_down(SDL_SCANCODE_R)) {
+        }
 
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
         SDL_RenderClear(renderer);

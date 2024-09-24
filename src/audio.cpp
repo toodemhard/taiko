@@ -1,4 +1,5 @@
 #include <SDL3/SDL.h>
+#include <chrono>
 #include <stdlib.h>
 #include <iostream>
 #include <format>
@@ -22,12 +23,14 @@ int Audio::load_music(const char* file_path) {
     }
 
     m_music = result;
-    elapsed = 0;
-
-    Mix_PlayMusic(m_music, 0);
-    Mix_PauseMusic();
+    elapsed_at_last_time = 0;
 
     return 0;
+}
+
+void Audio::play(int loops) {
+    Mix_PlayMusic(m_music, loops);
+    last_time = std::chrono::high_resolution_clock::now();
 }
 
 void Audio::stop() {
@@ -42,7 +45,7 @@ void Audio::resume() {
 
 void Audio::pause() {
     Mix_PauseMusic();
-    elapsed += (std::chrono::high_resolution_clock::now() - last_time).count() / 1000000000.0;
+    elapsed_at_last_time += std::chrono::duration<double>(std::chrono::high_resolution_clock::now() - last_time).count();
 }
 
 double Audio::get_position() {
@@ -50,12 +53,19 @@ double Audio::get_position() {
         return 0;
     }
 
-    float ret = elapsed;
+    double current_elapsed = elapsed_at_last_time;
     if (!paused()) {
-        ret += (std::chrono::high_resolution_clock::now() - last_time).count() / 1000000000.0;
+        current_elapsed = elapsed_at_last_time + std::chrono::duration<double>(std::chrono::high_resolution_clock::now() - last_time).count();
+        auto duration = Mix_MusicDuration(m_music);
+        if (current_elapsed > duration) {
+            current_elapsed = std::fmod(current_elapsed, duration);
+
+            last_time = std::chrono::high_resolution_clock::now();
+            elapsed_at_last_time = current_elapsed;
+        }
     }
 
-    return ret;
+    return current_elapsed;
 }
 
 void Audio::set_position(double position) {
@@ -63,7 +73,7 @@ void Audio::set_position(double position) {
         position = 0;
     }
     Mix_SetMusicPosition(position);
-    elapsed = position;
+    elapsed_at_last_time = position;
     last_time = std::chrono::high_resolution_clock::now();
 }
 

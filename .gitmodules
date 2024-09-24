@@ -16,3 +16,6 @@
 [submodule "lib/stb"]
 	path = lib/stb
 	url = https://github.com/nothings/stb.git
+[submodule "lib/elzip"]
+	path = lib/elzip
+	url = https://github.com/toodemhard/11Zip.git

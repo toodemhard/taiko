@@ -22,11 +22,12 @@ public:
     void set_position(double position);
     double get_position();
     bool paused();
+    void play(int loops);
 
     Mix_Music* m_music = nullptr;
 
 private:
-    double elapsed = 0;
+    double elapsed_at_last_time = 0;
     std::chrono::time_point<std::chrono::high_resolution_clock> last_time;
 };
 

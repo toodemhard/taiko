@@ -5,6 +5,7 @@
 #include "map.h"
 #include "serialize.h"
 #include "ui.h"
+#include <limits>
 
 using namespace constants;
 
@@ -19,11 +20,25 @@ MainMenu::MainMenu(
     reload_maps();
 }
 
+void MainMenu::play_selected_music() {
+    if (m_mapset_paths.size() > 0) {
+        auto mapset_directory = m_mapset_paths[m_selected_mapset_index];
+        auto music_file = find_music_file(mapset_directory);
+        if (music_file.has_value()) {
+            audio.load_music(music_file.value().string().data());
+            audio.play(std::numeric_limits<int>::max());
+            audio.set_position(m_mapsets[m_selected_mapset_index].preview_time);
+            audio.resume();
+        }
+    }
+}
+
 void MainMenu::reload_maps() {
     m_mapmetas.clear();
     m_parent_mapset.clear();
     m_mapsets.clear();
     m_mapset_paths.clear();
+    m_map_buffers.clear();
 
     for (const auto& mapset : std::filesystem::directory_iterator(maps_directory)) {
         m_mapset_paths.push_back(mapset.path());
@@ -46,6 +61,8 @@ void MainMenu::reload_maps() {
 
         m_map_buffers.push_back(maps_buffer);
     }
+
+    this->play_selected_music();
 }
 
 struct ButtonInfo {
@@ -61,27 +78,6 @@ void MainMenu::update(double delta_time) {
 
     m_ui.input(input);
 
-    // if (entry_mode == EntryMode::Edit) {
-    //     Style style{};
-    //     style.position = Position::Absolute{0.25f, 0.5f};
-    //     m_ui.begin_group(style);
-    //
-    //     m_ui.button("New Map", {}, [&](_info) {
-    //         event_queue.push_event(Event::EditNewMap{});
-    //     });
-    //
-    //     m_ui.end_group();
-    // }
-
-    auto play_selected_music = [&]() {
-        auto mapset_directory = m_mapset_paths[m_selected_mapset_index];
-        auto music_file = find_music_file(mapset_directory);
-        if (music_file.has_value()) {
-            audio.load_music(music_file.value().string().data());
-            audio.set_position(Mix_MusicDuration(audio.m_music) * (1 / 4.0f));
-            audio.resume();
-        }
-    };
 
     auto group_st = Style{};
     group_st.position = Position::Anchor{0.5, 0};
@@ -137,31 +133,28 @@ void MainMenu::update(double delta_time) {
 
     m_ui.end_group();
 
-    // float slider_width = 500;
-    // float slider_height = 50;
-    // auto slider = Style{};
-    // slider.position = Position::Anchor{{0.5, 0}};
-    // slider.width = Scale::Fixed{slider_width};
-    // slider.height = Scale::Fixed{slider_height};
-    // slider.border_color = color::white;
-    //
-    // ui.begin_group_button(slider, [](_info) {
-    //     // Mix_MasterVolume(MIX_MAX_VOLUME * 0.3);
-    // });
-    // auto filler_st = Style{};
-    // filler_st.background_color = color::red;
-    // filler_st.width = Scale::Fixed{slider_width * (Mix_GetMusicVolume(audio.m_music) /
-    // (float)MIX_MAX_VOLUME)}; filler_st.height = Scale::Fixed{slider_height};
-    // ui.begin_group(filler_st);
-    // ui.end_group();
-
     group_st = {};
     group_st.position = Position::Anchor{0, 0.5};
     m_ui.begin_group(group_st);
-    m_ui.text("resolution", {});
-    m_ui.drop_down_menu(m_selected_resolution_index, m_resolutions, m_resolution_dropdown, [&](int new_selected) {
-        m_selected_resolution_index = new_selected;
-    });
+
+    auto cb = [this]() {
+        auto callback = [](void* userdata, const char* const* filelist, int filter) {
+            int i = 0;
+            while(filelist[i] != nullptr) {
+                std::cerr << std::format("{}\n", filelist[i]);
+                if (load_osz(std::filesystem::path(filelist[i])) != 0) {
+                    std::cerr << "failed to load: not osz\n";
+                }
+
+                (*(MainMenu*)userdata).reload_maps();
+
+                i++;
+            }
+        };
+        SDL_ShowOpenFileDialog(callback, this, NULL, NULL, 0, NULL, 1);
+    };
+
+    m_ui.button("Load .osz", {.border_color=color::white}, std::move(cb));
     m_ui.end_group();
 
     float map_item_width{500};
@@ -320,7 +313,7 @@ void MainMenu::update(double delta_time) {
 
         if (input.key_down(SDL_SCANCODE_LEFT) && m_selected_mapset_index > 0) {
             m_selected_mapset_index--;
-            play_selected_music();
+            this->play_selected_music();
         }
         if (input.key_down(SDL_SCANCODE_RIGHT) && m_selected_mapset_index < m_mapsets.size() - 1) {
             m_selected_mapset_index++;

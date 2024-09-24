@@ -1,2 +1,2 @@
 CompileFlags:
-  CompilationDatabase: out/build/x64-debug
+  CompilationDatabase: build/x64-debug

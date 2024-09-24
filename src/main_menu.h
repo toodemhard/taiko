@@ -22,6 +22,7 @@ class MainMenu {
     void update(double delta_time);
     void render(SDL_Renderer* renderer);
     void reload_maps();
+    void play_selected_music();
 
   private:
     SDL_Renderer* renderer;
