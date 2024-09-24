@@ -22,19 +22,32 @@ std::optional<std::filesystem::path> find_music_file(std::filesystem::path mapse
 #include "serialize.h"
 using namespace constants;
 
-std::vector<std::string> split (const std::string &s, char delim) {
+std::vector<std::string> split(const std::string &s, char delim) {
     std::vector<std::string> result;
     std::stringstream ss(s);
     std::string item;
 
-    while (getline (ss, item, delim)) {
+    while (getline(ss, item, delim)) {
         result.push_back(item);
     }
 
     return result;
 }
 
-inline std::string& ltrim(std::string& s, const char* t = " \t\n\r\f\v")
+std::vector<std::string> split_once(const std::string &s, char delim) {
+    std::vector<std::string> result;
+    std::stringstream ss(s);
+    std::string item;
+
+    getline(ss, item, delim);
+    result.push_back(item);
+    getline(ss, item);
+    result.push_back(item);
+
+    return result;
+}
+
+std::string& ltrim(std::string& s, const char* t = " \t\n\r\f\v")
 {
     s.erase(0, s.find_first_not_of(t));
     return s;
@@ -67,16 +80,16 @@ int load_osz(std::filesystem::path osz_file_path) {
             while (std::getline(file, line) && line.compare("[General]") != 0) {
             }
             while (std::getline(file, line)) {
-                auto values = split(line, ':');
+                auto values = split_once(line, ':');
                 if ( values[0].compare("AudioFilename") == 0) {
                     audio_filename = std::move(ltrim(values[1]));
                     break;
                 }
             }
             while (std::getline(file, line)) {
-                auto values = split(line, ':');
+                auto values = split_once(line, ':');
                 if ( values[0].compare("PreviewTime") == 0) {
-                    mapset_info.preview_time = std::stoi(values[1]);
+                    mapset_info.preview_time = std::stoi(values[1]) / 1000.0;
                     break;
                 }
             }
@@ -84,14 +97,14 @@ int load_osz(std::filesystem::path osz_file_path) {
             while (std::getline(file, line) && line.compare("[Metadata]") != 0) {
             }
             while (std::getline(file, line)) {
-                auto values = split(line, ':');
+                auto values = split_once(line, ':');
                 if ( values[0].compare("Title") == 0) {
                     mapset_info.title = std::move(values[1]);
                     break;
                 }
             }
             while (std::getline(file, line)) {
-                auto values = split(line, ':');
+                auto values = split_once(line, ':');
                 if ( values[0].compare("Artist") == 0) {
                     mapset_info.artist = std::move(values[1]);
                     break;
@@ -103,6 +116,7 @@ int load_osz(std::filesystem::path osz_file_path) {
                 switch (c) {
                 case '.':
                 case '*':
+                case ':':
                     return true;
                 default:
                     return false;
@@ -140,7 +154,7 @@ Map load_osu_map(std::filesystem::path map_file_path) {
     while (std::getline(file, line) && line.compare("[Metadata]") != 0) {
     }
     while (std::getline(file, line)) {
-        auto values = split(line, ':');
+        auto values = split_once(line, ':');
         if ( values[0].compare("Version") == 0) {
             map.m_meta_data.difficulty_name = std::move(values[1]);
             break;

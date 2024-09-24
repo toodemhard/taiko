@@ -205,6 +205,7 @@ int run() {
                 case Context::Game:
                     game.reset();
                     audio.stop();
+                    menu->play_selected_music();
                     break;
                 }
                 context_stack.pop_back();

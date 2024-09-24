@@ -32,7 +32,7 @@ struct MapSetInfo {
 
     template<class Archive>
     void serialize(Archive& ar, const uint32_t version) {
-        ar(title, artist);
+        ar(title, artist, preview_time);
     }
 };
 
