@@ -23,6 +23,7 @@ public:
     double get_position();
     bool paused();
     void play(int loops);
+    void fade_in(int loops, int ms);
 
     Mix_Music* m_music = nullptr;
 

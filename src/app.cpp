@@ -92,7 +92,6 @@ int run() {
 
     Systems systems{renderer, input, audio, assets, event_queue};
 
-    std::vector<Context> context_stack{Context::Menu};
 
     std::unique_ptr<Editor> editor{};
     std::unique_ptr<Game> game{};
@@ -100,7 +99,7 @@ int run() {
         std::make_unique<MainMenu>(renderer, input, audio, assets, event_queue)
     };
 
-    UI_Test ui_test{input};
+    UI_Test ui_test{renderer, input};
 
     SDL_StartTextInput(window);
 
@@ -109,6 +108,9 @@ int run() {
 
     auto last_frame_start = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> last_frame_duration{};
+
+    std::vector<Context> context_stack{Context::Menu};
+    menu->awake();
 
 
     while (1) {
@@ -237,12 +239,13 @@ int run() {
         auto frame_time_string = std::format("{:.3f} ms", std::chrono::duration<double,std::milli>(last_frame_duration).count());
 
         auto st = Style{};
-        st.text_color = color::white;
         st.position = Position::Anchor{{1, 1}};
         // st.padding = Padding{10,10,10,10};
-        frame_time_ui.begin_group(st);
+
+        frame_time_ui.input(input);
+
+        frame_time_ui.begin_frame(constants::window_width, constants::window_height);
         frame_time_ui.text(frame_time_string.data(), st);
-        frame_time_ui.end_group();
         frame_time_ui.end_frame();
 
         frame_time_ui.draw(renderer);

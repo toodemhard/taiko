@@ -19,8 +19,8 @@ class MainMenu {
   public:
     MainMenu(SDL_Renderer* _renderer, Input& _input, Audio& _audio, AssetLoader& _assets, EventQueue& _event_queue);
 
+    void awake();
     void update(double delta_time);
-    void render(SDL_Renderer* renderer);
     void reload_maps();
     void play_selected_music();
 
@@ -33,7 +33,7 @@ class MainMenu {
 
     UI m_ui{constants::window_width, constants::window_height};
 
-    EntryMode entry_mode = EntryMode::Play;
+    EntryMode m_entry_mode = EntryMode::Play;
 
     std::vector<const char*> m_resolutions{"1920x1080", "1024x768"};
     DropDown m_resolution_dropdown{};

@@ -28,6 +28,11 @@ int Audio::load_music(const char* file_path) {
     return 0;
 }
 
+void Audio::fade_in(int loops, int ms) {
+    Mix_FadeInMusic(m_music, loops, ms);
+    last_time = std::chrono::high_resolution_clock::now();
+}
+
 void Audio::play(int loops) {
     Mix_PlayMusic(m_music, loops);
     last_time = std::chrono::high_resolution_clock::now();

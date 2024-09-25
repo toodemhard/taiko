@@ -1,6 +1,9 @@
 #include "game.h"
+#include "SDL3/SDL_mouse.h"
+#include "SDL3/SDL_scancode.h"
 #include "constants.h"
 #include "assets.h"
+#include "ui.h"
 
 using namespace std::chrono_literals;
 
@@ -136,6 +139,8 @@ void Game::start() {
         audio.play(0);
         m_audio_started = true;
     }
+
+    SDL_HideCursor();
 }
 
 
@@ -161,8 +166,10 @@ void Game::update(std::chrono::duration<double> delta_time) {
     }
 
     ui.input(input);
+    ui.begin_frame(constants::window_width, constants::window_height);
 
     if (input.key_down(SDL_SCANCODE_ESCAPE)) {
+        SDL_ShowCursor();
         if (m_test_mode) {
             event_queue.push_event(Event::QuitTest{});
         }
@@ -173,11 +180,21 @@ void Game::update(std::chrono::duration<double> delta_time) {
         return;
     }
 
+    if (input.key_down(SDL_SCANCODE_L)) {
+        m_end_screen = true;
+        SDL_ShowCursor();
+    }
+
 
     if (!m_end_screen) {
         double last_note_time = (m_map.times.size() == 0) ? 0 : m_map.times.back();
         if (elapsed >= last_note_time + end_screen_delay.count()) {
-            m_end_screen = true;
+            if (m_test_mode) {
+                event_queue.push_event(Event::QuitTest{});               
+            } else {
+                m_end_screen = true;
+                SDL_ShowCursor();
+            }
         }
 
         std::vector<DrumInput> inputs{};
@@ -389,15 +406,19 @@ void Game::update(std::chrono::duration<double> delta_time) {
 
     } else {
         Style style{};
-        style.position = Position::Anchor{ 0.5, 0.5 };
         style.stack_direction = StackDirection::Vertical;
+        style.padding = even_padding(300);
         
         ui.begin_group(style);
-        ui.text(ui.strings.add(std::format("{}", score)), {});
+        ui.text(ui.strings.add(std::format("{}", score)), {.font_size=56});
         ui.text(ui.strings.add(std::format("{:.2f}%", accuracy_fraction * 100)), {});
         ui.text(ui.strings.add(std::format("{} Perfect", perfect_count)), {});
         ui.text(ui.strings.add(std::format("{} Ok", ok_count)), {});
         ui.text(ui.strings.add(std::format("{} Miss", miss_count)), {});
+
+        ui.button("back", {.position=Position::Anchor{0, 1}}, [&]() {
+            event_queue.push_event(Event::Return{});
+            });
         ui.end_group();
 
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);

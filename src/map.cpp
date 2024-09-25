@@ -173,7 +173,7 @@ Map load_osu_map(std::filesystem::path map_file_path) {
         NoteFlags note_flags{};
 
         note_flags |= ((note_type >> 2) & 1) ? 0 : NoteFlagBits::small;
-        note_flags |= ((note_type >> 3) & 1) ? 0 : NoteFlagBits::don;
+        note_flags |= ((note_type >> 3) & 1 || (note_type >> 1) & 1) ? 0 : NoteFlagBits::don;
 
         map.flags_list.push_back(note_flags);
     }

@@ -1,7 +1,9 @@
 #include "main_menu.h"
 
+#include "SDL3/SDL_keycode.h"
 #include "SDL3/SDL_scancode.h"
 #include "SDL3_mixer/SDL_mixer.h"
+#include "constants.h"
 #include "map.h"
 #include "serialize.h"
 #include "ui.h"
@@ -17,7 +19,6 @@ MainMenu::MainMenu(
     EventQueue& _event_queue
 )
     : renderer{_renderer}, input{_input}, audio{_audio}, assets{_assets}, event_queue{_event_queue} {
-    reload_maps();
 }
 
 void MainMenu::play_selected_music() {
@@ -26,7 +27,7 @@ void MainMenu::play_selected_music() {
         auto music_file = find_music_file(mapset_directory);
         if (music_file.has_value()) {
             audio.load_music(music_file.value().string().data());
-            audio.play(std::numeric_limits<int>::max());
+            audio.fade_in(std::numeric_limits<int>::max(), 300);
             audio.set_position(m_mapsets[m_selected_mapset_index].preview_time);
             audio.resume();
         }
@@ -71,37 +72,53 @@ struct ButtonInfo {
     OnClick on_click;
 };
 
+void MainMenu::awake() {
+    reload_maps();
+}
+
 void MainMenu::update(double delta_time) {
     if (input.key_down(SDL_SCANCODE_F5)) {
         reload_maps();
     }
 
+    if (input.modifier(SDL_KMOD_LCTRL) && input.key_down(SDL_SCANCODE_W)) {
+        m_entry_mode = EntryMode::Play;
+    }
+
+    if (input.modifier(SDL_KMOD_LCTRL) && input.key_down(SDL_SCANCODE_E)) {
+        m_entry_mode = EntryMode::Edit;
+    }
+
     m_ui.input(input);
+
+    m_ui.begin_frame(constants::window_width, constants::window_height);
 
 
     auto group_st = Style{};
-    group_st.position = Position::Anchor{0.5, 0};
-    group_st.stack_direction = StackDirection::Vertical;
-    group_st.gap = 50;
-    m_ui.begin_group(group_st);
-
     SliderStyle slider_st{};
-    slider_st.position = Position::Anchor{0.5, 0};
-    slider_st.width = 500;
-    slider_st.height = 100;
-    slider_st.fg_color = color::red;
-    m_ui.slider(
-        m_music_slider, slider_st, (Mix_GetMusicVolume(audio.m_music) / (float)MIX_MAX_VOLUME), {[](float fraction) {
-            Mix_VolumeMusic(MIX_MAX_VOLUME * fraction);
-        }}
-    );
-
-    m_ui.slider(m_master_slider, slider_st, (master / (float)MIX_MAX_VOLUME), SliderCallbacks{[&](float fraction) {
-                    master = MIX_MAX_VOLUME * fraction;
-                    Mix_MasterVolume(master);
-                }});
-
-    m_ui.end_group();
+    // auto group_st = Style{};
+    // group_st.position = Position::Anchor{0.5, 0};
+    // group_st.stack_direction = StackDirection::Vertical;
+    // group_st.gap = 50;
+    // m_ui.begin_group(group_st);
+    //
+    // SliderStyle slider_st{};
+    // slider_st.position = Position::Anchor{0.5, 0};
+    // slider_st.width = 500;
+    // slider_st.height = 100;
+    // slider_st.fg_color = color::red;
+    // m_ui.slider(
+    //     m_music_slider, slider_st, (Mix_GetMusicVolume(audio.m_music) / (float)MIX_MAX_VOLUME), {[](float fraction) {
+    //         Mix_VolumeMusic(MIX_MAX_VOLUME * fraction);
+    //     }}
+    // );
+    //
+    // m_ui.slider(m_master_slider, slider_st, (master / (float)MIX_MAX_VOLUME), SliderCallbacks{[&](float fraction) {
+    //                 master = MIX_MAX_VOLUME * fraction;
+    //                 Mix_MasterVolume(master);
+    //             }});
+    //
+    // m_ui.end_group();
 
     group_st = {};
     group_st.position = Position::Anchor{1, 0};
@@ -157,8 +174,8 @@ void MainMenu::update(double delta_time) {
     m_ui.button("Load .osz", {.border_color=color::white}, std::move(cb));
     m_ui.end_group();
 
-    float map_item_width{500};
-    float map_item_height{100};
+    float map_item_width{1000};
+    float map_item_height{120};
     auto start_pos =
         Vec2{(constants::window_width - map_item_width) / 2.0f, (constants::window_height - map_item_height) / 2.0f};
     float gap{10};
@@ -187,6 +204,7 @@ void MainMenu::update(double delta_time) {
         }
 
         group_st = {};
+        group_st.stack_direction = StackDirection::Vertical;
         group_st.position = Position::Anchor{0.5, 0.5};
         group_st.gap = 25;
         m_ui.begin_group(group_st);
@@ -218,11 +236,11 @@ void MainMenu::update(double delta_time) {
         Style active_style{};
 
         std::vector<ButtonInfo> option;
-        option.push_back({"Play", inactive_style, [&]() { entry_mode = EntryMode::Play; }});
+        option.push_back({"Play", inactive_style, [&]() { m_entry_mode = EntryMode::Play; }});
 
-        option.push_back({"Edit", inactive_style, [&]() { entry_mode = EntryMode::Edit; }});
+        option.push_back({"Edit", inactive_style, [&]() { m_entry_mode = EntryMode::Edit; }});
 
-        if (entry_mode == EntryMode::Play) {
+        if (m_entry_mode == EntryMode::Play) {
             option[0].style = active_style;
         } else {
             option[1].style = active_style;
@@ -241,12 +259,14 @@ void MainMenu::update(double delta_time) {
 
         auto enter_mapset = [&]() {
             m_choosing_mapset_index = m_selected_mapset_index;
+            m_selected_diff_index = 0;
             m_diff_buttons = std::vector<AnimState>(m_map_buffers[m_selected_mapset_index].count);
         };
 
-        if (entry_mode == EntryMode::Play) {
+        if (m_entry_mode == EntryMode::Play) {
             if (input.key_down(SDL_SCANCODE_RETURN)) {
                 m_choosing_mapset_index = m_selected_mapset_index;
+                m_selected_diff_index = 0;
                 m_diff_buttons = std::vector<AnimState>(m_map_buffers[m_selected_mapset_index].count);
             }
             // event_queue.push_event(Event::PlayMap{
@@ -269,7 +289,7 @@ void MainMenu::update(double delta_time) {
             //     ui.rect(map_info.difficulty_name.data(), {.font_size = 24});
             //     ui.end_group_v2();
             // }
-        } else if (entry_mode == EntryMode::Edit) {
+        } else if (m_entry_mode == EntryMode::Edit) {
             if (input.key_down(SDL_SCANCODE_RETURN)) {
                 event_queue.push_event(Event::EditMap{m_mapset_paths[m_selected_mapset_index], {}});
             }
@@ -336,7 +356,8 @@ void MainMenu::update(double delta_time) {
         for (int i = 0; i < m_mapsets.size(); i++) {
             auto item_st = Style{};
             item_st.stack_direction = StackDirection::Vertical;
-            item_st.width = Scale::Fixed{500};
+            item_st.width = Scale::Fixed{map_item_width};
+            item_st.border_color = color::white;
             item_st.padding = even_padding(25);
 
             if (i == m_selected_mapset_index) {
@@ -367,7 +388,7 @@ void MainMenu::update(double delta_time) {
 
             m_ui.begin_group_button(item_st, std::move(on_click));
             m_ui.text(mapset.title.data(), {});
-            m_ui.text(mapset.artist.data(), {});
+            m_ui.text(mapset.artist.data(), {.font_size=28});
             m_ui.end_group();
         }
     }
@@ -377,5 +398,3 @@ void MainMenu::update(double delta_time) {
     m_ui.draw(renderer);
 }
 
-// void MainMenu::render(SDL_Renderer* renderer) {
-// }
