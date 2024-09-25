@@ -252,7 +252,7 @@ void Editor::update(std::chrono::duration<double> delta_time) {
     inactive_style.text_color = RGBA{ 128, 128, 128, 255 };
 
 
-    ui.begin_group({});
+    ui.begin_row({});
     auto button_style = (view == EditorView::Main) ? Style{} : inactive_style;
     ui.button("Editor", button_style, [&]() {
         view = EditorView::Main;
@@ -267,20 +267,20 @@ void Editor::update(std::chrono::duration<double> delta_time) {
     ui.button("Timing", button_style, [&]() {
         view = EditorView::Timing;
     });
-    ui.end_group();
+    ui.end_row();
 
     if (creating_map) {
-        ui.begin_group(style);
+        ui.begin_row(style);
 
-        ui.begin_group({});
+        ui.begin_row({});
         ui.text("title: ", {});;
         ui.text_field(&title, { .border_color = {255, 255, 255, 0}, .width = Scale::Min{200} });
-        ui.end_group();
+        ui.end_row();
 
-        ui.begin_group({});
+        ui.begin_row({});
         ui.text("artist: ", {});
         ui.text_field(&artist, { .border_color = {255, 255, 255, 0}, .width = Scale::Min{200} });
-        ui.end_group();
+        ui.end_row();
 
         const char* text = (m_song_path.has_value()) ? strings.add(m_song_path.value().filename().string()) : "choose song";
 
@@ -327,7 +327,7 @@ void Editor::update(std::chrono::duration<double> delta_time) {
             creating_map = false;
         });
 
-        ui.end_group();
+        ui.end_row();
     }
 
 
@@ -359,21 +359,21 @@ void Editor::update(std::chrono::duration<double> delta_time) {
         Style style = {};
         style.position = Position::Anchor{ 0.25, 0.25 };
         style.stack_direction = StackDirection::Vertical;
-        ui.begin_group(style);
+        ui.begin_row(style);
         ui.text(mapset_info.title.data(), {.font_size = 52});
         ui.text(mapset_info.artist.data(), { .text_color = RGBA{180, 180, 180, 255} });
 
-        ui.end_group();
+        ui.end_row();
 
         style = {};
         style.position = Position::Anchor{ 0.5, 0.5 };
         style.stack_direction = StackDirection::Vertical;
         style.gap = 36;
-        ui.begin_group(style);
+        ui.begin_row(style);
 
         style = {};
         style.stack_direction = StackDirection::Vertical;
-        ui.begin_group(style);
+        ui.begin_row(style);
 
         auto selected_style = Style{};
         selected_style.border_color = { 255, 255, 255, 255 };
@@ -398,7 +398,7 @@ void Editor::update(std::chrono::duration<double> delta_time) {
                 }
             }();
 
-            ui.begin_group({});
+            ui.begin_row({});
 
             ui.button(diff.difficulty_name.data(), entry_style, [&, i]() {
                 this->load_map(i);
@@ -408,10 +408,10 @@ void Editor::update(std::chrono::duration<double> delta_time) {
                 this->remove_map(i);
             });
 
-            ui.end_group();
+            ui.end_row();
         }
 
-        ui.end_group();
+        ui.end_row();
 
         auto button_style = Style{};
         button_style.background_color = { 255, 255, 255, 255 };
@@ -437,7 +437,7 @@ void Editor::update(std::chrono::duration<double> delta_time) {
         });
 
 
-        ui.end_group();
+        ui.end_row();
 
         break;
     }
@@ -445,7 +445,7 @@ void Editor::update(std::chrono::duration<double> delta_time) {
         auto style = Style{};
         style.position = Position::Anchor{ 0.5, 0.5 };
         style.stack_direction = StackDirection::Vertical;
-        ui.begin_group(style);
+        ui.begin_row(style);
 
         ui.text("KYS!!!!!", {});
 
@@ -456,10 +456,10 @@ void Editor::update(std::chrono::duration<double> delta_time) {
             bpm.text = std::format("{}", m_map.m_meta_data.bpm);
         }
 
-        ui.begin_group({ .gap{10} });
+        ui.begin_row({ .gap{10} });
         ui.text("bpm", {});
         ui.text_field(&bpm, fs);
-        ui.end_group();
+        ui.end_row();
 
         if (bpm.focused && input.key_down(SDL_SCANCODE_RETURN)) {
             bpm.focused = false;
@@ -470,17 +470,17 @@ void Editor::update(std::chrono::duration<double> delta_time) {
             offset.text = std::format("{:.2f}", m_map.m_meta_data.offset);
         }
 
-        ui.begin_group({ .gap{10} });
+        ui.begin_row({ .gap{10} });
         ui.text("offset", {});
         ui.text_field(&offset, fs);
-        ui.end_group();
+        ui.end_row();
 
         if (offset.focused && input.key_down(SDL_SCANCODE_RETURN)) {
             offset.focused = false;
             m_map.m_meta_data.offset = std::stof(offset.text);
         }
 
-        ui.end_group();
+        ui.end_row();
         break;
     }
     }
@@ -504,7 +504,7 @@ void Editor::main_update() {
     style.position = Position::Anchor{ 0, 0.5 };
     style.stack_direction = StackDirection::Vertical;
 
-    ui.begin_group(style); {
+    ui.begin_row(style); {
         const char* note_color_text = (insert_flags & NoteFlagBits::don) ? "Don" : "Kat";
 
         const char* note_size_text = (insert_flags & NoteFlagBits::small) ? "Normal" : "Big";
@@ -536,14 +536,14 @@ void Editor::main_update() {
             insert_flags = insert_flags ^ NoteFlagBits::don;
         });
     }
-    ui.end_group();
+    ui.end_row();
 
-    ui.begin_group(Style{ Position::Anchor{0,1} });
+    ui.begin_row(Style{ Position::Anchor{0,1} });
         ui.text(ui.strings.add(std::to_string(cam.position.x) + " s"), {});
     //ui.slider(elapsed / GetMusicTimeLength(music), [&](float fraction) {
     //    SeekMusicStream(music, fraction * GetMusicTimeLength(music));
     //});
-    ui.end_group();
+    ui.end_row();
 
 
 

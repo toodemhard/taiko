@@ -29,29 +29,29 @@ void StringCache::clear() {
 UI::UI(int _screen_width, int _screen_height)
     : m_screen_width{_screen_width}, m_screen_height{_screen_height} {}
 
-RectID UI::begin_group(const Style& style) {
+RectID UI::begin_row(const Style& style) {
     ZoneScoped;
 
     m_rects.push_back(Rect{ {}, {}, });
     m_draw_rects.push_back(DrawRect{ style.background_color, style.border_color });
 
-    m_groups.push_back(Group{(int)m_rects.size() - 1, style});
+    m_rows.push_back(Row{(int)m_rects.size() - 1, style});
 
     m_command_tree.push_back(Command::begin_row);
 
-    m_group_stack.push_back(m_groups.size() - 1);
+    m_row_stack.push_back(m_rows.size() - 1);
 
     return m_rects.size() - 1;
 }
 
-RectID UI::begin_group_button(const Style& style, OnClick&& on_click) {
+RectID UI::begin_row_button(const Style& style, OnClick&& on_click) {
     ZoneScoped;
 
     if (!on_click) {
         DEV_PANIC("empty on_click std::function passed\n");
     }
 
-    auto rect_index = this->begin_group(style);
+    auto rect_index = this->begin_row(style);
 
     m_on_click_callbacks.push_back(std::move(on_click));
     m_click_rects.push_back({ rect_index, (int)m_on_click_callbacks.size() - 1 });
@@ -74,7 +74,7 @@ RGBA lerp_rgba(RGBA a, RGBA b, float t) {
 }
 
 void UI::text_headless(const char* text, const Style& style) {
-    auto& parent_group = m_groups[m_group_stack.back()];
+    auto& parent_group = m_rows[m_row_stack.back()];
     RGBA text_color = std::visit(
         overloaded{
             [](RGBA color) { return color; },
@@ -95,24 +95,24 @@ void UI::text_headless(const char* text, const Style& style) {
         text_color
     });
 
-    add_parent_scale(m_groups[m_group_stack.back()], Vec2{width, height});
+    add_parent_scale(m_rows[m_row_stack.back()], Vec2{width, height});
 }
 
 RectID UI::button_anim(const char* text, AnimState* anim_state, const Style& style, const AnimStyle& anim_style, OnClick&& on_click) {
     ZoneScoped;
 
-    auto rect_index = this->begin_group_button_anim(anim_state, style, anim_style, std::move(on_click));
+    auto rect_index = this->begin_row_button_anim(anim_state, style, anim_style, std::move(on_click));
 
-    auto& parent_group = m_groups[m_group_stack.back()];
+    auto& parent_group = m_rows[m_row_stack.back()];
 
     text_headless(text, style);
 
-    this->end_group();
+    this->end_row();
 
     return rect_index;
 }
 
-RectID UI::begin_group_button_anim(AnimState* anim_state, Style style, const AnimStyle& anim_style, OnClick&& on_click) {
+RectID UI::begin_row_button_anim(AnimState* anim_state, Style style, const AnimStyle& anim_style, OnClick&& on_click) {
     ZoneScoped;
 
     float new_mix;
@@ -139,7 +139,7 @@ RectID UI::begin_group_button_anim(AnimState* anim_state, Style style, const Ani
     style.background_color = lerp_rgba(style.background_color, anim_style.alt_background_color, anim_state->mix);
 
     
-    auto rect_id = this->begin_group_button(style, std::move(on_click));
+    auto rect_id = this->begin_row_button(style, std::move(on_click));
 
     m_hover_rects.push_back(HoverRect{rect_id, *anim_state});
 
@@ -150,7 +150,7 @@ Rect UI::query_rect(RectID id) {
     return m_rects[id];
 }
 
-void UI::add_parent_scale(Group& parent_row, Vec2 scale) {
+void UI::add_parent_scale(Row& parent_row, Vec2 scale) {
     auto& rect = m_rects[parent_row.rect_index];
 
     auto length_axis = [&](const Vec2& scale) {
@@ -193,11 +193,11 @@ void UI::add_parent_scale(Group& parent_row, Vec2 scale) {
     parent_row.children++;
 }
 
-void UI::end_group() {
+void UI::end_row() {
     ZoneScoped;
 
-    Group& row = m_groups[m_group_stack.back()];
-    m_group_stack.pop_back();
+    Row& row = m_rows[m_row_stack.back()];
+    m_row_stack.pop_back();
     float total_width;
     float total_height;
 
@@ -221,8 +221,8 @@ void UI::end_group() {
 
     rect.scale = {width, height};
 
-    if (m_group_stack.size() > 0 && std::get_if<Position::Relative>(&row.style.position) != nullptr) {
-        add_parent_scale(m_groups[m_group_stack.back()], Vec2{width, height});
+    if (m_row_stack.size() > 0 && std::get_if<Position::Relative>(&row.style.position) != nullptr) {
+        add_parent_scale(m_rows[m_row_stack.back()], Vec2{width, height});
     }
 
     m_command_tree.push_back(Command::end_row);
@@ -336,7 +336,7 @@ void UI::begin_frame(int width, int height) {
     }
     m_input_called = false;
 
-    this->begin_group({.width=Scale::Fixed{(float)width}, .height=Scale::Fixed{(float)height}});
+    this->begin_row({.width=Scale::Fixed{(float)width}, .height=Scale::Fixed{(float)height}});
 
     m_begin_frame_called = true;
 }
@@ -347,12 +347,12 @@ void UI::end_frame() {
     }
     m_begin_frame_called = false;
 
-    if (m_group_stack.size() > 1) {
+    if (m_row_stack.size() > 1) {
         DEV_PANIC("UI::begin_group() not closed")
     }
     m_end_frame_called = true;
 
-    this->end_group();
+    this->end_row();
 
 
     // add open dropdown on top of everything
@@ -370,7 +370,7 @@ void UI::end_frame() {
         g_st.width = Scale::Fixed{hook.scale.x};
         g_st.stack_direction = StackDirection::Vertical;
         g_st.background_color = color::red;
-        this->begin_group(g_st);
+        this->begin_row(g_st);
         auto& options = *overlay.items;
         for (int i = 0; i < options.size(); i++) {
             auto st = (i == overlay.selected_index) ? active_st : Style{};
@@ -383,7 +383,7 @@ void UI::end_frame() {
                 }
             );
         }
-        this->end_group();
+        this->end_row();
 
         m_post_overlay = std::nullopt;
     }
@@ -406,7 +406,7 @@ void UI::end_frame() {
     for (auto command : m_command_tree) {
         switch (command) {
         case Command::begin_row: {
-            auto& current_row = m_groups[current_row_index];
+            auto& current_row = m_rows[current_row_index];
             auto& current_rect = m_rects[current_row.rect_index];
 
             RowStackFrame new_row{current_row_index};
@@ -414,7 +414,7 @@ void UI::end_frame() {
             new_row.stack_direction = current_row.style.stack_direction;
 
             if (row_stack.size() > 0) {
-                auto& parent_row = m_groups[row_stack.back().row_index];
+                auto& parent_row = m_rows[row_stack.back().row_index];
                 auto parent_rect = m_rects[parent_row.rect_index];
 
                 current_rect.position = std::visit(overloaded {
@@ -429,6 +429,12 @@ void UI::end_frame() {
                     [](Position::Absolute absolute) { return absolute.position; },
                     [&](Position::Relative relative) {
                         auto pos = row_stack.back().next_position;
+                        if (current_row.style.alignment == Alignment::Right) {
+                            if (parent_row.style.stack_direction == StackDirection::Vertical) {
+                                pos.x = pos.x + parent_rect.scale.x - current_rect.scale.x;
+                            }
+
+                        }
                         incr(row_stack.back(), m_rects[current_row.rect_index].scale, parent_row.style.gap);
                         return pos; 
                     }
@@ -476,11 +482,11 @@ void UI::text_field(TextFieldState* state, Style style) {
 RectID UI::text(const char* text, const Style& style) {
     ZoneScoped;
 
-    auto rect_id = this->begin_group(style);
+    auto rect_id = this->begin_row(style);
 
     this->text_headless(text, style);
 
-    this->end_group();
+    this->end_row();
 
     return rect_id;
 }
@@ -502,7 +508,7 @@ void UI::slider(Slider& state, SliderStyle style, float fraction, SliderCallback
     }
 
 
-    auto group = Group{};
+    auto group = Row{};
     group.style = container;
 
     m_on_click_callbacks.push_back([&, onclick = std::move(callbacks.on_click)]() {
@@ -512,7 +518,7 @@ void UI::slider(Slider& state, SliderStyle style, float fraction, SliderCallback
         }
     });
 
-    auto rect_id = this->begin_group(container);
+    auto rect_id = this->begin_row(container);
 
     m_click_rects.push_back({rect_id, (int)m_on_click_callbacks.size() - 1});
     if (state.held) {
@@ -524,10 +530,10 @@ void UI::slider(Slider& state, SliderStyle style, float fraction, SliderCallback
     filling.background_color = style.fg_color;
     filling.width = Scale::Fixed{style.width * fraction};
     filling.height = Scale::Fixed{style.height};
-    this->begin_group(filling);
-    this->end_group();
+    this->begin_row(filling);
+    this->end_row();
 
-    this->end_group();
+    this->end_row();
 
     if (state.held) {
         auto rect = m_rects[rect_id];
@@ -557,7 +563,7 @@ void UI::drop_down_menu(
 
     m_on_click_callbacks.push_back([&]() { state.clicked_last_frame = true; });
 
-    auto rect_index = this->begin_group(st);
+    auto rect_index = this->begin_row(st);
     m_click_rects.push_back({rect_index, (int)m_on_click_callbacks.size() - 1 });
     auto thing = (state.menu_dropped)
                      ? strings.add(std::format("{} \\/", options[selected_opt_index]))
@@ -580,15 +586,15 @@ void UI::drop_down_menu(
         };
     }
 
-    this->end_group();
+    this->end_row();
 }
 
 RectID UI::button(const char* text, Style style, OnClick&& on_click) {
     ZoneScoped;
 
-    auto rect_index = this->begin_group_button(style, std::move(on_click));
+    auto rect_index = this->begin_row_button(style, std::move(on_click));
 
-    auto& parent_group = m_groups[m_group_stack.back()];
+    auto& parent_group = m_rows[m_row_stack.back()];
 
     RGBA text_color = std::visit(
         overloaded{
@@ -600,7 +606,7 @@ RectID UI::button(const char* text, Style style, OnClick&& on_click) {
 
     text_headless(text, style);
 
-    this->end_group();
+    this->end_row();
 
     return rect_index;
 }
@@ -658,7 +664,7 @@ void UI::draw(SDL_Renderer* renderer) {
     }
 
     m_draw_rects.clear();
-    m_groups.clear();
+    m_rows.clear();
     m_texts.clear();
 
     strings.clear();

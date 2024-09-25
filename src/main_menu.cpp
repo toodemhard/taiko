@@ -123,13 +123,13 @@ void MainMenu::update(double delta_time) {
     group_st = {};
     group_st.position = Position::Anchor{1, 0};
     group_st.stack_direction = StackDirection::Vertical;
-    m_ui.begin_group(group_st);
+    m_ui.begin_row(group_st);
 
-    m_ui.begin_group({});
+    m_ui.begin_row({});
     m_ui.text("<<", {});
     m_ui.text("||", {});
     m_ui.text(">>", {});
-    m_ui.end_group();
+    m_ui.end_row();
 
     auto duration = Mix_MusicDuration(audio.m_music);
 
@@ -148,11 +148,11 @@ void MainMenu::update(double delta_time) {
         }
     );
 
-    m_ui.end_group();
+    m_ui.end_row();
 
     group_st = {};
     group_st.position = Position::Anchor{0, 0.5};
-    m_ui.begin_group(group_st);
+    m_ui.begin_row(group_st);
 
     auto cb = [this]() {
         auto callback = [](void* userdata, const char* const* filelist, int filter) {
@@ -172,7 +172,7 @@ void MainMenu::update(double delta_time) {
     };
 
     m_ui.button("Load .osz", {.border_color=color::white}, std::move(cb));
-    m_ui.end_group();
+    m_ui.end_row();
 
     float map_item_width{1000};
     float map_item_height{120};
@@ -207,7 +207,7 @@ void MainMenu::update(double delta_time) {
         group_st.stack_direction = StackDirection::Vertical;
         group_st.position = Position::Anchor{0.5, 0.5};
         group_st.gap = 25;
-        m_ui.begin_group(group_st);
+        m_ui.begin_row(group_st);
 
         for (int i = 0; i < map_buffer.count; i++) {
             auto diff_st = Style{};
@@ -227,7 +227,7 @@ void MainMenu::update(double delta_time) {
             );
         }
 
-        m_ui.end_group();
+        m_ui.end_row();
 
     } else {
         Style inactive_style{};
@@ -248,13 +248,13 @@ void MainMenu::update(double delta_time) {
 
         Style style{};
 
-        m_ui.begin_group(style);
+        m_ui.begin_row(style);
 
         for (auto& info : option) {
             m_ui.button(info.text, info.style, std::move(info.on_click));
         }
 
-        m_ui.end_group();
+        m_ui.end_row();
 
 
         auto enter_mapset = [&]() {
@@ -297,13 +297,13 @@ void MainMenu::update(double delta_time) {
 
             auto st = Style{};
             st.position = Position::Anchor{1, 0.5};
-            m_ui.begin_group(st);
+            m_ui.begin_row(st);
 
             m_ui.button("New Map", {}, [&]() {
                 event_queue.push_event(Event::EditNewMap{});
             });
 
-            m_ui.end_group();
+            m_ui.end_row();
 
             
             // enter_mapset = [&]() {
@@ -386,10 +386,10 @@ void MainMenu::update(double delta_time) {
                 on_click = enter_mapset;
             }
 
-            m_ui.begin_group_button(item_st, std::move(on_click));
+            m_ui.begin_row_button(item_st, std::move(on_click));
             m_ui.text(mapset.title.data(), {});
             m_ui.text(mapset.artist.data(), {.font_size=28});
-            m_ui.end_group();
+            m_ui.end_row();
         }
     }
 

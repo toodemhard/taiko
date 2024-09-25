@@ -93,6 +93,12 @@ enum class TextAlign {
     Center,
 };
 
+enum class Alignment {
+    Left,
+    Center,
+    Right,
+};
+
 struct Style {
     Position::Variant position;
     RGBA background_color;
@@ -104,14 +110,15 @@ struct Style {
     Scale::Variant height;
     bool overlap;
 
-    // group styling
+    // row styling
     StackDirection stack_direction = StackDirection::Horizontal;
+    Alignment alignment;
+    
     float gap;
 
     // text style
     float font_size = 36;
     TextColor text_color = color::white;
-
 };
 
 struct AnimState {
@@ -149,11 +156,6 @@ struct Button {
     std::function<void()> on_click;
 };
 
-enum class ElementType {
-    group,
-    text,
-};
-
 enum class Command {
     begin_row,
     end_row,
@@ -167,7 +169,7 @@ struct ClickInfo {
 
 using OnClick = std::function<void()>;
 
-struct Group {
+struct Row {
     int rect_index;
     Style style;
 
@@ -261,12 +263,12 @@ class UI {
 
     RectID text(const char* text, const Style& style);
 
-    RectID begin_group(const Style& style);
-    void end_group();
+    RectID begin_row(const Style& style);
+    void end_row();
     Rect query_rect(RectID id);
 
-    RectID begin_group_button(const Style& style, OnClick&& on_click);
-    RectID begin_group_button_anim(AnimState* anim_state, Style style, const AnimStyle& anim_style, OnClick&& on_click);
+    RectID begin_row_button(const Style& style, OnClick&& on_click);
+    RectID begin_row_button_anim(AnimState* anim_state, Style style, const AnimStyle& anim_style, OnClick&& on_click);
 
     void input(Input& input);
 
@@ -291,7 +293,7 @@ class UI {
     std::vector<SliderHeldRect> m_slider_input_rects;
 
 
-    std::vector<Group> m_groups;
+    std::vector<Row> m_rows;
     std::vector<Text> m_texts;
 
     std::vector<TextFieldInputRect> m_text_field_inputs;
@@ -311,12 +313,12 @@ class UI {
     std::optional<DropDownOverlay> m_post_overlay;
     std::vector<DropDown*> m_dropdown_clickoff_callbacks;
 
-    std::vector<int> m_group_stack;
+    std::vector<int> m_row_stack;
     std::vector<Command> m_command_tree;
 
 
     void text_headless(const char* text, const Style& style);
-    void add_parent_scale(Group& row, Vec2 scale);
+    void add_parent_scale(Row& row, Vec2 scale);
 
     bool m_input_called{};
     bool m_begin_frame_called{};

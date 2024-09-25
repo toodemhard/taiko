@@ -329,18 +329,18 @@ void Game::update(std::chrono::duration<double> delta_time) {
         auto f = ui.strings.add("idk");
         auto g = ui.strings.add("wut");
 
-        ui.begin_group(style);
-        ui.text(ui.strings.add(std::format("{}", score)), {.font_size=54});
+        ui.begin_row(style);
+        ui.text(ui.strings.add(std::format("{}", score)), {.alignment = Alignment::Right, .font_size=54 });
 
 
         //std::cerr << std::format("{}", )
 
-        ui.text(ui.strings.add(std::format("{:.2f}%", accuracy_fraction * 100)), {});
-        ui.end_group();
+        ui.text(ui.strings.add(std::format("{:.2f}%", accuracy_fraction * 100)), {.alignment = Alignment::Right});
+        ui.end_row();
 
-        ui.begin_group(Style{ Position::Anchor{0,1} });
+        ui.begin_row(Style{ Position::Anchor{0,1} });
         ui.text(ui.strings.add(std::format("{}x", combo)), {.font_size=48});
-        ui.end_group();
+        ui.end_row();
 
 
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
@@ -409,7 +409,7 @@ void Game::update(std::chrono::duration<double> delta_time) {
         style.stack_direction = StackDirection::Vertical;
         style.padding = even_padding(300);
         
-        ui.begin_group(style);
+        ui.begin_row(style);
         ui.text(ui.strings.add(std::format("{}", score)), {.font_size=56});
         ui.text(ui.strings.add(std::format("{:.2f}%", accuracy_fraction * 100)), {});
         ui.text(ui.strings.add(std::format("{} Perfect", perfect_count)), {});
@@ -419,7 +419,7 @@ void Game::update(std::chrono::duration<double> delta_time) {
         ui.button("back", {.position=Position::Anchor{0, 1}}, [&]() {
             event_queue.push_event(Event::Return{});
             });
-        ui.end_group();
+        ui.end_row();
 
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
         SDL_RenderClear(renderer);
