@@ -50,7 +50,7 @@ inline Padding even_padding(float amount) {
 
 namespace Position {
 
-// fraction of the screen
+// fraction of the parent bounds
 struct Anchor {
     Vec2 position;
 };
@@ -59,7 +59,9 @@ struct Absolute {
     Vec2 position;
 };
 
-struct Relative {};
+struct Relative {
+    Vec2 offset_position;
+};
 
 using Variant = std::variant<Relative, Anchor, Absolute>;
 } // namespace Position
@@ -94,7 +96,7 @@ enum class TextAlign {
 struct Style {
     Position::Variant position;
     RGBA background_color;
-    RGBA border_color;
+    RGBA border_color = color::red;
 
     Padding padding;
 
@@ -130,7 +132,6 @@ struct Rect {
 };
 
 struct DrawRect {
-    int rect_index;
     RGBA background_color;
     RGBA border_color;
 };
@@ -153,9 +154,10 @@ enum class ElementType {
     text,
 };
 
-struct ElementHandle {
-    ElementType type;
-    int index;
+enum class Command {
+    begin_row,
+    end_row,
+    text
 };
 
 struct ClickInfo {
@@ -170,30 +172,21 @@ struct Group {
     Style style;
 
     AnimState* anim_state;
-
-    std::optional<uint16_t> on_click_index;
-    std::optional<uint16_t> silder_on_held_index;
-    std::vector<ElementHandle> children;
+    int children;
 };
 
 struct ClickRect {
-    Vec2 position;
-    Vec2 scale;
-
-    uint16_t on_click_index;
+    int rect_index;
+    int on_click_index;
 };
 
 struct SliderHeldRect {
-    Vec2 position;
-    Vec2 scale;
-
+    int rect_index;
     int on_held_index;
 };
 
 struct HoverRect {
-    Vec2 position;
-    Vec2 scale;
-
+    int rect_index;
     AnimState& anim_state;
 };
 
@@ -268,18 +261,16 @@ class UI {
 
     RectID text(const char* text, const Style& style);
 
-    void begin_group(const Style& style);
-    RectID end_group();
+    RectID begin_group(const Style& style);
+    void end_group();
     Rect query_rect(RectID id);
 
-    void begin_group_button(const Style& style, OnClick&& on_click);
-    void begin_group_button_anim(AnimState* anim_state, Style style, const AnimStyle& anim_style, OnClick&& on_click);
-
-    void visit_group(Group& group, Vec2 start_pos);
+    RectID begin_group_button(const Style& style, OnClick&& on_click);
+    RectID begin_group_button_anim(AnimState* anim_state, Style style, const AnimStyle& anim_style, OnClick&& on_click);
 
     void input(Input& input);
 
-    void begin_frame();
+    void begin_frame(int width, int height);
     void end_frame();
 
     void draw(SDL_Renderer* renderer);
@@ -293,13 +284,13 @@ class UI {
     int m_screen_height = 0;
 
     std::vector<Rect> m_rects;
+    std::vector<DrawRect> m_draw_rects;
 
     std::vector<ClickRect> m_click_rects;
     std::vector<HoverRect> m_hover_rects;
     std::vector<SliderHeldRect> m_slider_input_rects;
 
 
-    std::vector<DrawRect> m_draw_rects;
     std::vector<Group> m_groups;
     std::vector<Text> m_texts;
 
@@ -321,10 +312,13 @@ class UI {
     std::vector<DropDown*> m_dropdown_clickoff_callbacks;
 
     std::vector<int> m_group_stack;
+    std::vector<Command> m_command_tree;
 
-    void begin_group_any(const Group& group);
-    Vec2& element_scale(ElementHandle e);
-    Vec2& element_position(ElementHandle e);
 
+    void text_headless(const char* text, const Style& style);
+    void add_parent_scale(Group& row, Vec2 scale);
+
+    bool m_input_called{};
+    bool m_begin_frame_called{};
     bool m_end_frame_called{};
 };
