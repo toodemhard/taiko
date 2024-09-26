@@ -18,6 +18,7 @@ constexpr RGBA white{255, 255, 255, 255};
 constexpr RGBA black{0, 0, 0, 255};
 constexpr RGBA red{255, 0, 0, 255};
 constexpr RGBA grey{180, 180, 180, 255};
+constexpr RGBA bg{31, 31, 31, 200};
 constexpr RGBA none{0, 0, 0, 0};
 } // namespace color
 
@@ -128,6 +129,8 @@ struct Style {
     float font_size = 36;
     TextColor text_color = color::white;
     TextWrap text_wrap;
+
+    int layer;
 };
 
 struct AnimState {
@@ -148,6 +151,7 @@ struct Rect {
 };
 
 struct DrawRect {
+    Rect rect;
     RGBA background_color;
     RGBA border_color;
 };
@@ -223,6 +227,7 @@ struct SliderStyle {
     float height;
     RGBA bg_color;
     RGBA fg_color;
+    RGBA border_color;
 };
 
 struct SliderCallbacks {
@@ -297,7 +302,9 @@ class UI {
     int m_screen_height = 0;
 
     std::vector<Rect> m_rects;
-    std::vector<DrawRect> m_draw_rects;
+
+    std::vector<DrawRect> m_draw_rects_0;
+    std::vector<DrawRect> m_draw_rects_1;
 
     std::vector<ClickRect> m_click_rects;
     std::vector<HoverRect> m_hover_rects;

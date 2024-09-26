@@ -33,7 +33,6 @@ RectID UI::begin_row(const Style& style) {
     ZoneScoped;
 
     m_rects.push_back(Rect{ {}, {}, });
-    m_draw_rects.push_back(DrawRect{ style.background_color, style.border_color });
 
     m_rows.push_back(Row{(int)m_rects.size() - 1, style});
 
@@ -74,7 +73,7 @@ RGBA lerp_rgba(RGBA a, RGBA b, float t) {
 }
 
 void UI::text_headless(const char* text, const Style& style) {
-    auto& parent_group = m_rows[m_row_stack.back()];
+    auto& parent_group = m_rows[m_row_stack[m_row_stack.size() - 2]];
     RGBA text_color = std::visit(
         overloaded{
             [](RGBA color) { return color; },
@@ -225,7 +224,7 @@ void UI::end_row() {
                     auto& parent_row = m_rows[m_row_stack.back()];
                     if (auto fixed_pos = std::get_if<Scale::Fixed>(&parent_row.style.width)) {
                         auto& padding = parent_row.style.padding;
-                        return fixed_pos->value;
+                        return fixed_pos->value - padding.left - padding.right;
                     }
                 }
                 return rect.scale.x;
@@ -467,6 +466,14 @@ void UI::end_frame() {
                     }
                 }, current_row.style.position);
 
+                auto style = current_row.style;
+                if (style.layer == 0) {
+                    m_draw_rects_0.push_back(DrawRect{ current_rect, style.background_color, style.border_color });
+                } else {
+                    m_draw_rects_1.push_back(DrawRect{ current_rect, style.background_color, style.border_color });
+                }
+
+
                 new_row.next_position += current_rect.position;
             }
 
@@ -528,7 +535,8 @@ void UI::slider(Slider& state, SliderStyle style, float fraction, SliderCallback
     container.position = style.position;
     container.width = Scale::Fixed{style.width};
     container.height = Scale::Fixed{style.height};
-    container.border_color = color::white;
+    container.border_color = style.border_color;
+    container.background_color = style.bg_color;
 
     if (state.held) {
         m_slider_on_release_callbacks.push_back([&, on_release = std::move(callbacks.on_release)]() {
@@ -562,6 +570,7 @@ void UI::slider(Slider& state, SliderStyle style, float fraction, SliderCallback
     filling.background_color = style.fg_color;
     filling.width = Scale::Fixed{style.width * fraction};
     filling.height = Scale::Fixed{style.height};
+    filling.layer = 1;
     this->begin_row(filling);
     this->end_row();
 
@@ -660,7 +669,6 @@ void draw_wire_box(SDL_Renderer* renderer, const SDL_FRect& rect) {
     SDL_RenderLines(renderer, points, 5);
 }
 
-#define FUNCTION_NAME(func) #func
 void UI::draw(SDL_Renderer* renderer) {
     ZoneScoped;
 
@@ -669,33 +677,41 @@ void UI::draw(SDL_Renderer* renderer) {
     }
     m_end_frame_called = false;
 
-    for (int i = m_draw_rects.size() - 1; i >= 0; i--) {
-        auto draw_rect = m_draw_rects[i];
-        auto& rect = m_rects[i];
-        auto frect = SDL_FRect{rect.position.x, rect.position.y, rect.scale.x, rect.scale.y};
+    auto draw_draw_rects = [&](std::vector<DrawRect> draw_rects) {
+        for (int i = draw_rects.size() - 1; i >= 0; i--) {
+            auto draw_rect = draw_rects[i];
+            auto& rect = draw_rect.rect;
+            auto frect = SDL_FRect{rect.position.x, rect.position.y, rect.scale.x, rect.scale.y};
 
-        {
-            ZoneNamedN(asdf, "draw rect", true);
+            {
+                ZoneNamedN(asdf, "draw rect", true);
 
-            auto& bg_color = draw_rect.background_color;
-            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-            SDL_SetRenderDrawColor(renderer, bg_color.r, bg_color.g, bg_color.b, bg_color.a);
-            SDL_RenderFillRect(renderer, &frect);
+                auto& bg_color = draw_rect.background_color;
+                SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+                SDL_SetRenderDrawColor(renderer, bg_color.r, bg_color.g, bg_color.b, bg_color.a);
+                SDL_RenderFillRect(renderer, &frect);
+            }
+
+            {
+                ZoneNamedN(askdjh, "draw border", true);
+                auto& color = draw_rect.border_color;
+                SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
+                draw_wire_box(renderer, {rect.position.x, rect.position.y, rect.scale.x, rect.scale.y});
+            }
         }
+    };
 
-        {
-            ZoneNamedN(askdjh, "draw border", true);
-            auto& color = draw_rect.border_color;
-            SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
-            draw_wire_box(renderer, {rect.position.x, rect.position.y, rect.scale.x, rect.scale.y});
-        }
-    }
+    draw_draw_rects(m_draw_rects_0);
 
     for (auto& text : m_texts) {
         draw_text_cutoff(renderer, text.text, text.font_size, text.position, text.text_color, text.max_width);
     }
 
-    m_draw_rects.clear();
+    draw_draw_rects(m_draw_rects_1);
+
+    m_draw_rects_0.clear();
+    m_draw_rects_1.clear();
+
     m_rows.clear();
     m_texts.clear();
 
