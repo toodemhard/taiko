@@ -216,9 +216,9 @@ void UI::end_row() {
     auto width = std::visit(
         overloaded{
             [=](Scale::FitContent scale) { 
-                return rect.scale.x; 
+                return rect.scale.x + x_padding; 
             },
-            [=](Scale::Min scale) { return std::max(rect.scale.x, scale.value); },
+            [=](Scale::Min scale) { return std::max(rect.scale.x + x_padding, scale.value); },
             [](Scale::Fixed scale) { return scale.value; },
             [&](Scale::FitParent) {
                 if (m_row_stack.size() > 0) {
@@ -230,17 +230,17 @@ void UI::end_row() {
                 }
                 return rect.scale.x;
             }
-        }, row.style.width) + x_padding;
+        }, row.style.width);
 
     auto height = std::visit(
         overloaded{
-            [=](Scale::FitContent scale) -> float { return rect.scale.y; },
-            [=](Scale::Min scale) -> float { return std::max(rect.scale.y, scale.value); },
+            [=](Scale::FitContent scale) -> float { return rect.scale.y + y_padding; },
+            [=](Scale::Min scale) -> float { return std::max(rect.scale.y + y_padding, scale.value); },
             [](Scale::Fixed scale) -> float { return scale.value; },
             [=](Scale::FitParent) {
                 return rect.scale.y;
             },
-        }, row.style.height) + y_padding;
+        }, row.style.height);
 
     rect.scale = {width, height};
 
