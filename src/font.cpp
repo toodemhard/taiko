@@ -78,8 +78,31 @@ void draw_text(SDL_Renderer* renderer, const char* text, float font_size, Vec2 p
         x += char_info.xadvance * size_ratio;
         ++text;
     }
+}
 
-    //SDL_SetTextureColorMod(font_texture, 255, 255, 255);
+void draw_text_cutoff(SDL_Renderer* renderer, const char* text, float font_size, Vec2 position, RGBA color, float max_width) {
+    ZoneScoped;
+    if (text == nullptr) {
+        return;
+    }
+
+    SDL_SetTextureColorMod(font_texture, color.r, color.b, color.g);
+
+    float size_ratio = font_size / pixel_height;
+
+    float x = position.x;
+    while (*text && x - position.x < max_width) {
+        auto& char_info = char_data[*text - 32];
+        float w = char_info.x1 - char_info.x0;
+        float h = char_info.y1 - char_info.y0;
+        auto src = SDL_FRect{ (float)char_info.x0, (float)char_info.y0, w, h };
+        auto dst = SDL_FRect{ x + char_info.xoff, font_size + position.y + char_info.yoff * size_ratio, w * size_ratio, h * size_ratio};
+
+        SDL_RenderTexture(renderer, font_texture, &src, &dst);
+
+        x += char_info.xadvance * size_ratio;
+        ++text;
+    }
 }
 
 float font_width(const char* text, float font_size) {

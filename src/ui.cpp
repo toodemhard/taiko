@@ -86,13 +86,21 @@ void UI::text_headless(const char* text, const Style& style) {
     auto width = font_width(text, style.font_size);
     auto height = font_height(text, style.font_size);
 
+    // auto max_width = [&]() {
+    //     if (auto* fixed_width = std::get_if<Scale::Fixed>(&style.width)) {
+    //         return (*fixed_width).value;
+    //     } else {
+    //         return width;
+    //     }
+    // }();
+
     m_command_tree.push_back(Command::text);
     m_texts.push_back(Text{
         {},
-        Vec2{width, height},
         text,
         style.font_size,
-        text_color
+        text_color,
+        style.text_wrap,
     });
 
     add_parent_scale(m_rows[m_row_stack.back()], Vec2{width, height});
@@ -203,20 +211,35 @@ void UI::end_row() {
 
     float x_padding = row.style.padding.left + row.style.padding.right;
     float y_padding = row.style.padding.top + row.style.padding.bottom;
-
+    
     auto& rect = m_rects[row.rect_index];
     auto width = std::visit(
         overloaded{
-            [&](Scale::FitContent scale) -> float { return rect.scale.x; },
-            [=](Scale::Min scale) -> float { return std::max(rect.scale.x, scale.value); },
-            [](Scale::Fixed scale) -> float { return scale.value; }
+            [=](Scale::FitContent scale) { 
+                return rect.scale.x; 
+            },
+            [=](Scale::Min scale) { return std::max(rect.scale.x, scale.value); },
+            [](Scale::Fixed scale) { return scale.value; },
+            [&](Scale::FitParent) {
+                if (m_row_stack.size() > 0) {
+                    auto& parent_row = m_rows[m_row_stack.back()];
+                    if (auto fixed_pos = std::get_if<Scale::Fixed>(&parent_row.style.width)) {
+                        auto& padding = parent_row.style.padding;
+                        return fixed_pos->value;
+                    }
+                }
+                return rect.scale.x;
+            }
         }, row.style.width) + x_padding;
 
     auto height = std::visit(
         overloaded{
             [=](Scale::FitContent scale) -> float { return rect.scale.y; },
             [=](Scale::Min scale) -> float { return std::max(rect.scale.y, scale.value); },
-            [](Scale::Fixed scale) -> float { return scale.value; }
+            [](Scale::Fixed scale) -> float { return scale.value; },
+            [=](Scale::FitParent) {
+                return rect.scale.y;
+            },
         }, row.style.height) + y_padding;
 
     rect.scale = {width, height};
@@ -331,6 +354,8 @@ void UI::input(Input& input) {
 }
 
 void UI::begin_frame(int width, int height) {
+    ZoneScoped;
+
     if (!m_input_called) {
         DEV_PANIC("UI::input() not called");
     }
@@ -342,6 +367,8 @@ void UI::begin_frame(int width, int height) {
 }
 
 void UI::end_frame() {
+    ZoneScoped;
+    
     if (!m_begin_frame_called) {
         DEV_PANIC("UI::begin_frame() not called");
     }
@@ -453,8 +480,13 @@ void UI::end_frame() {
             row_stack.pop_back();
         break;
         case Command::text:
-            m_texts[current_text_index].position = row_stack.back().next_position;
-            incr(row_stack.back(), m_texts[current_text_index].scale, 0);
+            auto& parent_row = m_rows[row_stack.back().row_index];
+            auto parent_rect = m_rects[parent_row.rect_index];
+
+            auto& text = m_texts[current_text_index];
+            text.position = row_stack.back().next_position;
+            text.max_width = parent_rect.scale.x;
+            // incr(row_stack.back(), m_texts[current_text_index].scale, 0);
 
             current_text_index++;
         break;
@@ -660,7 +692,7 @@ void UI::draw(SDL_Renderer* renderer) {
     }
 
     for (auto& text : m_texts) {
-        draw_text(renderer, text.text, text.font_size, text.position, text.text_color);
+        draw_text_cutoff(renderer, text.text, text.font_size, text.position, text.text_color, text.max_width);
     }
 
     m_draw_rects.clear();

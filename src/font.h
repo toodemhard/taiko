@@ -7,6 +7,7 @@
 void init_font(SDL_Renderer* renderer);
 
 void draw_text(SDL_Renderer* renderer, const char* text, float size, Vec2 position, RGBA color);
+void draw_text_cutoff(SDL_Renderer* renderer, const char* text, float font_size, Vec2 position, RGBA color, float max_width);
 
 float font_width(const char* text, float font_size);
 

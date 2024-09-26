@@ -76,10 +76,12 @@ struct Min {
     float value;
 };
 
+struct FitParent {};
+
 // scale to the content
 struct FitContent {};
 
-using Variant = std::variant<FitContent, Min, Fixed>;
+using Variant = std::variant<FitContent, Min, Fixed, FitParent>;
 
 } // namespace Scale
 
@@ -99,10 +101,16 @@ enum class Alignment {
     Right,
 };
 
+enum class TextWrap {
+    Overflow,
+    Cutoff,
+    Wrap,
+};
+
 struct Style {
     Position::Variant position;
     RGBA background_color;
-    RGBA border_color = color::red;
+    RGBA border_color;
 
     Padding padding;
 
@@ -119,6 +127,7 @@ struct Style {
     // text style
     float font_size = 36;
     TextColor text_color = color::white;
+    TextWrap text_wrap;
 };
 
 struct AnimState {
@@ -143,12 +152,14 @@ struct DrawRect {
     RGBA border_color;
 };
 
+
 struct Text {
     Vec2 position;
-    Vec2 scale;
     const char* text;
     float font_size;
     RGBA text_color;
+    TextWrap wrap;
+    float max_width;
 };
 
 struct Button {
