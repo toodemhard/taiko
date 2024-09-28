@@ -111,7 +111,7 @@ enum class TextWrap {
 struct Style {
     Position::Variant position;
     RGBA background_color;
-    RGBA border_color = color::red;
+    RGBA border_color;
 
     Padding padding;
 
