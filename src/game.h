@@ -46,6 +46,7 @@ struct InputRecord {
 };
 
 struct BigNoteHits {
+    int index;
     bool left = false;
     bool right = false;
 };
@@ -107,7 +108,7 @@ private:
     bool m_paused{};
     bool m_end_screen{};
 
-    BigNoteHits current_big_note_status;
+    std::optional<BigNoteHits> current_big_note_status;
 
     bool initialized = false;
 

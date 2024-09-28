@@ -1,8 +1,12 @@
 #include "game.h"
 #include "SDL3/SDL_mouse.h"
+#include "SDL3/SDL_rect.h"
+#include "SDL3/SDL_render.h"
 #include "SDL3/SDL_scancode.h"
+#include "SDL3_mixer/SDL_mixer.h"
 #include "constants.h"
 #include "assets.h"
+#include "map.h"
 #include "ui.h"
 
 using namespace std::chrono_literals;
@@ -76,7 +80,7 @@ void Game::draw_map() {
 }
 
 void draw_note(SDL_Renderer* renderer, AssetLoader& assets, const NoteFlags& note_type, const Vec2& center_point) {
-        float scale = (note_type & NoteFlagBits::small) ? 0.9f : 1.4f;
+        float scale = (note_type & NoteFlagBits::small) ? 1.0f : 1.25f;
         Image circle_image = (note_type & NoteFlagBits::don) ? assets.get_image(ImageID::don_circle) : assets.get_image(ImageID::kat_circle);
         Image circle_overlay = assets.get_image(ImageID::circle_overlay);
         Image select_circle = assets.get_image(ImageID::select_circle);
@@ -234,14 +238,6 @@ void Game::update(std::chrono::duration<double> delta_time) {
             inputs.push_back(DrumInput::kat_right);
         }
 
-        for (const auto& input : inputs) {
-            if (input == DrumInput::don_left || input == DrumInput::don_right) {
-                Mix_PlayChannel(-1, assets.get_sound(SoundID::don), 0);
-            }
-            else if (input == DrumInput::kat_left || input == DrumInput::kat_right) {
-                Mix_PlayChannel(-1, assets.get_sound(SoundID::kat), 0);
-            }
-        }
 
         if (elapsed - hit_effect_time_point_seconds > hit_effect_duration.count()) {
             m_current_hit_effect = hit_effect::none;
@@ -252,12 +248,14 @@ void Game::update(std::chrono::duration<double> delta_time) {
 
             };
 
+
+        // bool big_note_sound_played = false;
         if (current_note_index < m_map.times.size()) {
-            for (const auto& thing : inputs) {
+            for (const auto& input : inputs) {
                 auto error_duration = elapsed - m_map.times[current_note_index];
                 if (std::abs(error_duration) <= ok_range.count() / 2) {
                     auto actual_type = (uint8_t)(m_map.flags_list[current_note_index] & NoteFlagBits::don);
-                    auto input_type = (uint8_t)(thing & DrumInputFlagBits::don_kat);
+                    auto input_type = (uint8_t)(input & DrumInputFlagBits::don_kat);
                     if (actual_type == input_type) {
                         note_alive_list[current_note_index] = false;
                         hit_effect_time_point_seconds = elapsed;
@@ -287,6 +285,16 @@ void Game::update(std::chrono::duration<double> delta_time) {
             }
         }
 
+        // if(!big_note_sound_played) {
+        for (const auto& input : inputs) {
+            if (input == DrumInput::don_left || input == DrumInput::don_right) {
+                Mix_PlayChannel(0, assets.get_sound(SoundID::don), 0);
+            }
+            else if (input == DrumInput::kat_left || input == DrumInput::kat_right) {
+                Mix_PlayChannel(1, assets.get_sound(SoundID::kat), 0);
+            }
+        }
+
         if (current_note_index < m_map.times.size()) {
             // if current note passed by completely without input attempts
             if (elapsed - m_map.times[current_note_index] > ok_range.count() / 2) {
@@ -309,53 +317,77 @@ void Game::update(std::chrono::duration<double> delta_time) {
             in_flight_notes.flags.erase(in_flight_notes.flags.begin());
         }
 
-        auto inner_drum = assets.get_image(ImageID::inner_drum);
-        auto outer_drum = assets.get_image(ImageID::outer_drum);
+        {
+            float height = 220;
+            auto rect = SDL_FRect{0, (constants::window_height - height) / 2.0f, constants::window_width, height};
+            SDL_SetRenderDrawColor(renderer, 25, 25, 25, 255);
+            SDL_RenderFillRect(renderer, &rect);
+        }
 
-        auto hit_target = assets.get_image(ImageID::circle_overlay);
-        auto hit_target_rect = SDL_FRect{ inner_drum.width * 2.0f, (window_height - hit_target.height) / 2.0f, (float)hit_target.width, (float)hit_target.height };
+        float thing_x = 30;
+        float thing_scale = 1.25;
+        auto back_frame = assets.get_image(ImageID::back_frame);
+        float fix_scale = 1.055;
+        back_frame.width *= fix_scale * thing_scale;
+        back_frame.height *= fix_scale * thing_scale;
+
+        auto inner_drum = assets.get_image(ImageID::inner_drum);
+        inner_drum.width *= thing_scale;
+        inner_drum.height *= thing_scale;
+        auto outer_drum = assets.get_image(ImageID::outer_drum);
+        outer_drum.width *= thing_scale;
+        outer_drum.height *= thing_scale;
+        auto crosshair_rim = assets.get_image(ImageID::crosshair_rim);
+
+        float crosshair_x = inner_drum.width * 2 + crosshair_rim.width / 2.0f + 100;
+        auto crosshair_rect = SDL_FRect{ crosshair_x - crosshair_rim.width / 2.0f, (window_height - crosshair_rim.height) / 2.0f, (float)crosshair_rim.width, (float)crosshair_rim.height };
+        SDL_RenderTexture(renderer, crosshair_rim.texture, NULL, &crosshair_rect);
+
+        // auto crosshair_rim_outer = assets.get_image(ImageID::crosshair_rim_outer);
+        // crosshair_rim_outer.width *= 1.3;
+        // crosshair_rim_outer.height *= 1.3;
+        // auto dst_rect = SDL_FRect{
+        //     crosshair_x - crosshair_rim_outer.width / 2.0f,
+        //     (window_height - crosshair_rim_outer.height) / 2.0f,
+        //     (float)crosshair_rim_outer.width, 
+        //     (float)crosshair_rim_outer.height
+        // };
+        // SDL_RenderTexture(renderer, crosshair_rim_outer.texture, NULL, &dst_rect);
+
+
+        auto crosshair_fill = assets.get_image(ImageID::crosshair_fill);
+        crosshair_fill.width *= 0.9;
+        crosshair_fill.height *= 0.9;
+        {
+            auto dst_rect = SDL_FRect{crosshair_x - crosshair_fill.width / 2.0f, (window_height - crosshair_fill.height) / 2.0f, (float)crosshair_fill.width, (float)crosshair_fill.height};
+            SDL_RenderTexture(renderer, crosshair_fill.texture, NULL, &dst_rect);
+        }
+        
 
         cam.position.x = elapsed;
         // find world space dist between crosshair and 0 time point
-        auto cam_offset = elapsed - cam.screen_to_world({ hit_target_rect.x + hit_target_rect.w / 2, 0 }).x;
+        auto cam_offset = elapsed - cam.screen_to_world({ crosshair_rect.x + crosshair_rect.w / 2, 0 }).x;
 
         cam.position.x += cam_offset;
 
+        this->draw_map();
 
-        Style style{};
-        style.position = Position::Anchor{ 1,0 };
-        style.stack_direction = StackDirection::Vertical;
+        {
+            auto rect = SDL_FRect{0, (constants::window_height - back_frame.height) / 2.0f, thing_x, (float)back_frame.height};
+            SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+            SDL_RenderFillRect(renderer, &rect);
 
-        auto f = ui.strings.add("idk");
-        auto g = ui.strings.add("wut");
-
-        ui.begin_row(style);
-        ui.text(ui.strings.add(std::format("{}", score)), {.alignment = Alignment::Right, .font_size=54 });
-
-
-        //std::cerr << std::format("{}", )
-
-        ui.text(ui.strings.add(std::format("{:.2f}%", accuracy_fraction * 100)), {.alignment = Alignment::Right});
-        ui.end_row();
-
-        ui.begin_row(Style{ Position::Anchor{0,1} });
-        ui.text(ui.strings.add(std::format("{}x", combo)), {.font_size=48});
-        ui.end_row();
-
-
-        SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
-        SDL_RenderClear(renderer);
+            float y = (constants::window_height - back_frame.height) / 2.0f + 2;
+            auto dst_rect = SDL_FRect{thing_x, y, (float)back_frame.width, (float)back_frame.height};
+            SDL_RenderTexture(renderer, back_frame.texture, NULL, &dst_rect);
+        }
 
         float x = elapsed;
         Vec2 p1 = cam.world_to_screen({ x, 0.25f });
         Vec2 p2 = cam.world_to_screen({ x, -0.25f });
 
-        SDL_SetRenderDrawColor(renderer, 255, 255, 0, SDL_ALPHA_OPAQUE);
-        SDL_RenderLine(renderer, p1.x, p1.y, p2.x, p2.y);
 
-        SDL_RenderTexture(renderer, hit_target.texture, NULL, &hit_target_rect);
-
-        auto flight_start_point = rect_center(hit_target_rect);
+        auto flight_start_point = rect_center(crosshair_rect);
         for (int i = 0; i < in_flight_notes.times.size(); i++) {
             auto flight_elapsed = elapsed - in_flight_notes.times[i];
 
@@ -365,20 +397,20 @@ void Game::update(std::chrono::duration<double> delta_time) {
         }
 
 
+
         if (m_current_hit_effect == hit_effect::perfect) {
             auto hit_effect_image = assets.get_image(ImageID::hit_effect_perfect);
-            auto dst_rect = rect_at_center_point(rect_center(hit_target_rect), hit_effect_image.width, hit_effect_image.height);
+            auto dst_rect = rect_at_center_point(rect_center(crosshair_rect), hit_effect_image.width, hit_effect_image.height);
             SDL_RenderTexture(renderer, hit_effect_image.texture, NULL, &dst_rect);
         }
         else if (m_current_hit_effect == hit_effect::ok) {
             auto hit_effect_image = assets.get_image(ImageID::hit_effect_ok);
-            auto dst_rect = rect_at_center_point(rect_center(hit_target_rect), hit_effect_image.width, hit_effect_image.height);
+            auto dst_rect = rect_at_center_point(rect_center(crosshair_rect), hit_effect_image.width, hit_effect_image.height);
             SDL_RenderTexture(renderer, hit_effect_image.texture, NULL, &dst_rect);
         }
 
-        this->draw_map();
 
-        const Vec2 drum_pos = { 0, ((float)window_height - inner_drum.height) / 2 };
+        const Vec2 drum_pos = { thing_x, ((float)window_height - inner_drum.height) / 2 };
         auto left_rect = SDL_FRect{ drum_pos.x, drum_pos.y, (float)inner_drum.width, (float)inner_drum.height };
         auto right_rect = SDL_FRect{ drum_pos.x + inner_drum.width, drum_pos.y, (float)inner_drum.width, (float)inner_drum.height };
 
@@ -404,10 +436,30 @@ void Game::update(std::chrono::duration<double> delta_time) {
             }
         }
 
+        Style style{};
+        style.position = Position::Anchor{ 1,0 };
+        style.stack_direction = StackDirection::Vertical;
+
+        ui.begin_row(style);
+        ui.text(ui.strings.add(std::format("{}", score)), {.alignment = Alignment::Right, .font_size=54 });
+
+
+        //std::cerr << std::format("{}", )
+
+        ui.text(ui.strings.add(std::format("{:.2f}%", accuracy_fraction * 100)), {.alignment = Alignment::Right});
+        ui.end_row();
+
+        ui.begin_row(Style{ Position::Anchor{0,1} });
+        ui.text(ui.strings.add(std::format("{}x", combo)), {.font_size=48});
+        ui.end_row();
+
+
     } else {
         Style style{};
         style.stack_direction = StackDirection::Vertical;
-        style.padding = even_padding(300);
+        style.width = Scale::FitParent{};
+        style.height = Scale::FitParent{};
+        style.padding = even_padding(100);
         
         ui.begin_row(style);
         ui.text(ui.strings.add(std::format("{}", score)), {.font_size=56});
@@ -416,13 +468,10 @@ void Game::update(std::chrono::duration<double> delta_time) {
         ui.text(ui.strings.add(std::format("{} Ok", ok_count)), {});
         ui.text(ui.strings.add(std::format("{} Miss", miss_count)), {});
 
-        ui.button("back", {.position=Position::Anchor{0, 1}}, [&]() {
+        ui.button("Back", {.position=Position::Anchor{0, 1}, .font_size=40}, [&]() {
             event_queue.push_event(Event::Return{});
             });
         ui.end_row();
-
-        SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
-        SDL_RenderClear(renderer);
     }
 
     ui.end_frame();
