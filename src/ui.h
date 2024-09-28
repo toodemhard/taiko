@@ -111,7 +111,7 @@ enum class TextWrap {
 struct Style {
     Position::Variant position;
     RGBA background_color;
-    RGBA border_color;
+    RGBA border_color = color::red;
 
     Padding padding;
 
@@ -129,8 +129,6 @@ struct Style {
     float font_size = 36;
     TextColor text_color = color::white;
     TextWrap text_wrap;
-
-    int layer;
 };
 
 struct AnimState {
@@ -255,6 +253,11 @@ struct SliderOnInputInfo {
     int on_input_index;
 };
 
+enum DrawCommand {
+    rect,
+    text,
+};
+
 class UI {
   public:
     UI() = default;
@@ -303,13 +306,13 @@ class UI {
 
     std::vector<Rect> m_rects;
 
-    std::vector<DrawRect> m_draw_rects_0;
-    std::vector<DrawRect> m_draw_rects_1;
+    std::vector<DrawRect> m_draw_rects;
 
     std::vector<ClickRect> m_click_rects;
     std::vector<HoverRect> m_hover_rects;
     std::vector<SliderHeldRect> m_slider_input_rects;
 
+    std::vector<DrawCommand> m_draw_order;
 
     std::vector<Row> m_rows;
     std::vector<Text> m_texts;

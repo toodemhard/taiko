@@ -236,7 +236,14 @@ void UI::end_row() {
             [=](Scale::FitContent scale) -> float { return rect.scale.y + y_padding; },
             [=](Scale::Min scale) -> float { return std::max(rect.scale.y + y_padding, scale.value); },
             [](Scale::Fixed scale) -> float { return scale.value; },
-            [=](Scale::FitParent) {
+            [&](Scale::FitParent) {
+                if (m_row_stack.size() > 0) {
+                    auto& parent_row = m_rows[m_row_stack.back()];
+                    if (auto fixed_pos = std::get_if<Scale::Fixed>(&parent_row.style.height)) {
+                        auto& padding = parent_row.style.padding;
+                        return fixed_pos->value - padding.top - padding.bottom;
+                    }
+                }
                 return rect.scale.y;
             },
         }, row.style.height);
@@ -467,12 +474,8 @@ void UI::end_frame() {
                 }, current_row.style.position);
 
                 auto style = current_row.style;
-                if (style.layer == 0) {
-                    m_draw_rects_0.push_back(DrawRect{ current_rect, style.background_color, style.border_color });
-                } else {
-                    m_draw_rects_1.push_back(DrawRect{ current_rect, style.background_color, style.border_color });
-                }
-
+                m_draw_rects.push_back(DrawRect{ current_rect, style.background_color, style.border_color });
+                m_draw_order.push_back(DrawCommand::rect);
 
                 new_row.next_position += current_rect.position;
             }
@@ -483,8 +486,9 @@ void UI::end_frame() {
             current_row_index++;
         }
         break;
-        case Command::end_row:
+        case Command::end_row: {
             row_stack.pop_back();
+        }
         break;
         case Command::text:
             auto& parent_row = m_rows[row_stack.back().row_index];
@@ -494,6 +498,7 @@ void UI::end_frame() {
             text.position = row_stack.back().next_position;
             text.max_width = parent_rect.scale.x;
             // incr(row_stack.back(), m_texts[current_text_index].scale, 0);
+            m_draw_order.push_back(DrawCommand::text);
 
             current_text_index++;
         break;
@@ -570,7 +575,7 @@ void UI::slider(Slider& state, SliderStyle style, float fraction, SliderCallback
     filling.background_color = style.fg_color;
     filling.width = Scale::Fixed{style.width * fraction};
     filling.height = Scale::Fixed{style.height};
-    filling.layer = 1;
+    // filling.layer = 1;
     this->begin_row(filling);
     this->end_row();
 
@@ -677,9 +682,12 @@ void UI::draw(SDL_Renderer* renderer) {
     }
     m_end_frame_called = false;
 
-    auto draw_draw_rects = [&](std::vector<DrawRect> draw_rects) {
-        for (int i = draw_rects.size() - 1; i >= 0; i--) {
-            auto draw_rect = draw_rects[i];
+    int rect_index{};
+    int text_index{};
+    for (auto& type : m_draw_order) {
+        switch (type) {
+        case DrawCommand::rect: {
+            auto draw_rect = m_draw_rects[rect_index];
             auto& rect = draw_rect.rect;
             auto frect = SDL_FRect{rect.position.x, rect.position.y, rect.scale.x, rect.scale.y};
 
@@ -698,19 +706,27 @@ void UI::draw(SDL_Renderer* renderer) {
                 SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
                 draw_wire_box(renderer, {rect.position.x, rect.position.y, rect.scale.x, rect.scale.y});
             }
+
+
+            rect_index++;
         }
-    };
+        break;
+        case DrawCommand::text: {
+            auto& text = m_texts[text_index];
+            draw_text_cutoff(renderer, text.text, text.font_size, text.position, text.text_color, text.max_width);
 
-    draw_draw_rects(m_draw_rects_0);
+            text_index++;
 
-    for (auto& text : m_texts) {
-        draw_text_cutoff(renderer, text.text, text.font_size, text.position, text.text_color, text.max_width);
+        }
+        break;
+        }
+
     }
 
-    draw_draw_rects(m_draw_rects_1);
 
-    m_draw_rects_0.clear();
-    m_draw_rects_1.clear();
+    m_draw_order.clear();
+
+    m_draw_rects.clear();
 
     m_rows.clear();
     m_texts.clear();
