@@ -82,8 +82,7 @@ void UI::text_headless(const char* text, const Style& style) {
         style.text_color
     );
 
-    auto width = font_width(text, style.font_size);
-    auto height = font_height(text, style.font_size);
+    auto scale = text_dimensions(text, style.font_size);
 
     // auto max_width = [&]() {
     //     if (auto* fixed_width = std::get_if<Scale::Fixed>(&style.width)) {
@@ -102,7 +101,7 @@ void UI::text_headless(const char* text, const Style& style) {
         style.text_wrap,
     });
 
-    add_parent_scale(m_rows[m_row_stack.back()], Vec2{width, height});
+    add_parent_scale(m_rows[m_row_stack.back()], scale);
 }
 
 RectID UI::button_anim(const char* text, AnimState* anim_state, const Style& style, const AnimStyle& anim_style, OnClick&& on_click) {
