@@ -442,7 +442,29 @@ void UI::end_frame() {
             auto& current_rect = m_rects[current_row.rect_index];
 
             RowStackFrame new_row{current_row_index};
-            new_row.next_position = {current_row.style.padding.left, current_row.style.padding.top};
+            if (current_row.style.stack_direction == StackDirection::Horizontal) {
+                new_row.next_position = {current_row.style.padding.left};
+            } else {
+                new_row.next_position = {0, current_row.style.padding.top};
+            }
+            switch (current_row.style.align_items) {
+            case Alignment::Start:
+                if (current_row.style.stack_direction == StackDirection::Vertical) {
+                    new_row.next_position.x += current_row.style.padding.left;
+                } else {
+                    new_row.next_position.y += current_row.style.padding.top;
+                }
+            break;
+            case Alignment::Center:
+            break;
+            case Alignment::End:
+                if (current_row.style.stack_direction == StackDirection::Vertical) {
+                    new_row.next_position.x -= current_row.style.padding.right;
+                } else {
+                    new_row.next_position.y -= current_row.style.padding.bottom;
+                }
+            break;
+            }
             new_row.stack_direction = current_row.style.stack_direction;
 
             if (row_stack.size() > 0) {
