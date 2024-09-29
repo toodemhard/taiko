@@ -5,6 +5,7 @@
 
 #include "app.h"
 #include "SDL3_mixer/SDL_mixer.h"
+#include "audio.h"
 #include "constants.h"
 #include "font.h"
 
@@ -40,13 +41,6 @@ enum class Context {
 int run() {
     create_dirs();
 
-    // try {
-    //     load_osz(std::filesystem::path("1815703 Hiiragi Magnetite - Marshall Maximizer feat. KAFU.osz"));
-    // } catch (std::runtime_error& e) {
-    //     std::cout << e.what();
-    // }
-
-
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) < 0) {
         SDL_Log("SDL_Init failed (%s)", SDL_GetError());
         return 1;
@@ -58,13 +52,12 @@ int run() {
     SDL_CreateWindowAndRenderer("taiko", window_width, window_height, 0, &window, &renderer);
     SDL_SetWindowFullscreen(window, true);
 
-
     Input input{};
     Audio audio{};
 
     Mix_AllocateChannels(32);
 
-    Mix_MasterVolume(MIX_MAX_VOLUME * 0.3);
+    Mix_MasterVolume(effect_volume);
     Mix_VolumeMusic(MIX_MAX_VOLUME * 0.2);
 
     init_font(renderer);
@@ -81,8 +74,14 @@ int run() {
         {"circle-select.png", ImageID::select_circle},
         {"circle.png", ImageID::kat_circle, RGBA{60, 219, 226, 255}},
         {"circle.png", ImageID::don_circle, RGBA{252, 78, 60, 255}},
-        {"drum-inner.png", ImageID::inner_drum},
-        {"drum-outer.png", ImageID::outer_drum},
+        {"drum_inner.png", ImageID::inner_drum},
+        {"drum_outer.png", ImageID::outer_drum},
+        {"circle.png", ImageID::crosshair_fill, RGBA{59, 59, 59, 255}},
+        {"approach_circle.png", ImageID::crosshair_rim, RGBA{110, 110, 110, 255}},
+        {"approach_circle.png", ImageID::crosshair_rim_outer, RGBA{59, 59, 59, 255}},
+
+        {"bg.png", ImageID::bg},
+        {"bar-left.png", ImageID::back_frame},
     };
 
     AssetLoader assets{};
@@ -101,7 +100,7 @@ int run() {
 
     UI_Test ui_test{renderer, input};
 
-    SDL_StartTextInput(window);
+    // SDL_StartTextInput(window);
 
     UI frame_time_ui{constants::window_width, constants::window_height};
 
@@ -215,9 +214,9 @@ int run() {
             }
         }
 
-        if (input.key_down(SDL_SCANCODE_R)) {
-        }
-
+        // if (input.key_down(SDL_SCANCODE_R)) {
+        // }
+        //
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
         SDL_RenderClear(renderer);
 
@@ -240,7 +239,7 @@ int run() {
 
         auto st = Style{};
         st.position = Position::Anchor{{1, 1}};
-        // st.padding = Padding{10,10,10,10};
+        st.padding = Padding{10,10,10,10};
 
         frame_time_ui.input(input);
 
@@ -258,14 +257,6 @@ int run() {
             SDL_RenderPresent(renderer);
             ZoneNamedN(v, "Render Present", true);
         }
-
-
-        // case Context::Editor:
-        //   editor->update(delta_time);
-        //   break;
-        // case Context::Game:
-        //   game->update(delta_time);
-        //   break;
 
         last_frame_duration = std::chrono::high_resolution_clock::now() - frame_start;
 

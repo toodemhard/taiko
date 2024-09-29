@@ -104,6 +104,9 @@ private:
     float hit_effect_time_point_seconds{};
 
     InFlightNotes in_flight_notes;
+
+    std::vector<double> m_miss_effects;
+
     
     bool m_paused{};
     bool m_end_screen{};

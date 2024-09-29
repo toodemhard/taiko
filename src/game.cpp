@@ -8,6 +8,8 @@
 #include "assets.h"
 #include "map.h"
 #include "ui.h"
+#include "vec.h"
+#include <cstdint>
 
 using namespace std::chrono_literals;
 
@@ -24,9 +26,12 @@ SDL_FRect rect_at_center_point(Vec2 center, float width, float height) {
     return { center.x - width / 2.0f, center.y - width / 2.0f, width, height };
 }
 
-Vec2 linear_interp(Vec2 p1, Vec2 p2, float t) {
-    return p1 + (p2 - p1) * t;
+float cerp(float a, float b, float t) {
+    t -= 1.0f;
+    t = t*t*t + 1.0f;
+    return a + (b - a) * t;
 }
+
 
 void Game::draw_map() {
     ZoneScoped;
@@ -277,6 +282,8 @@ void Game::update(std::chrono::duration<double> delta_time) {
                     else {
                         combo = 0;
                         miss_count++;
+
+                        m_miss_effects.push_back(elapsed);
                     }
                     current_note_index++;
 
@@ -300,6 +307,8 @@ void Game::update(std::chrono::duration<double> delta_time) {
             if (elapsed - m_map.times[current_note_index] > ok_range.count() / 2) {
                 combo = 0;
                 miss_count++;
+
+                m_miss_effects.push_back(elapsed);
 
                 current_note_index++;
                 update_accuracy();
@@ -407,6 +416,29 @@ void Game::update(std::chrono::duration<double> delta_time) {
             auto hit_effect_image = assets.get_image(ImageID::hit_effect_ok);
             auto dst_rect = rect_at_center_point(rect_center(crosshair_rect), hit_effect_image.width, hit_effect_image.height);
             SDL_RenderTexture(renderer, hit_effect_image.texture, NULL, &dst_rect);
+        }
+
+        constexpr auto miss_effect_duration = 0.4f;
+
+        for (int i = m_miss_effects.size() - 1; i >= 0; i--) {
+            if (elapsed - m_miss_effects[i] > miss_effect_duration) {
+                m_miss_effects.erase(m_miss_effects.begin() + i);
+            }
+        }
+    
+        for (auto effect : m_miss_effects) {
+            auto width = 20.0f;
+            auto height = 20.0f;
+
+            auto y = linear_interp(0, 150, (elapsed - effect) / miss_effect_duration);
+            uint8_t a = linear_interp(255, 0, (elapsed - effect) / miss_effect_duration);
+
+            Style st{};
+            st.position = Position::Absolute{crosshair_x,  (constants::window_height - height) / 2.0f - y - 50};
+
+            ui.begin_row(st);
+            ui.text("X", {.position = Position::Anchor{0.5, 0.5}, .font_size=44, .text_color=RGBA{255, 0, 0, a}});
+            ui.end_row();
         }
 
 
