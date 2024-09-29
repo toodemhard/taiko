@@ -97,9 +97,9 @@ enum class TextAlign {
 };
 
 enum class Alignment {
-    Left,
+    Start,
     Center,
-    Right,
+    End,
 };
 
 enum class TextWrap {
@@ -121,7 +121,7 @@ struct Style {
 
     // row styling
     StackDirection stack_direction = StackDirection::Horizontal;
-    Alignment alignment;
+    Alignment align_items;
     
     float gap;
 

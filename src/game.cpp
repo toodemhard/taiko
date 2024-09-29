@@ -32,6 +32,8 @@ float cerp(float a, float b, float t) {
     return a + (b - a) * t;
 }
 
+constexpr float normal_scale = 0.9f;
+constexpr float big_scale = 1.3333f;
 
 void Game::draw_map() {
     ZoneScoped;
@@ -66,7 +68,7 @@ void Game::draw_map() {
 
         Vec2 center_pos = cam.world_to_screen({ (float)m_map.times[i], 0 });
 
-        float scale = (m_map.flags_list[i] & NoteFlagBits::small) ? 0.9f : 1.4f;
+        float scale = (m_map.flags_list[i] & NoteFlagBits::small) ? normal_scale : big_scale;
         Image circle_image = (m_map.flags_list[i] & NoteFlagBits::don) ? assets.get_image(ImageID::don_circle) : assets.get_image(ImageID::kat_circle);
         Image circle_overlay = assets.get_image(ImageID::circle_overlay);
         Image select_circle = assets.get_image(ImageID::select_circle);
@@ -85,7 +87,7 @@ void Game::draw_map() {
 }
 
 void draw_note(SDL_Renderer* renderer, AssetLoader& assets, const NoteFlags& note_type, const Vec2& center_point) {
-        float scale = (note_type & NoteFlagBits::small) ? 1.0f : 1.25f;
+        float scale = (note_type & NoteFlagBits::small) ? normal_scale : big_scale;
         Image circle_image = (note_type & NoteFlagBits::don) ? assets.get_image(ImageID::don_circle) : assets.get_image(ImageID::kat_circle);
         Image circle_overlay = assets.get_image(ImageID::circle_overlay);
         Image select_circle = assets.get_image(ImageID::select_circle);
@@ -405,8 +407,6 @@ void Game::update(std::chrono::duration<double> delta_time) {
             draw_note(renderer, assets, in_flight_notes.flags[i], pos);
         }
 
-
-
         if (m_current_hit_effect == hit_effect::perfect) {
             auto hit_effect_image = assets.get_image(ImageID::hit_effect_perfect);
             auto dst_rect = rect_at_center_point(rect_center(crosshair_rect), hit_effect_image.width, hit_effect_image.height);
@@ -430,14 +430,14 @@ void Game::update(std::chrono::duration<double> delta_time) {
             auto width = 20.0f;
             auto height = 20.0f;
 
-            auto y = linear_interp(0, 150, (elapsed - effect) / miss_effect_duration);
+            auto y = linear_interp(0, 240, (elapsed - effect) / miss_effect_duration);
             uint8_t a = linear_interp(255, 0, (elapsed - effect) / miss_effect_duration);
 
             Style st{};
-            st.position = Position::Absolute{crosshair_x,  (constants::window_height - height) / 2.0f - y - 50};
+            st.position = Position::Absolute{crosshair_x,  (constants::window_height - height) / 2.0f - y};
 
             ui.begin_row(st);
-            ui.text("X", {.position = Position::Anchor{0.5, 0.5}, .font_size=44, .text_color=RGBA{255, 0, 0, a}});
+            ui.text("X", {.position = Position::Anchor{0.5, 0.5}, .font_size=68, .text_color=RGBA{255, 0, 0, a}});
             ui.end_row();
         }
 
@@ -471,14 +471,12 @@ void Game::update(std::chrono::duration<double> delta_time) {
         Style style{};
         style.position = Position::Anchor{ 1,0 };
         style.stack_direction = StackDirection::Vertical;
+        style.align_items = Alignment::End;
 
         ui.begin_row(style);
-        ui.text(ui.strings.add(std::format("{}", score)), {.alignment = Alignment::Right, .font_size=54 });
+        ui.text(ui.strings.add(std::format("{}", score)), {.font_size=54 });
 
-
-        //std::cerr << std::format("{}", )
-
-        ui.text(ui.strings.add(std::format("{:.2f}%", accuracy_fraction * 100)), {.alignment = Alignment::Right});
+        ui.text(ui.strings.add(std::format("{:.2f}%", accuracy_fraction * 100)), {});
         ui.end_row();
 
         ui.begin_row(Style{ Position::Anchor{0,1} });

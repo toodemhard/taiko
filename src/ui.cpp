@@ -461,16 +461,26 @@ void UI::end_frame() {
                     [](Position::Absolute absolute) { return absolute.position; },
                     [&](Position::Relative relative) {
                         auto pos = row_stack.back().next_position;
-                        if (current_row.style.alignment == Alignment::Right) {
-                            if (parent_row.style.stack_direction == StackDirection::Vertical) {
-                                pos.x = pos.x + parent_rect.scale.x - current_rect.scale.x;
-                            }
-                        } else if (current_row.style.alignment == Alignment::Center) {
+
+                        switch (parent_row.style.align_items) {
+                        case Alignment::Start:
+                        break;
+                        case Alignment::Center:
                             if (parent_row.style.stack_direction == StackDirection::Vertical) {
                                 pos.x = pos.x + (parent_rect.scale.x - current_rect.scale.x) / 2.0f;
+                            } else {
+                                pos.y = pos.y + (parent_rect.scale.y - current_rect.scale.y) / 2.0f;
                             }
-
+                        break;
+                        case Alignment::End:
+                            if (parent_row.style.stack_direction == StackDirection::Vertical) {
+                                pos.x += parent_rect.scale.x - current_rect.scale.x;
+                            } else {
+                                pos.y += parent_rect.scale.y - current_rect.scale.y;
+                            }
+                        break;
                         }
+
                         incr(row_stack.back(), m_rects[current_row.rect_index].scale, parent_row.style.gap);
                         return pos; 
                     }
