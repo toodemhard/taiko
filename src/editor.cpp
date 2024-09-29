@@ -4,6 +4,7 @@
 #include <tracy/Tracy.hpp>
 
 #include "editor.h"
+#include "constants.h"
 #include "map.h"
 #include "serialize.h"
 #include "color.h"
@@ -236,6 +237,7 @@ void Editor::update(std::chrono::duration<double> delta_time) {
     ZoneScoped;
 
     ui.input(input);
+    ui.begin_frame(constants::window_width, constants::window_height);
 
     Style style{};
     style.position = Position::Anchor{ 0.5, 0.5 };
@@ -446,8 +448,6 @@ void Editor::update(std::chrono::duration<double> delta_time) {
         style.position = Position::Anchor{ 0.5, 0.5 };
         style.stack_direction = StackDirection::Vertical;
         ui.begin_row(style);
-
-        ui.text("KYS!!!!!", {});
 
         auto fs = Style{};
         fs.width = Scale::Min{200};
