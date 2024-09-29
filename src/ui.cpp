@@ -466,6 +466,10 @@ void UI::end_frame() {
                             if (parent_row.style.stack_direction == StackDirection::Vertical) {
                                 pos.x = pos.x + parent_rect.scale.x - current_rect.scale.x;
                             }
+                        } else if (current_row.style.alignment == Alignment::Center) {
+                            if (parent_row.style.stack_direction == StackDirection::Vertical) {
+                                pos.x = pos.x + (parent_rect.scale.x - current_rect.scale.x) / 2.0f;
+                            }
 
                         }
                         incr(row_stack.back(), m_rects[current_row.rect_index].scale, parent_row.style.gap);
