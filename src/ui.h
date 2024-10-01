@@ -19,6 +19,7 @@ constexpr RGBA black{0, 0, 0, 255};
 constexpr RGBA red{255, 0, 0, 255};
 constexpr RGBA grey{180, 180, 180, 255};
 constexpr RGBA bg{31, 31, 31, 200};
+constexpr RGBA bg_highlight{90, 90, 90, 200};
 constexpr RGBA none{0, 0, 0, 0};
 } // namespace color
 
@@ -269,9 +270,6 @@ enum DrawCommand {
 
 class UI {
   public:
-    UI() = default;
-    UI(int _screen_width, int _screen_height);
-
     void text_field(TextFieldState* state, Style style);
     RectID button(const char* text, Style style, OnClick&& on_click);
     RectID button_anim(const char* text, AnimState* anim_state, const Style& style, const AnimStyle& anim_style, OnClick&& on_click);

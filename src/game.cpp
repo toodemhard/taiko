@@ -6,8 +6,10 @@
 #include "SDL3_mixer/SDL_mixer.h"
 #include "constants.h"
 #include "assets.h"
+#include "events.h"
 #include "input.h"
 #include "map.h"
+#include "serialize.h"
 #include "ui.h"
 #include "vec.h"
 #include <cstdint>
@@ -36,6 +38,31 @@ float cerp(float a, float b, float t) {
 constexpr float normal_scale = 0.9f;
 constexpr float big_scale = 1.3333f;
 
+Vec2 Cam::world_to_screen(const Vec2& point) const {
+    Vec2 relative_pos = {point.x - position.x, position.y - point.y};
+    Vec2 normalized = relative_pos / bounds + Vec2::one() * 0.5f; // 0 to 1
+        
+    return Vec2 {
+        normalized.x * window_width,
+        normalized.y * window_height
+    };
+}
+Vec2 Cam::world_to_screen_scale(const Vec2& scale) const {
+    return { world_to_screen_scale(scale.x), world_to_screen_scale(scale.y) };
+}
+
+float Cam::world_to_screen_scale(const float& length) const {
+    return length / bounds.y * window_height;
+
+}
+
+Vec2 Cam::screen_to_world(const Vec2& point) const {
+    Vec2 normalized = { point.x / window_width, point.y / window_height };
+    Vec2 relative_pos = (normalized - Vec2::one() * 0.5f) * bounds;
+    return { relative_pos.x + position.x, position.y - relative_pos.y };
+}
+
+namespace game {
 void Game::draw_map() {
     ZoneScoped;
 
@@ -104,45 +131,26 @@ void draw_note(SDL_Renderer* renderer, AssetLoader& assets, const NoteFlags& not
         }
 }
 
-Vec2 Cam::world_to_screen(const Vec2& point) const {
-    Vec2 relative_pos = {point.x - position.x, position.y - point.y};
-    Vec2 normalized = relative_pos / bounds + Vec2::one() * 0.5f; // 0 to 1
-        
-    return Vec2 {
-        normalized.x * window_width,
-        normalized.y * window_height
-    };
-}
-Vec2 Cam::world_to_screen_scale(const Vec2& scale) const {
-    return { world_to_screen_scale(scale.x), world_to_screen_scale(scale.y) };
-}
-
-float Cam::world_to_screen_scale(const float& length) const {
-    return length / bounds.y * window_height;
-
-}
-
-Vec2 Cam::screen_to_world(const Vec2& point) const {
-    Vec2 normalized = { point.x / window_width, point.y / window_height };
-    Vec2 relative_pos = (normalized - Vec2::one() * 0.5f) * bounds;
-    return { relative_pos.x + position.x, position.y - relative_pos.y };
-}
-
-Game::Game(Systems systems, game::InitConfig config, Map map) :
+Game::Game(Systems systems, game::InitConfig config) :
     renderer{ systems.renderer },
     input{ systems.input }, 
     audio{ systems.audio },
     assets{ systems.assets },
     event_queue{ systems.event_queue },
-    m_map{ map },
     m_auto_mode{ config.auto_mode },
     m_test_mode{ config.test_mode },
-    note_alive_list{ std::vector<bool>(m_map.times.size(), true) }
+    config{config}
 {}
 
 const static double min_buffer_duration = 1;
 
 void Game::start() {
+    load_binary(m_map, config.mapset_directory / config.map_filename);
+    note_alive_list = std::vector<bool>(m_map.times.size(), true);
+    auto music_file = find_music_file(config.mapset_directory);
+    if (music_file.has_value()) {
+        audio.load_music(music_file.value().string().data());
+    }
     // audio.resume();
     if (m_map.times[current_note_index] < min_buffer_duration)  {
         m_buffer_elapsed = m_map.times[current_note_index] - min_buffer_duration;
@@ -168,7 +176,10 @@ void Game::update(std::chrono::duration<double> delta_time) {
             audio.play(0);
             m_audio_started = true;
         } else {
-            m_buffer_elapsed += delta_time.count();
+
+            if (m_view != View::paused) {
+                m_buffer_elapsed += delta_time.count();
+            }
             elapsed = m_buffer_elapsed;
         }
     }
@@ -180,31 +191,33 @@ void Game::update(std::chrono::duration<double> delta_time) {
     ui.input(input);
     ui.begin_frame(constants::window_width, constants::window_height);
 
+    if (input.key_down(SDL_SCANCODE_L)) {
+        m_view = View::end_screen;
+        SDL_ShowCursor();
+    }
+
     if (input.key_down(SDL_SCANCODE_ESCAPE)) {
         SDL_ShowCursor();
         if (m_test_mode) {
             event_queue.push_event(Event::QuitTest{});
         }
-        else {
-            event_queue.push_event(Event::Return{});
+    }
+
+
+    if (m_view == View::main) {
+        if (input.key_down(SDL_SCANCODE_ESCAPE)) {
+            audio.pause();
+            Mix_PlayChannel(-1, assets.get_sound(SoundID::menu_back), 0);
+            m_view = View::paused;
         }
 
-        return;
-    }
 
-    if (input.key_down(SDL_SCANCODE_L)) {
-        m_end_screen = true;
-        SDL_ShowCursor();
-    }
-
-
-    if (!m_end_screen) {
         double last_note_time = (m_map.times.size() == 0) ? 0 : m_map.times.back();
         if (elapsed >= last_note_time + end_screen_delay.count()) {
             if (m_test_mode) {
                 event_queue.push_event(Event::QuitTest{});               
             } else {
-                m_end_screen = true;
+                m_view = View::end_screen;
                 SDL_ShowCursor();
             }
         }
@@ -296,10 +309,10 @@ void Game::update(std::chrono::duration<double> delta_time) {
         // if(!big_note_sound_played) {
         for (const auto& input : inputs) {
             if (input == DrumInput::don_left || input == DrumInput::don_right) {
-                Mix_PlayChannel(0, assets.get_sound(SoundID::don), 0);
+                Mix_PlayChannel(-1, assets.get_sound(SoundID::don), 0);
             }
             else if (input == DrumInput::kat_left || input == DrumInput::kat_right) {
-                Mix_PlayChannel(1, assets.get_sound(SoundID::kat), 0);
+                Mix_PlayChannel(-1, assets.get_sound(SoundID::kat), 0);
             }
         }
 
@@ -329,7 +342,7 @@ void Game::update(std::chrono::duration<double> delta_time) {
 
         {
             float height = 220;
-            auto rect = SDL_FRect{0, (constants::window_height - height) / 2.0f, constants::window_width, height};
+            auto rect = SDL_FRect{0, (constants::window_height - height) / 2.0f, (float)constants::window_width, height};
             SDL_SetRenderDrawColor(renderer, 25, 25, 25, 255);
             SDL_RenderFillRect(renderer, &rect);
         }
@@ -411,7 +424,7 @@ void Game::update(std::chrono::duration<double> delta_time) {
         for (int i = 0; i < in_flight_notes.times.size(); i++) {
             auto flight_elapsed = elapsed - in_flight_notes.times[i];
 
-            auto pos = linear_interp({ flight_start_point.x, flight_start_point.y }, { 1920, 0 }, flight_elapsed / total_flight_time_seconds);
+            auto pos = linear_interp({ flight_start_point.x, flight_start_point.y }, { (float)constants::window_width, 0 }, flight_elapsed / total_flight_time_seconds);
 
             draw_note(renderer, assets, in_flight_notes.flags[i], pos);
         }
@@ -483,7 +496,88 @@ void Game::update(std::chrono::duration<double> delta_time) {
         ui.end_row();
 
 
-    } else {
+    } else if (m_view == View::paused) {
+        const char* texts[] = {
+            "Resume",
+            "Retry",
+            "Quit",
+        };
+
+        std::function<void()> lambdas[] = {
+            [&]() {
+                m_view = View::main;
+                audio.resume();
+                Mix_PlayChannel(-1, assets.get_sound(SoundID::menu_confirm), 0);
+            },
+            [&]() {
+                event_queue.push_event(Event::GameReset{});
+                Mix_PlayChannel(-1, assets.get_sound(SoundID::menu_confirm), 0);
+            },
+            [&]() {
+                event_queue.push_event(Event::Return{});
+                Mix_PlayChannel(-1, assets.get_sound(SoundID::menu_confirm), 0);
+            }
+        };
+
+        if (input.key_down(SDL_SCANCODE_ESCAPE)) {
+            lambdas[0]();
+            Mix_PlayChannel(-1, assets.get_sound(SoundID::menu_back), 0);
+        }
+
+        if (input.key_down(SDL_SCANCODE_RETURN)) {
+            lambdas[m_paused_selected_option]();
+        }
+
+        if (input.key_down(SDL_SCANCODE_LEFT) && m_paused_selected_option > 0) {
+            m_paused_selected_option--;
+            Mix_PlayChannel(-1, assets.get_sound(SoundID::menu_select), 0);
+        }
+
+        if (input.key_down(SDL_SCANCODE_RIGHT) && m_paused_selected_option < 2) {
+            m_paused_selected_option++;
+            Mix_PlayChannel(-1, assets.get_sound(SoundID::menu_select), 0);
+        }
+
+        Style st{};
+        st.stack_direction = StackDirection::Vertical;
+        st.position = Position::Anchor{0.5, 0.5};
+        st.gap = 40;
+
+
+        ui.begin_row(st); {
+            for (int i = 0; i < 3; i++) {
+                st = {};
+                st.width = Scale::Fixed{400};
+                st.padding = even_padding(30);
+                st.font_size = 54;
+                st.text_align = TextAlign::Center;
+                if (i == m_paused_selected_option) {
+                    st.background_color = color::white;
+                    st.text_color = color::black;
+                    ui.button(texts[i], st, std::move(lambdas[i]));
+                } else {
+                    AnimStyle anim_st{};
+                    anim_st.alt_background_color = color::bg_highlight;
+                    ui.button_anim(texts[i], &m_pause_menu_buttons[i], st, anim_st, [&, i]() {
+                        m_paused_selected_option = i;
+                        Mix_PlayChannel(-1, assets.get_sound(SoundID::menu_select), 0);
+                    });
+                }
+
+            }
+        } ui.end_row();
+
+    } else if (m_view == View::end_screen) {
+        if (input.key_down(SDL_SCANCODE_ESCAPE)) {
+            SDL_ShowCursor();
+            if (m_test_mode) {
+                event_queue.push_event(Event::QuitTest{});
+                Mix_PlayChannel(-1, assets.get_sound(SoundID::menu_back), 0);
+            }
+            else {
+                event_queue.push_event(Event::Return{});
+            }
+        }
         Style style{};
         style.stack_direction = StackDirection::Vertical;
         style.width = Scale::FitParent{};
@@ -506,4 +600,5 @@ void Game::update(std::chrono::duration<double> delta_time) {
     ui.end_frame();
 
     ui.draw(renderer);
+}
 }

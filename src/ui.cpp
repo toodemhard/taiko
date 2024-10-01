@@ -26,9 +26,6 @@ void StringCache::clear() {
     strings.clear();
 }
 
-UI::UI(int _screen_width, int _screen_height)
-    : m_screen_width{_screen_width}, m_screen_height{_screen_height} {}
-
 RectID UI::begin_row(const Style& style) {
     ZoneScoped;
 

@@ -49,6 +49,10 @@ void Audio::resume() {
 }
 
 void Audio::pause() {
+    if (!Mix_PlayingMusic()) {
+        return;
+    }
+
     Mix_PauseMusic();
     elapsed_at_last_time += std::chrono::duration<double>(std::chrono::high_resolution_clock::now() - last_time).count();
 }

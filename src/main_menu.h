@@ -37,7 +37,7 @@ class MainMenu {
     AssetLoader& assets;
     EventQueue& event_queue;
 
-    UI m_ui{constants::window_width, constants::window_height};
+    UI m_ui;
 
     EntryMode m_entry_mode = EntryMode::Play;
     View m_view = View::Main;
@@ -69,6 +69,8 @@ class MainMenu {
     std::vector<MapSetInfo> m_mapsets;
     std::vector<BufferHandle> m_map_buffers;
     std::vector<std::filesystem::path> m_mapset_paths;
+
+    std::vector<AnimState> m_mapset_buttons{};
 
     std::optional<Input::ActionID> m_remapping_action;
 

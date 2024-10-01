@@ -4,9 +4,11 @@
 #include <tracy/Tracy.hpp>
 
 #include "app.h"
+#include "SDL3/SDL_video.h"
 #include "SDL3_mixer/SDL_mixer.h"
 #include "audio.h"
 #include "constants.h"
+#include "events.h"
 #include "font.h"
 
 #include "editor.h"
@@ -47,6 +49,12 @@ int run() {
         return 1;
     }
 
+    auto display = SDL_GetPrimaryDisplay();
+    auto display_info = SDL_GetDesktopDisplayMode(display);
+    // std::cout << std::format("{}, {}\n", display_info->w, display_info->h);
+    constants::window_width = display_info->w;
+    constants::window_height = display_info->h;
+
     SDL_Window* window;
     SDL_Renderer* renderer;
 
@@ -67,6 +75,10 @@ int run() {
     std::vector<SoundLoadInfo> sound_list = {
         {"don.wav", SoundID::don},
         {"kat.wav", SoundID::kat},
+
+        {"menu_select.wav", SoundID::menu_select},
+        {"menu_confirm.wav", SoundID::menu_confirm},
+        {"menu_back.wav", SoundID::menu_back},
     };
 
     std::vector<ImageLoadInfo> image_list = {
@@ -89,13 +101,16 @@ int run() {
     AssetLoader assets{};
     assets.init(renderer, image_list, sound_list);
 
+    Mix_VolumeChunk(assets.get_sound(SoundID::kat), MIX_MAX_VOLUME * 0.7);
+    Mix_VolumeChunk(assets.get_sound(SoundID::don), MIX_MAX_VOLUME * 0.7);
+
     EventQueue event_queue{};
 
     Systems systems{renderer, input, audio, assets, event_queue};
 
 
     std::unique_ptr<Editor> editor{};
-    std::unique_ptr<Game> game{};
+    std::unique_ptr<game::Game> game{};
     std::unique_ptr<MainMenu> menu{
         std::make_unique<MainMenu>(renderer, input, audio, assets, event_queue)
     };
@@ -104,7 +119,7 @@ int run() {
 
     // SDL_StartTextInput(window);
 
-    UI frame_time_ui{constants::window_width, constants::window_height};
+    UI frame_time_ui;
 
 
     auto last_frame_start = std::chrono::high_resolution_clock::now();
@@ -163,12 +178,15 @@ int run() {
             break;
         }
 
+        std::filesystem::path mapset_directory;
+        std::string map_filename;
+
+
         EventUnion event_union;
         while (event_queue.pop_event(&event_union)) {
             switch (event_union.index()) {
             case EventType::TestMap:
-                game =
-                    std::make_unique<Game>(systems, game::InitConfig{false, true}, std::move(editor->copy_map()));
+                // game = std::make_unique<game::Game>(systems, game::InitConfig{false, true}, std::move(editor->copy_map()));
                 context_stack.push_back(Context::Game);
                 break;
             case EventType::QuitTest:
@@ -192,13 +210,13 @@ int run() {
             case EventType::PlayMap: {
                 auto& event = std::get<Event::PlayMap>(event_union);
                 context_stack.push_back(Context::Game);
-                Map map;
-                load_binary(map, event.mapset_directory / event.map_filename);
-                auto music_file = find_music_file(event.mapset_directory);
-                if (music_file.has_value()) {
-                    audio.load_music(music_file.value().string().data());
-                }
-                game = std::make_unique<Game>(systems, game::InitConfig{}, map);
+                game = std::make_unique<game::Game>(systems, game::InitConfig{event.mapset_directory, event.map_filename});
+            } break;
+            case EventType::GameReset: {
+                auto init_config = game->config;
+                game = std::make_unique<game::Game>(systems, init_config);
+                
+
             } break;
             case EventType::Return:
                 switch (context_stack.back()) {

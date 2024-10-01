@@ -5,6 +5,7 @@
 #include "SDL3/SDL_render.h"
 #include "SDL3/SDL_scancode.h"
 #include "SDL3_mixer/SDL_mixer.h"
+#include "assets.h"
 #include "audio.h"
 #include "constants.h"
 #include "input.h"
@@ -67,6 +68,8 @@ void MainMenu::reload_maps() {
         m_map_buffers.push_back(maps_buffer);
     }
 
+    m_mapset_buttons = std::vector<AnimState>(m_mapsets.size());
+
     this->play_selected_music();
 }
 
@@ -85,10 +88,12 @@ void MainMenu::update(double delta_time) {
     }
 
     if (input.modifier(SDL_KMOD_LCTRL) && input.key_down(SDL_SCANCODE_W)) {
+        m_view = View::Main;
         m_entry_mode = EntryMode::Play;
     }
 
     if (input.modifier(SDL_KMOD_LCTRL) && input.key_down(SDL_SCANCODE_E)) {
+        m_view = View::Main;
         m_entry_mode = EntryMode::Edit;
     }
 
@@ -107,7 +112,7 @@ void MainMenu::update(double delta_time) {
 
     auto row_st = Style{};
     auto anim_style = AnimStyle{};
-    anim_style.alt_background_color = RGBA{255, 255, 255, 50};
+    anim_style.alt_background_color = color::bg_highlight;
 
 
     auto begin_banner = [&](){
@@ -147,7 +152,7 @@ void MainMenu::update(double delta_time) {
         style.gap = 20;
         style.background_color = RGBA{30, 30, 30, 255};
         style.padding = even_padding(20);
-        style.width = Scale::Fixed{constants::window_width};
+        style.width = Scale::Fixed{(float)constants::window_width};
 
         m_ui.begin_row(style);
 
@@ -175,15 +180,19 @@ void MainMenu::update(double delta_time) {
 
         if (input.key_down(SDL_SCANCODE_LEFT) && m_selected_diff_index > 0) {
             m_selected_diff_index--;
+            Mix_PlayChannel(-1, assets.get_sound(SoundID::menu_select), 0);
         }
         if (input.key_down(SDL_SCANCODE_RIGHT) && m_selected_diff_index < map_buffer.count - 1) {
             m_selected_diff_index++;
+            Mix_PlayChannel(-1, assets.get_sound(SoundID::menu_select), 0);
         }
         if (input.key_down(SDL_SCANCODE_ESCAPE)) {
             m_choosing_mapset_index = {};
+            Mix_PlayChannel(-1, assets.get_sound(SoundID::menu_back), 0);
         }
         if (input.key_down(SDL_SCANCODE_RETURN)) {
             auto& map = m_mapmetas[map_buffer.index + m_selected_diff_index];
+            Mix_PlayChannel(-1, assets.get_sound(SoundID::menu_confirm), 0);
             event_queue.push_event(
                 Event::PlayMap{m_mapset_paths[mapset_index], (map.difficulty_name + map_file_extension)}
             );
@@ -231,18 +240,32 @@ Non standard name = hardest diff)"
             diff_st.background_color = RGBA{31, 31, 31, 200};
 
             if (i == m_selected_diff_index) {
-                // diff_st.background_color = RGBA{255, 255, 255, 50};
                 diff_st.background_color = color::white;
                 diff_st.text_color = color::black;
+                m_ui.button(
+                    m_mapmetas[map_buffer.index + i].difficulty_name.data(),
+                    diff_st,
+                    [&, i, mapset_index, map_buffer]() {
+                        auto& map = m_mapmetas[map_buffer.index + m_selected_diff_index];
+                        event_queue.push_event(
+                            Event::PlayMap{m_mapset_paths[mapset_index], (map.difficulty_name + map_file_extension)}
+                        );
+                    }
+                );
+
+            } else {
+                m_ui.button_anim(
+                    m_mapmetas[map_buffer.index + i].difficulty_name.data(),
+                    &m_diff_buttons[i],
+                    diff_st,
+                    anim_style,
+                    [&, i]() {
+                        m_selected_diff_index = i;
+                        Mix_PlayChannel(-1, assets.get_sound(SoundID::menu_select), 0);
+                    }
+                );
             }
 
-            m_ui.button_anim(
-                m_mapmetas[map_buffer.index + i].difficulty_name.data(),
-                &m_diff_buttons[i],
-                diff_st,
-                anim_style,
-                []() {}
-            );
         }
 
         m_ui.end_row();
@@ -292,6 +315,7 @@ Non standard name = hardest diff)"
                 m_choosing_mapset_index = m_selected_mapset_index;
                 m_selected_diff_index = 0;
                 m_diff_buttons = std::vector<AnimState>(m_map_buffers[m_selected_mapset_index].count);
+                Mix_PlayChannel(-1, assets.get_sound(SoundID::menu_confirm), 0);
             }
             // event_queue.push_event(Event::PlayMap{
             //     mapset_directory, (map_info.difficulty_name + map_file_extension)
@@ -357,11 +381,13 @@ Non standard name = hardest diff)"
 
         if (input.key_down(SDL_SCANCODE_LEFT) && m_selected_mapset_index > 0) {
             m_selected_mapset_index--;
+            Mix_PlayChannel(-1, assets.get_sound(SoundID::menu_select), 0);
             this->play_selected_music();
         }
         if (input.key_down(SDL_SCANCODE_RIGHT) && m_selected_mapset_index < m_mapsets.size() - 1) {
             m_selected_mapset_index++;
-            play_selected_music();
+            Mix_PlayChannel(-1, assets.get_sound(SoundID::menu_select), 0);
+            this->play_selected_music();
         }
 
         float scroll_velocity = 10;
@@ -390,10 +416,6 @@ Non standard name = hardest diff)"
             item_st.padding = even_padding(25);
             item_st.background_color = RGBA{31, 31, 31, 200};
 
-            if (i == m_selected_mapset_index) {
-                item_st.background_color = color::white;
-                item_st.text_color = RGBA{31, 31, 31, 200};
-            }
 
             auto index_offset = m_scroll_pos - i;
             auto offset = index_offset * Vec2{0, map_item_height + gap};
@@ -403,20 +425,6 @@ Non standard name = hardest diff)"
             auto& mapset = m_mapsets[i];
             auto& mapset_directory = m_mapset_paths[i];
 
-            OnClick select_mapset = [&, i]() { m_selected_mapset_index = i; };
-
-            OnClick enter_mapset = [&, i]() {
-                m_choosing_mapset_index = m_selected_mapset_index;
-                m_diff_buttons = std::vector<AnimState>(m_map_buffers[m_selected_mapset_index].count);
-                m_selected_diff_index = {};
-            };
-
-            OnClick on_click = select_mapset;
-
-            if (i == m_selected_mapset_index) {
-                on_click = enter_mapset;
-            }
-
             Style idk{};
             idk.text_color = Inherit{};
             idk.width = Scale::FitParent{};
@@ -424,10 +432,31 @@ Non standard name = hardest diff)"
             auto idk2 = idk;
             idk2.font_size=28;
 
-            m_ui.begin_row_button(item_st, std::move(on_click));
-            m_ui.text(mapset.title.data(), idk);
-            m_ui.text(mapset.artist.data(), idk2);
-            m_ui.end_row();
+            if (i == m_selected_mapset_index) {
+                item_st.background_color = color::white;
+                item_st.text_color = RGBA{31, 31, 31, 200};
+
+                m_ui.begin_row_button(item_st, [&, i]() {
+                    m_choosing_mapset_index = m_selected_mapset_index;
+                    m_diff_buttons = std::vector<AnimState>(m_map_buffers[m_selected_mapset_index].count);
+                    m_selected_diff_index = {};
+                });
+                m_ui.text(mapset.title.data(), idk);
+                m_ui.text(mapset.artist.data(), idk2);
+                m_ui.end_row();
+            } else {
+                AnimStyle anim_st = {};
+                anim_st.alt_background_color = color::bg_highlight;
+                m_ui.begin_row_button_anim(&m_mapset_buttons[i], item_st, anim_st, [&, i]() {
+                    m_selected_mapset_index = i; 
+                    Mix_PlayChannel(-1, assets.get_sound(SoundID::menu_select), 0);
+                    this->play_selected_music();
+                });
+                m_ui.text(mapset.title.data(), idk);
+                m_ui.text(mapset.artist.data(), idk2);
+                m_ui.end_row();
+
+            }
         }
 
 
@@ -546,7 +575,7 @@ Non standard name = hardest diff)"
             slider_st.width = 300;
             slider_st.height = 50;
             slider_st.fg_color = color::red;
-            slider_st.bg_color = color::black;
+            slider_st.bg_color = color::bg;
 
             float volume_fraction = (Mix_GetMusicVolume(audio.m_music) / (float)MIX_MAX_VOLUME);
             m_ui.begin_row({.stack_direction=StackDirection::Vertical, .gap=20});
@@ -593,7 +622,7 @@ Non standard name = hardest diff)"
 
                 Style st{};
                 st.width = Scale::Fixed{400};
-                st.background_color = color::black;
+                st.background_color = color::bg;
                 st.text_align = TextAlign::Center;
                 st.padding = even_padding(5);
 

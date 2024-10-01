@@ -26,6 +26,10 @@ enum SoundID {
     don,
     kat,
 
+    menu_select,
+    menu_confirm,
+    menu_back,
+
     count, // leave at end
 };
 }

@@ -3,7 +3,7 @@
 #include <chrono>
 #include <SDL3_mixer/SDL_mixer.h>
 
-static int effect_volume{(int)(MIX_MAX_VOLUME * 0.2)};
+static int effect_volume{(int)(MIX_MAX_VOLUME * 0.3)};
 
 enum class AudioState {
     initial,
@@ -28,8 +28,8 @@ public:
     void fade_in(int loops, int ms);
 
     Mix_Music* m_music = nullptr;
+    double elapsed_at_last_time = 0;
 
 private:
-    double elapsed_at_last_time = 0;
     std::chrono::time_point<std::chrono::high_resolution_clock> last_time;
 };

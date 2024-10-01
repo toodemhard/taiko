@@ -54,11 +54,17 @@ struct BigNoteHits {
 namespace game {
 
 struct InitConfig {
+    std::filesystem::path mapset_directory;
+    std::string map_filename;
     bool auto_mode;
     bool test_mode;
 };
 
-}
+enum class View {
+    main,
+    paused,
+    end_screen,
+};
 
 struct InFlightNotes {
     std::vector<NoteFlags> flags;
@@ -67,9 +73,11 @@ struct InFlightNotes {
 
 class Game {
 public:
-    Game(Systems systems, game::InitConfig config, Map map);
+    Game(Systems systems, game::InitConfig config);
     void start();
     void update(std::chrono::duration<double> delta_time);
+
+    InitConfig config{};
 private:
     SDL_Renderer* renderer{};
     Input::Input& input;
@@ -93,7 +101,7 @@ private:
     int score = 0;
     int combo = 0;
 
-    UI ui{ constants::window_width, constants::window_height };
+    UI ui;
 
     std::vector<InputRecord> input_history;
 
@@ -107,9 +115,9 @@ private:
 
     std::vector<double> m_miss_effects;
 
-    
-    bool m_paused{};
-    bool m_end_screen{};
+    View m_view{};
+    int m_paused_selected_option{};
+    AnimState m_pause_menu_buttons[3]{};
 
     std::optional<BigNoteHits> current_big_note_status;
 
@@ -120,3 +128,4 @@ private:
 
     void draw_map();
 };
+}

@@ -66,7 +66,7 @@ private:
 
     int current_note = -1;
 
-    UI ui{constants::window_width, constants::window_height};
+    UI ui;
 
     TextFieldState title{};
     TextFieldState artist{};
