@@ -19,7 +19,7 @@ enum class EditorView {
 
 class Editor {
 public:
-    Editor(SDL_Renderer* _renderer, Input& _input, Audio& _audio, AssetLoader& _assets, EventQueue& _event_queue);
+    Editor(SDL_Renderer* _renderer, Input::Input& _input, Audio& _audio, AssetLoader& _assets, EventQueue& _event_queue);
     ~Editor();
     void update(std::chrono::duration<double> delta_time);
     void load_mapset(std::filesystem::path& map_path);
@@ -37,7 +37,7 @@ public:
 
 private:
     SDL_Renderer* renderer{};
-    Input& input;
+    Input::Input& input;
     Audio& audio;
     AssetLoader& assets;
     EventQueue& event_queue;

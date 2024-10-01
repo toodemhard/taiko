@@ -11,6 +11,7 @@
 
 #include "editor.h"
 #include "game.h"
+#include "input.h"
 #include "main_menu.h"
 
 #include "map.h"
@@ -52,13 +53,14 @@ int run() {
     SDL_CreateWindowAndRenderer("taiko", window_width, window_height, 0, &window, &renderer);
     SDL_SetWindowFullscreen(window, true);
 
-    Input input{};
+    Input::Input input{};
+    input.init_keybinds(Input::default_keybindings);
     Audio audio{};
 
     Mix_AllocateChannels(32);
 
     Mix_MasterVolume(effect_volume);
-    Mix_VolumeMusic(MIX_MAX_VOLUME * 0.2);
+    Mix_VolumeMusic(MIX_MAX_VOLUME * 0.2f);
 
     init_font(renderer);
 
@@ -148,6 +150,7 @@ int run() {
 
                 if (event.type == SDL_EVENT_KEY_DOWN) {
                     input.keyboard_repeat[event.key.scancode] = true;
+                    input.m_key_this_frame = event.key.scancode;
                 }
 
                 if (event.type == SDL_EVENT_TEXT_INPUT) {

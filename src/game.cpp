@@ -6,6 +6,7 @@
 #include "SDL3_mixer/SDL_mixer.h"
 #include "constants.h"
 #include "assets.h"
+#include "input.h"
 #include "map.h"
 #include "ui.h"
 #include "vec.h"
@@ -225,26 +226,25 @@ void Game::update(std::chrono::duration<double> delta_time) {
             }
         }
 
-        if (input.key_down(SDL_SCANCODE_X)) {
+        if (input.action_down(Input::ActionID::don_left)) {
             input_history.push_back(InputRecord{ DrumInput::don_left, elapsed });
             inputs.push_back(DrumInput::don_left);
         }
 
-        if (input.key_down(SDL_SCANCODE_PERIOD)) {
+        if (input.action_down(Input::ActionID::don_right)) {
             input_history.push_back(InputRecord{ DrumInput::don_right, elapsed });
             inputs.push_back(DrumInput::don_right);
         }
 
-        if (input.key_down(SDL_SCANCODE_Z)) {
+        if (input.action_down(Input::ActionID::kat_left)) {
             input_history.push_back(InputRecord{ DrumInput::kat_left, elapsed });
             inputs.push_back(DrumInput::kat_left);
         }
 
-        if (input.key_down(SDL_SCANCODE_SLASH)) {
+        if (input.action_down(Input::ActionID::kat_right)) {
             input_history.push_back(InputRecord{ DrumInput::kat_right, elapsed });
             inputs.push_back(DrumInput::kat_right);
         }
-
 
         if (elapsed - hit_effect_time_point_seconds > hit_effect_duration.count()) {
             m_current_hit_effect = hit_effect::none;
@@ -252,8 +252,7 @@ void Game::update(std::chrono::duration<double> delta_time) {
 
         auto update_accuracy = [&]() {
             accuracy_fraction = (perfect_accuracy_weight * perfect_count + ok_accuracy_weight * ok_count + miss_accuracy_weight * miss_count) / (current_note_index);
-
-            };
+        };
 
 
         // bool big_note_sound_played = false;
@@ -373,8 +372,18 @@ void Game::update(std::chrono::duration<double> delta_time) {
             auto dst_rect = SDL_FRect{crosshair_x - crosshair_fill.width / 2.0f, (window_height - crosshair_fill.height) / 2.0f, (float)crosshair_fill.width, (float)crosshair_fill.height};
             SDL_RenderTexture(renderer, crosshair_fill.texture, NULL, &dst_rect);
         }
-        
 
+        if (m_current_hit_effect == hit_effect::perfect) {
+            auto hit_effect_image = assets.get_image(ImageID::hit_effect_perfect);
+            auto dst_rect = rect_at_center_point(rect_center(crosshair_rect), hit_effect_image.width, hit_effect_image.height);
+            SDL_RenderTexture(renderer, hit_effect_image.texture, NULL, &dst_rect);
+        }
+        else if (m_current_hit_effect == hit_effect::ok) {
+            auto hit_effect_image = assets.get_image(ImageID::hit_effect_ok);
+            auto dst_rect = rect_at_center_point(rect_center(crosshair_rect), hit_effect_image.width, hit_effect_image.height);
+            SDL_RenderTexture(renderer, hit_effect_image.texture, NULL, &dst_rect);
+        }
+        
         cam.position.x = elapsed;
         // find world space dist between crosshair and 0 time point
         auto cam_offset = elapsed - cam.screen_to_world({ crosshair_rect.x + crosshair_rect.w / 2, 0 }).x;
@@ -407,16 +416,6 @@ void Game::update(std::chrono::duration<double> delta_time) {
             draw_note(renderer, assets, in_flight_notes.flags[i], pos);
         }
 
-        if (m_current_hit_effect == hit_effect::perfect) {
-            auto hit_effect_image = assets.get_image(ImageID::hit_effect_perfect);
-            auto dst_rect = rect_at_center_point(rect_center(crosshair_rect), hit_effect_image.width, hit_effect_image.height);
-            SDL_RenderTexture(renderer, hit_effect_image.texture, NULL, &dst_rect);
-        }
-        else if (m_current_hit_effect == hit_effect::ok) {
-            auto hit_effect_image = assets.get_image(ImageID::hit_effect_ok);
-            auto dst_rect = rect_at_center_point(rect_center(crosshair_rect), hit_effect_image.width, hit_effect_image.height);
-            SDL_RenderTexture(renderer, hit_effect_image.texture, NULL, &dst_rect);
-        }
 
         constexpr auto miss_effect_duration = 0.4f;
 

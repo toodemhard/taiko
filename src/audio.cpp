@@ -85,21 +85,3 @@ void Audio::set_position(double position) {
 bool Audio::paused() {
     return (bool)Mix_PausedMusic();
 }
-
-Player::Player(Input& _input, Audio& _audio) : input{ _input }, audio{ _audio } {
-}
-
-void Player::update(float delta_time) {
-    if (input.key_down(SDL_SCANCODE_SPACE)) {
-        if (audio.paused()) {
-            audio.resume();
-        }
-        else {
-            audio.pause();
-        }
-    }
-
-    if (!audio.paused()) {
-        std::cout << std::format("measured: {}s, lib: {}s\n", audio.get_position(), Mix_GetMusicPosition(audio.m_music));
-    }
-}

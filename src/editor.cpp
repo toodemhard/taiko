@@ -152,7 +152,7 @@ std::optional<int> note_point_intersection(const Map& map, const Vec2& point, co
     return min;
 }
 
-Editor::Editor(SDL_Renderer* _renderer, Input& _input, Audio& _audio, AssetLoader& _assets, EventQueue& _event_queue)
+Editor::Editor(SDL_Renderer* _renderer, Input::Input& _input, Audio& _audio, AssetLoader& _assets, EventQueue& _event_queue)
     : renderer{ _renderer }, input{ _input }, audio{ _audio }, assets{ _assets }, event_queue{ _event_queue } {}
 
 Editor::~Editor() {

@@ -1,6 +1,9 @@
 #include <tracy/Tracy.hpp>
 #include <cstring>
 #include "input.h"
+#include "SDL3/SDL_scancode.h"
+
+namespace Input {
 
 void Input::begin_frame() {
     ZoneScoped;
@@ -15,7 +18,19 @@ void Input::end_frame() {
 
     std::memcpy(last_keyboard.data(), current_keyboard, SDL_NUM_SCANCODES);
 
+    m_key_this_frame = {};
+
     last_mouse = current_mouse;
+}
+
+void Input::init_keybinds(std::array<Keybind, ActionID::count> keybinds) {
+    for (auto kb : keybinds) {
+        keybindings[kb.action_id] = kb.scancode;
+    }
+}
+
+bool Input::action_down(int action_id) {
+    return this->key_down(keybindings[action_id]);
 }
 
 bool Input::modifier(const SDL_Keymod modifiers) const {
@@ -48,4 +63,6 @@ bool Input::key_up(const SDL_Scancode& scan_code) const {
 
 bool Input::key_down_repeat(const SDL_Scancode& scan_code) const {
     return keyboard_repeat[scan_code];
+}
+
 }

@@ -1,16 +1,46 @@
 #pragma once
 
+#include "SDL3/SDL_scancode.h"
+#include "vec.h"
 #include <SDL3/SDL.h>
 #include <array>
-#include "vec.h"
 
 #include <optional>
 #include <string>
+#include <vector>
+
+namespace Input {
+#define KEYBINDINGS(_)                                                                                                 \
+    _(kat_left, SDL_SCANCODE_Z)                                                                                        \
+    _(don_left, SDL_SCANCODE_X)                                                                                        \
+    _(don_right, SDL_SCANCODE_PERIOD)                                                                                  \
+    _(kat_right, SDL_SCANCODE_SLASH)
+
+#define ACTION(a, b) a,
+
+enum ActionID {
+    KEYBINDINGS(ACTION)
+    count,
+};
+
+struct Keybind {
+    uint32_t action_id;
+    SDL_Scancode scancode;
+};
+
+#define KEYBIND(a, b) Keybind{ActionID::a, b},
+constexpr std::array<Keybind, ActionID::count> default_keybindings = {KEYBINDINGS(KEYBIND)};
+
+#define AS_STRING(a, b) #a,
+constexpr std::array<const char*, ActionID::count> action_names = {KEYBINDINGS(AS_STRING)};
 
 class Input {
-public:
+  public:
     void begin_frame();
     void end_frame();
+
+    void init_keybinds(std::array<Keybind, ActionID::count> keybinds);
+    bool action_down(int action_id);
 
     bool key_down(const SDL_Scancode& scan_code) const;
     bool key_held(const SDL_Scancode& scan_code) const;
@@ -28,12 +58,19 @@ public:
     std::optional<std::string> input_text;
     std::array<Uint8, SDL_NUM_SCANCODES> keyboard_repeat{};
 
-private:
+    std::array<SDL_Scancode, ActionID::count> keybindings;
+
+    std::optional<SDL_Scancode> m_key_this_frame;
+
+  private:
     std::array<Uint8, SDL_NUM_SCANCODES> last_keyboard{};
     const Uint8* current_keyboard = SDL_GetKeyboardState(NULL);
+
 
     SDL_Keymod mod_state;
 
     SDL_MouseButtonFlags last_mouse{};
     SDL_MouseButtonFlags current_mouse{};
 };
+}
+

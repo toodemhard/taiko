@@ -3,6 +3,8 @@
 #include <chrono>
 #include <SDL3_mixer/SDL_mixer.h>
 
+static int effect_volume{(int)(MIX_MAX_VOLUME * 0.2)};
+
 enum class AudioState {
     initial,
     playing,
@@ -30,16 +32,4 @@ public:
 private:
     double elapsed_at_last_time = 0;
     std::chrono::time_point<std::chrono::high_resolution_clock> last_time;
-};
-
-#include "input.h"
-
-// Audio timing tester example thing
-class Player {
-public:
-    Player(Input& _input, Audio& _audio);
-    void update(float delta_time);
-private:
-    Input& input;
-    Audio& audio;
 };

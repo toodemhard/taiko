@@ -92,8 +92,8 @@ using TextColor = std::variant<RGBA, Inherit>;
 
 enum class TextAlign {
     Left,
-    Right,
     Center,
+    Right,
 };
 
 enum class Alignment {
@@ -108,10 +108,16 @@ enum class TextWrap {
     Wrap,
 };
 
+enum class JustifyItems {
+    start,
+    apart,
+};
+
 struct Style {
     Position::Variant position;
     RGBA background_color;
     RGBA border_color;
+    // RGBA border_color = color::red;
 
     Padding padding;
 
@@ -122,6 +128,7 @@ struct Style {
     // row styling
     StackDirection stack_direction = StackDirection::Horizontal;
     Alignment align_items;
+    JustifyItems justify_items;
     
     float gap;
 
@@ -129,6 +136,7 @@ struct Style {
     float font_size = 36;
     TextColor text_color = color::white;
     TextWrap text_wrap;
+    TextAlign text_align;
 };
 
 struct AnimState {
@@ -161,6 +169,7 @@ struct Text {
     float font_size;
     RGBA text_color;
     TextWrap wrap;
+    TextAlign text_align;
     float max_width;
 };
 
@@ -289,7 +298,7 @@ class UI {
     RectID begin_row_button(const Style& style, OnClick&& on_click);
     RectID begin_row_button_anim(AnimState* anim_state, Style style, const AnimStyle& anim_style, OnClick&& on_click);
 
-    void input(Input& input);
+    void input(Input::Input& input);
 
     void begin_frame(int width, int height);
     void end_frame();
@@ -301,6 +310,8 @@ class UI {
     StringCache strings{};
 
   private:
+    Input::Input* m_input;
+
     int m_screen_width = 0;
     int m_screen_height = 0;
 

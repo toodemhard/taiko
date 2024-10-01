@@ -99,6 +99,7 @@ void UI::text_headless(const char* text, const Style& style) {
         style.font_size,
         text_color,
         style.text_wrap,
+        style.text_align
     });
 
     add_parent_scale(m_rows[m_row_stack.back()], scale);
@@ -117,6 +118,28 @@ RectID UI::button_anim(const char* text, AnimState* anim_state, const Style& sty
 
     return rect_index;
 }
+
+// RectID UI::button_stateless_anim(const char* text, const Style& style, const AnimStyle& anim_style, OnClick&& on_click) {
+//     ZoneScoped;
+//
+//     auto rect_index = this->begin_row_button_anim(anim_state, style, anim_style, std::move(on_click));
+//
+//     auto& parent_group = m_rows[m_row_stack.back()];
+//
+//     text_headless(text, style);
+//
+//     this->end_row();
+//
+//     return rect_index;
+// }
+//
+// RectID UI::begin_row_button_stateless_anim(Style style, const AnimStyle& anim_style, OnClick&& on_click) {
+//     m_input->mouse_pos
+//
+//
+//     auto rect_id = this->begin_row_button(style, std::move(on_click));
+//     return rect_id;
+// }
 
 RectID UI::begin_row_button_anim(AnimState* anim_state, Style style, const AnimStyle& anim_style, OnClick&& on_click) {
     ZoneScoped;
@@ -199,6 +222,17 @@ void UI::add_parent_scale(Row& parent_row, Vec2 scale) {
     parent_row.children++;
 }
 
+float aligned_axis(const Vec2& scale, const StackDirection& stack_direction) {
+    switch (stack_direction) {
+    case StackDirection::Horizontal:
+        return scale.x;
+        break;
+    case StackDirection::Vertical:
+        return scale.y;
+        break;
+    }
+};
+
 void UI::end_row() {
     ZoneScoped;
 
@@ -211,6 +245,18 @@ void UI::end_row() {
     float y_padding = row.style.padding.top + row.style.padding.bottom;
     
     auto& rect = m_rects[row.rect_index];
+
+    if (row.style.justify_items == JustifyItems::apart) {
+        switch (row.style.stack_direction) {
+        case StackDirection::Horizontal:
+            row.style.gap = (std::get_if<Scale::Fixed>(&row.style.width)->value - rect.scale.x) / ((float)row.children - 1);
+            break;
+        case StackDirection::Vertical:
+            row.style.gap = (std::get_if<Scale::Fixed>(&row.style.height)->value - rect.scale.y) / ((float)row.children - 1);
+            break;
+        }
+    }
+
     auto width = std::visit(
         overloaded{
             [=](Scale::FitContent scale) { 
@@ -221,9 +267,11 @@ void UI::end_row() {
             [&](Scale::FitParent) {
                 if (m_row_stack.size() > 0) {
                     auto& parent_row = m_rows[m_row_stack.back()];
-                    if (auto fixed_pos = std::get_if<Scale::Fixed>(&parent_row.style.width)) {
+                    if (auto fixed_scale = std::get_if<Scale::Fixed>(&parent_row.style.width)) {
                         auto& padding = parent_row.style.padding;
-                        return fixed_pos->value - padding.left - padding.right;
+                        auto width = fixed_scale->value - padding.left - padding.right;
+                        row.style.width = Scale::Fixed{width};
+                        return width;
                     }
                 }
                 return rect.scale.x;
@@ -238,9 +286,11 @@ void UI::end_row() {
             [&](Scale::FitParent) {
                 if (m_row_stack.size() > 0) {
                     auto& parent_row = m_rows[m_row_stack.back()];
-                    if (auto fixed_pos = std::get_if<Scale::Fixed>(&parent_row.style.height)) {
+                    if (auto fixed_scale = std::get_if<Scale::Fixed>(&parent_row.style.height)) {
                         auto& padding = parent_row.style.padding;
-                        return fixed_pos->value - padding.top - padding.bottom;
+                        auto height = fixed_scale->value - padding.top - padding.bottom;
+                        row.style.height = Scale::Fixed{height};
+                        return height;
                     }
                 }
                 return rect.scale.y;
@@ -248,6 +298,7 @@ void UI::end_row() {
         }, row.style.height);
 
     rect.scale = {width, height};
+
 
     if (m_row_stack.size() > 0 && std::get_if<Position::Relative>(&row.style.position) != nullptr) {
         add_parent_scale(m_rows[m_row_stack.back()], Vec2{width, height});
@@ -273,7 +324,7 @@ bool rect_point_intersect(Vec2 point, Vec2 position, Vec2 scale) {
     return false;
 }
 
-void UI::input(Input& input) {
+void UI::input(Input::Input& input) {
     ZoneScoped;
 
     m_input_called = true;
@@ -530,7 +581,15 @@ void UI::end_frame() {
             auto parent_rect = m_rects[parent_row.rect_index];
 
             auto& text = m_texts[current_text_index];
-            text.position = row_stack.back().next_position;
+            switch (text.text_align) {
+            case TextAlign::Left:
+                text.position = row_stack.back().next_position;
+            break;
+            case TextAlign::Center:
+                text.position = row_stack.back().next_position + Vec2{(parent_rect.scale.x - text_dimensions(text.text, text.font_size).x) / 2.0f, 0.0f};
+            break;
+            }
+    
             text.max_width = parent_rect.scale.x;
             // incr(row_stack.back(), m_texts[current_text_index].scale, 0);
             m_draw_order.push_back(DrawCommand::text);

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "constants.h"
+#include "input.h"
 #include "map.h"
 #include "systems.h"
 #include "ui.h"
@@ -10,6 +11,11 @@ enum class EntryMode {
     Edit,
 };
 
+enum class View {
+    Main,
+    Settings,
+};
+
 struct BufferHandle {
     int index;
     int count;
@@ -17,7 +23,7 @@ struct BufferHandle {
 
 class MainMenu {
   public:
-    MainMenu(SDL_Renderer* _renderer, Input& _input, Audio& _audio, AssetLoader& _assets, EventQueue& _event_queue);
+    MainMenu(SDL_Renderer* _renderer, Input::Input& _input, Audio& _audio, AssetLoader& _assets, EventQueue& _event_queue);
 
     void awake();
     void update(double delta_time);
@@ -26,7 +32,7 @@ class MainMenu {
 
   private:
     SDL_Renderer* renderer;
-    Input& input;
+    Input::Input& input;
     Audio& audio;
     AssetLoader& assets;
     EventQueue& event_queue;
@@ -34,6 +40,7 @@ class MainMenu {
     UI m_ui{constants::window_width, constants::window_height};
 
     EntryMode m_entry_mode = EntryMode::Play;
+    View m_view = View::Main;
 
     std::vector<const char*> m_resolutions{"1920x1080", "1024x768"};
     DropDown m_resolution_dropdown{};
@@ -42,7 +49,9 @@ class MainMenu {
     Slider m_music_slider{};
     Slider m_master_slider{};
 
-    int master{};
+    Slider m_slider{};
+    float kys{};
+
     Slider m_music_playback_slider{};
 
     std::optional<int> m_choosing_mapset_index{};
@@ -60,6 +69,10 @@ class MainMenu {
     std::vector<MapSetInfo> m_mapsets;
     std::vector<BufferHandle> m_map_buffers;
     std::vector<std::filesystem::path> m_mapset_paths;
+
+    std::optional<Input::ActionID> m_remapping_action;
+
+    std::array<AnimState, Input::ActionID::count> m_remap_buttons;
 
     TextFieldState search{.text = "ashkjfhkjh"};
 };

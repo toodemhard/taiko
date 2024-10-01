@@ -72,7 +72,7 @@ public:
     void update(std::chrono::duration<double> delta_time);
 private:
     SDL_Renderer* renderer{};
-    Input& input;
+    Input::Input& input;
     Audio& audio;
     AssetLoader& assets;
     EventQueue& event_queue;
