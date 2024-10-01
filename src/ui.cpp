@@ -586,7 +586,8 @@ void UI::end_frame() {
                 text.position = row_stack.back().next_position;
             break;
             case TextAlign::Center:
-                text.position = row_stack.back().next_position + Vec2{(parent_rect.scale.x - text_dimensions(text.text, text.font_size).x) / 2.0f, 0.0f};
+                auto x_padding = parent_row.style.padding.left + parent_row.style.padding.right;
+                text.position = row_stack.back().next_position + Vec2{(parent_rect.scale.x - x_padding - text_dimensions(text.text, text.font_size).x) / 2.0f, 0.0f};
             break;
             }
     
