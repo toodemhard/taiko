@@ -13,8 +13,11 @@
 #include "serialize.h"
 #include "ui.h"
 #include <limits>
+#include <mutex>
 
 using namespace constants;
+
+std::mutex map_reloading_mutex;
 
 MainMenu::MainMenu(
     SDL_Renderer* _renderer,
@@ -288,10 +291,12 @@ Non standard name = hardest diff)"
                         std::cerr << "failed to load: not osz\n";
                     }
 
-                    (*(MainMenu*)userdata).reload_maps();
-
                     i++;
                 }
+
+                map_reloading_mutex.lock();
+                (*(MainMenu*)userdata).reload_maps();
+                map_reloading_mutex.unlock();
             };
             SDL_ShowOpenFileDialog(callback, this, NULL, NULL, 0, NULL, 1);
         };
@@ -408,6 +413,7 @@ Non standard name = hardest diff)"
         auto start_pos = Vec2{(constants::window_width - map_item_width) / 2.0f, (constants::window_height - map_item_height) / 2.0f};
         float gap{20};
 
+        map_reloading_mutex.lock();
         for (int i = 0; i < m_mapsets.size(); i++) {
             auto item_st = Style{};
             item_st.stack_direction = StackDirection::Vertical;
@@ -447,6 +453,7 @@ Non standard name = hardest diff)"
             } else {
                 AnimStyle anim_st = {};
                 anim_st.alt_background_color = color::bg_highlight;
+
                 m_ui.begin_row_button_anim(&m_mapset_buttons[i], item_st, anim_st, [&, i]() {
                     m_selected_mapset_index = i; 
                     Mix_PlayChannel(-1, assets.get_sound(SoundID::menu_select), 0);
@@ -458,6 +465,7 @@ Non standard name = hardest diff)"
 
             }
         }
+        map_reloading_mutex.unlock();
 
 
         begin_banner();
