@@ -442,14 +442,14 @@ void Game::update(std::chrono::duration<double> delta_time) {
             auto width = 20.0f;
             auto height = 20.0f;
 
-            auto y = linear_interp(0, 240, (elapsed - effect) / miss_effect_duration);
+            auto y = linear_interp(0, 100, (elapsed - effect) / miss_effect_duration) + 120;
             uint8_t a = linear_interp(255, 0, (elapsed - effect) / miss_effect_duration);
 
             Style st{};
             st.position = Position::Absolute{crosshair_x,  (constants::window_height - height) / 2.0f - y};
 
             ui.begin_row(st);
-            ui.text("X", {.position = Position::Anchor{0.5, 0.5}, .font_size=68, .text_color=RGBA{255, 0, 0, a}});
+            ui.text("X", {.position = Position::Anchor{0.5, 0.5}, .font_size=68, .text_color=RGBA{255, 60, 60, a}});
             ui.end_row();
         }
 

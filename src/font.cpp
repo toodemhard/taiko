@@ -140,7 +140,7 @@ void draw_text_cutoff(SDL_Renderer* renderer, const char* text, float font_size,
     float size_ratio = font_size / pixel_height;
 
     float x = position.x;
-    while (*text && x - position.x < max_width) {
+    while (*text && x - position.x <= max_width) {
         if (*text == '\n') {
             position.y += font_size;
             x = position.x;

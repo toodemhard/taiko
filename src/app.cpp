@@ -4,6 +4,7 @@
 #include <tracy/Tracy.hpp>
 
 #include "app.h"
+#include "SDL3/SDL_render.h"
 #include "SDL3/SDL_video.h"
 #include "SDL3_mixer/SDL_mixer.h"
 #include "audio.h"
@@ -51,15 +52,18 @@ int run() {
 
     auto display = SDL_GetPrimaryDisplay();
     auto display_info = SDL_GetDesktopDisplayMode(display);
-    // std::cout << std::format("{}, {}\n", display_info->w, display_info->h);
+
     constants::window_width = display_info->w;
     constants::window_height = display_info->h;
 
     SDL_Window* window;
     SDL_Renderer* renderer;
 
-    SDL_CreateWindowAndRenderer("taiko", window_width, window_height, 0, &window, &renderer);
-    SDL_SetWindowFullscreen(window, true);
+    SDL_CreateWindowAndRenderer("taiko", window_width, window_height,
+    SDL_WINDOW_INPUT_FOCUS | SDL_WINDOW_FULLSCREEN,
+    &window, &renderer);
+
+    SDL_GetRenderDriver(0);
 
     Input::Input input{};
     input.init_keybinds(Input::default_keybindings);

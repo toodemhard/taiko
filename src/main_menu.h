@@ -77,4 +77,6 @@ class MainMenu {
     std::array<AnimState, Input::ActionID::count> m_remap_buttons;
 
     TextFieldState search{.text = "ashkjfhkjh"};
+
+    AnimState m_load_button;
 };

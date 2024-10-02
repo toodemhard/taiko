@@ -2,6 +2,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdint>
+#include <limits>
 #include <optional>
 #include <tracy/Tracy.hpp>
 
@@ -578,17 +579,21 @@ void UI::end_frame() {
             auto parent_rect = m_rects[parent_row.rect_index];
 
             auto& text = m_texts[current_text_index];
+            auto x_padding = parent_row.style.padding.left + parent_row.style.padding.right;
             switch (text.text_align) {
             case TextAlign::Left:
                 text.position = row_stack.back().next_position;
             break;
             case TextAlign::Center:
-                auto x_padding = parent_row.style.padding.left + parent_row.style.padding.right;
                 text.position = row_stack.back().next_position + Vec2{(parent_rect.scale.x - x_padding - text_dimensions(text.text, text.font_size).x) / 2.0f, 0.0f};
             break;
             }
     
-            text.max_width = parent_rect.scale.x;
+            if (std::get_if<Scale::Fixed>(&parent_row.style.width)) {
+                text.max_width = parent_rect.scale.x - x_padding;
+            } else {
+                text.max_width = std::numeric_limits<float>::max();
+            }
             // incr(row_stack.back(), m_texts[current_text_index].scale, 0);
             m_draw_order.push_back(DrawCommand::text);
 

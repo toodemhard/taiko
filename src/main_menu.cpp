@@ -203,8 +203,9 @@ void MainMenu::update(double delta_time) {
 
         {
             Style prst{};
-            prst.position = Position::Anchor{1, 0.5};
-            prst.padding.right = 40;
+            prst.position = Position::Anchor{0, 1};
+            prst.padding.left = 40;
+            prst.padding.bottom = 40;
 
             m_ui.begin_row(prst);
 
@@ -215,7 +216,7 @@ void MainMenu::update(double delta_time) {
             rst.padding = even_padding(20);
 
             m_ui.begin_row(rst);
-            m_ui.text("Diff Guide", {.align_items=Alignment::Center});
+            m_ui.text("Diffifculty Guide", {.padding.bottom=10});
             m_ui.text(
             R"(Kantan = Easy
 Futsuu = Normal
@@ -223,7 +224,7 @@ Muzukashii = Hard
 Oni = Insane
 Inner Oni = harder than Oni
 Non standard name = hardest diff)"
-            , {});
+            , {.font_size = 32, .text_color=color::grey});
 
             m_ui.end_row();
             m_ui.end_row();
@@ -239,7 +240,7 @@ Non standard name = hardest diff)"
         for (int i = 0; i < map_buffer.count; i++) {
             auto diff_st = Style{};
             diff_st.padding = even_padding(25);
-            diff_st.width = Scale::Fixed{400};
+            diff_st.width = Scale::Fixed{500};
             diff_st.background_color = RGBA{31, 31, 31, 200};
 
             if (i == m_selected_diff_index) {
@@ -277,10 +278,6 @@ Non standard name = hardest diff)"
         SliderStyle slider_st{};
 
 
-        Style r_st = {};
-        r_st.position = Position::Anchor{0, 0.5};
-        r_st.padding.left = 20;
-        m_ui.begin_row(r_st);
 
         auto cb = [this]() {
             auto callback = [](void* userdata, const char* const* filelist, int filter) {
@@ -301,12 +298,41 @@ Non standard name = hardest diff)"
             SDL_ShowOpenFileDialog(callback, this, NULL, NULL, 0, NULL, 1);
         };
 
-        Style st{};
-        st.background_color = color::bg;
-        st.padding = even_padding(20);
-        m_ui.button("+ Load .osz", st, std::move(cb));
-        m_ui.end_row();
+        Style r_st = {};
+        r_st.position = Position::Anchor{1, 0.5};
+        r_st.padding.right = 30;
+        m_ui.begin_row(r_st); {
+            Style st{};
+            st.background_color = color::bg;
+            st.padding = even_padding(20);
 
+            AnimStyle anim_st{};
+            anim_st.alt_background_color = color::bg_highlight;
+
+            m_ui.button_anim("+ Load .osz", &m_load_button, st, anim_st, std::move(cb));
+        } m_ui.end_row();
+
+        r_st = {};
+        r_st.position = Position::Anchor{0, 1};
+        r_st.padding.left = 40;
+        r_st.padding.bottom = 40;
+        m_ui.begin_row(r_st); {
+
+            Style st{};
+            st.stack_direction = StackDirection::Vertical;
+            st.background_color = color::bg;
+            st.padding = even_padding(20);
+            m_ui.begin_row(st);
+
+            m_ui.text("Menu Controls", {.padding.bottom=10});
+
+            m_ui.text(R"(Left/Right
+Return
+Escape)",
+            {.font_size=32, .text_color=color::grey});
+
+            m_ui.end_row();
+        } m_ui.end_row();
 
 
         auto enter_mapset = [&]() {
@@ -351,10 +377,6 @@ Non standard name = hardest diff)"
             auto st = Style{};
             st.position = Position::Anchor{1, 0.5};
             m_ui.begin_row(st);
-
-            m_ui.button("New Map", {}, [&]() {
-                event_queue.push_event(Event::EditNewMap{});
-            });
 
             m_ui.end_row();
 
@@ -443,9 +465,13 @@ Non standard name = hardest diff)"
                 item_st.text_color = RGBA{31, 31, 31, 200};
 
                 m_ui.begin_row_button(item_st, [&, i]() {
-                    m_choosing_mapset_index = m_selected_mapset_index;
-                    m_diff_buttons = std::vector<AnimState>(m_map_buffers[m_selected_mapset_index].count);
-                    m_selected_diff_index = {};
+                    if (m_entry_mode == EntryMode::Play) {
+                        m_choosing_mapset_index = m_selected_mapset_index;
+                        m_diff_buttons = std::vector<AnimState>(m_map_buffers[m_selected_mapset_index].count);
+                        m_selected_diff_index = {};
+                    } else {
+                        event_queue.push_event(Event::EditMap{m_mapset_paths[m_selected_mapset_index], {}});
+                    }
                 });
                 m_ui.text(mapset.title.data(), idk);
                 m_ui.text(mapset.artist.data(), idk2);
