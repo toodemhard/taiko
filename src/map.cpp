@@ -1,5 +1,6 @@
 #include "map.h"
 #include <filesystem>
+#include <string>
 
 Map::Map(MapMeta meta_data) : m_meta_data{ meta_data } {}
 
@@ -53,7 +54,7 @@ std::string& ltrim(std::string& s, const char* t = " \t\n\r\f\v")
     return s;
 }
 
-Map load_osu_map(std::filesystem::path map_file_path);
+int load_osu_map(std::filesystem::path map_file_path, Map& map);
 
 int load_osz(std::filesystem::path osz_file_path) {
     if (osz_file_path.extension() != ".osz") {
@@ -74,7 +75,6 @@ int load_osz(std::filesystem::path osz_file_path) {
 
             MapSetInfo mapset_info{};
             std::string audio_filename;
-
             std::string line;
 
             while (std::getline(file, line) && line.compare("[General]") != 0) {
@@ -126,31 +126,46 @@ int load_osz(std::filesystem::path osz_file_path) {
             mapset_directory = std::filesystem::path(dir_string);
 
             std::filesystem::create_directories(mapset_directory);
-            std::filesystem::copy_file(extracted_dir / audio_filename, mapset_directory / audio_filename, std::filesystem::copy_options::overwrite_existing);
+            std::filesystem::copy_file(extracted_dir / audio_filename, mapset_directory / audio_filename, std::filesystem::copy_options::skip_existing);
             save_binary(mapset_info, (mapset_directory / mapset_filename));
 
-            for (const auto& entry : std::filesystem::directory_iterator(extracted_dir)) {
-                if (entry.path().extension().string().compare(osu_file_extension) == 0) {
-                    auto map = load_osu_map(entry.path());
-                    save_binary(map, mapset_directory / (map.m_meta_data.difficulty_name + map_file_extension));
-                }
-            }
 
             break;
         }
     }
 
+    for (const auto& entry : std::filesystem::directory_iterator(extracted_dir)) {
+        if (entry.path().extension().string().compare(osu_file_extension) == 0) {
+            std::ifstream file(entry.path());
+            std::string line;
+            Map map{};
+            if(load_osu_map(entry.path(), map) == 0) {
+                save_binary(map, mapset_directory / (map.m_meta_data.difficulty_name + map_file_extension));
+            }
+        }
+    }
     std::filesystem::remove_all(extracted_dir);
 
     return 0;
 }
 
-Map load_osu_map(std::filesystem::path map_file_path) {
-    Map map{};
-
+int load_osu_map(std::filesystem::path map_file_path, Map& map) {
     std::ifstream file(map_file_path);
 
     std::string line;
+    while (std::getline(file, line) && line.compare("[General]") != 0) {
+    }
+    while (std::getline(file, line)) {
+        auto values = split_once(line, ':');
+        if ( values[0].compare("Mode") == 0) {
+            auto mode = std::stoi(ltrim(values[1]));
+            if (mode != 1) {
+                return 1;
+            }
+            break;
+        }
+    }
+
     while (std::getline(file, line) && line.compare("[Metadata]") != 0) {
     }
     while (std::getline(file, line)) {
@@ -160,7 +175,6 @@ Map load_osu_map(std::filesystem::path map_file_path) {
             break;
         }
     }
-
 
     while (std::getline(file, line) && line.compare("[HitObjects]") != 0) {
     }
@@ -173,10 +187,10 @@ Map load_osu_map(std::filesystem::path map_file_path) {
         NoteFlags note_flags{};
 
         note_flags |= ((note_type >> 2) & 1) ? 0 : NoteFlagBits::small;
-        note_flags |= ((note_type >> 3) & 1) ? 0 : NoteFlagBits::don;
+        note_flags |= ((note_type >> 3) & 1 || (note_type >> 1) & 1) ? 0 : NoteFlagBits::don;
 
         map.flags_list.push_back(note_flags);
     }
 
-    return map;
+    return 0;
 }

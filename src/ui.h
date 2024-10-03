@@ -17,11 +17,13 @@ namespace color {
 constexpr RGBA white{255, 255, 255, 255};
 constexpr RGBA black{0, 0, 0, 255};
 constexpr RGBA red{255, 0, 0, 255};
-constexpr RGBA grey{180, 180, 180, 255};
+constexpr RGBA grey{200, 200, 200, 255};
+constexpr RGBA bg{31, 31, 31, 200};
+constexpr RGBA bg_highlight{90, 90, 90, 200};
 constexpr RGBA none{0, 0, 0, 0};
 } // namespace color
 
-constexpr int string_array_size{10};
+constexpr int string_array_capacity{10};
 
 class StringCache {
   public:
@@ -29,7 +31,8 @@ class StringCache {
     void clear();
 
   private:
-    std::vector<std::string> strings;
+    std::array<std::string, string_array_capacity> strings;
+    int back = 0;
 };
 
 enum class StackDirection {
@@ -50,7 +53,7 @@ inline Padding even_padding(float amount) {
 
 namespace Position {
 
-// fraction of the screen
+// fraction of the parent bounds
 struct Anchor {
     Vec2 position;
 };
@@ -59,7 +62,9 @@ struct Absolute {
     Vec2 position;
 };
 
-struct Relative {};
+struct Relative {
+    Vec2 offset_position;
+};
 
 using Variant = std::variant<Relative, Anchor, Absolute>;
 } // namespace Position
@@ -74,10 +79,12 @@ struct Min {
     float value;
 };
 
+struct FitParent {};
+
 // scale to the content
 struct FitContent {};
 
-using Variant = std::variant<FitContent, Min, Fixed>;
+using Variant = std::variant<FitContent, Min, Fixed, FitParent>;
 
 } // namespace Scale
 
@@ -87,14 +94,32 @@ using TextColor = std::variant<RGBA, Inherit>;
 
 enum class TextAlign {
     Left,
-    Right,
     Center,
+    Right,
+};
+
+enum class Alignment {
+    Start,
+    Center,
+    End,
+};
+
+enum class TextWrap {
+    Overflow,
+    Cutoff,
+    Wrap,
+};
+
+enum class JustifyItems {
+    start,
+    apart,
 };
 
 struct Style {
     Position::Variant position;
     RGBA background_color;
     RGBA border_color;
+    // RGBA border_color = color::red;
 
     Padding padding;
 
@@ -102,14 +127,18 @@ struct Style {
     Scale::Variant height;
     bool overlap;
 
-    // group styling
+    // row styling
     StackDirection stack_direction = StackDirection::Horizontal;
+    Alignment align_items;
+    JustifyItems justify_items;
+    
     float gap;
 
     // text style
     float font_size = 36;
     TextColor text_color = color::white;
-
+    TextWrap text_wrap;
+    TextAlign text_align;
 };
 
 struct AnimState {
@@ -130,17 +159,20 @@ struct Rect {
 };
 
 struct DrawRect {
-    int rect_index;
+    Rect rect;
     RGBA background_color;
     RGBA border_color;
 };
 
+
 struct Text {
     Vec2 position;
-    Vec2 scale;
     const char* text;
     float font_size;
     RGBA text_color;
+    TextWrap wrap;
+    TextAlign text_align;
+    float max_width;
 };
 
 struct Button {
@@ -148,14 +180,10 @@ struct Button {
     std::function<void()> on_click;
 };
 
-enum class ElementType {
-    group,
-    text,
-};
-
-struct ElementHandle {
-    ElementType type;
-    int index;
+enum class Command {
+    begin_row,
+    end_row,
+    text
 };
 
 struct ClickInfo {
@@ -165,35 +193,26 @@ struct ClickInfo {
 
 using OnClick = std::function<void()>;
 
-struct Group {
+struct Row {
     int rect_index;
     Style style;
 
     AnimState* anim_state;
-
-    std::optional<uint16_t> on_click_index;
-    std::optional<uint16_t> silder_on_held_index;
-    std::vector<ElementHandle> children;
+    int children;
 };
 
 struct ClickRect {
-    Vec2 position;
-    Vec2 scale;
-
-    uint16_t on_click_index;
+    int rect_index;
+    int on_click_index;
 };
 
 struct SliderHeldRect {
-    Vec2 position;
-    Vec2 scale;
-
+    int rect_index;
     int on_held_index;
 };
 
 struct HoverRect {
-    Vec2 position;
-    Vec2 scale;
-
+    int rect_index;
     AnimState& anim_state;
 };
 
@@ -217,6 +236,7 @@ struct SliderStyle {
     float height;
     RGBA bg_color;
     RGBA fg_color;
+    RGBA border_color;
 };
 
 struct SliderCallbacks {
@@ -244,11 +264,13 @@ struct SliderOnInputInfo {
     int on_input_index;
 };
 
+enum DrawCommand {
+    rect,
+    text,
+};
+
 class UI {
   public:
-    UI() = default;
-    UI(int _screen_width, int _screen_height);
-
     void text_field(TextFieldState* state, Style style);
     RectID button(const char* text, Style style, OnClick&& on_click);
     RectID button_anim(const char* text, AnimState* anim_state, const Style& style, const AnimStyle& anim_style, OnClick&& on_click);
@@ -268,18 +290,16 @@ class UI {
 
     RectID text(const char* text, const Style& style);
 
-    void begin_group(const Style& style);
-    RectID end_group();
+    RectID begin_row(const Style& style);
+    void end_row();
     Rect query_rect(RectID id);
 
-    void begin_group_button(const Style& style, OnClick&& on_click);
-    void begin_group_button_anim(AnimState* anim_state, Style style, const AnimStyle& anim_style, OnClick&& on_click);
+    RectID begin_row_button(const Style& style, OnClick&& on_click);
+    RectID begin_row_button_anim(AnimState* anim_state, Style style, const AnimStyle& anim_style, OnClick&& on_click);
 
-    void visit_group(Group& group, Vec2 start_pos);
+    void input(Input::Input& input);
 
-    void input(Input& input);
-
-    void begin_frame();
+    void begin_frame(int width, int height);
     void end_frame();
 
     void draw(SDL_Renderer* renderer);
@@ -289,18 +309,22 @@ class UI {
     StringCache strings{};
 
   private:
+    Input::Input* m_input;
+
     int m_screen_width = 0;
     int m_screen_height = 0;
 
     std::vector<Rect> m_rects;
 
+    std::vector<DrawRect> m_draw_rects;
+
     std::vector<ClickRect> m_click_rects;
     std::vector<HoverRect> m_hover_rects;
     std::vector<SliderHeldRect> m_slider_input_rects;
 
+    std::vector<DrawCommand> m_draw_order;
 
-    std::vector<DrawRect> m_draw_rects;
-    std::vector<Group> m_groups;
+    std::vector<Row> m_rows;
     std::vector<Text> m_texts;
 
     std::vector<TextFieldInputRect> m_text_field_inputs;
@@ -320,11 +344,14 @@ class UI {
     std::optional<DropDownOverlay> m_post_overlay;
     std::vector<DropDown*> m_dropdown_clickoff_callbacks;
 
-    std::vector<int> m_group_stack;
+    std::vector<int> m_row_stack;
+    std::vector<Command> m_command_tree;
 
-    void begin_group_any(const Group& group);
-    Vec2& element_scale(ElementHandle e);
-    Vec2& element_position(ElementHandle e);
 
+    void text_headless(const char* text, const Style& style);
+    void add_parent_scale(Row& row, Vec2 scale);
+
+    bool m_input_called{};
+    bool m_begin_frame_called{};
     bool m_end_frame_called{};
 };

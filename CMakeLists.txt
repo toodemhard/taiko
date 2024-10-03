@@ -7,12 +7,13 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 include(FetchContent)
 
-if (CMAKE_BUILD_TYPE STREQUAL "Release")
-    option(TRACY_ENABLE "" ON)
-    option(TRACY_ON_DEMAND "" ON)
-else()
-    set(TRACY_ENABLE OFF)
-endif ()
+option(TRACY_ENABLE OFF)
+#
+# if (CMAKE_BUILD_TYPE STREQUAL "Release")
+#     option(TRACY_ENABLE "" ON)
+#     option(TRACY_ON_DEMAND "" ON)
+# else()
+# endif ()
 
 add_subdirectory(lib/tracy EXCLUDE_FROM_ALL)
 add_subdirectory(lib/elzip)
@@ -89,7 +90,6 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     Tracy::TracyClient
 )
 
-# target_link_libraries(${PROJECT_NAME} PUBLI elzip)
 
 add_custom_target(copy_assets
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/data ${CMAKE_CURRENT_BINARY_DIR}/data
@@ -101,3 +101,28 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_RUNTIME_DLLS:${PROJECT_NAME}> $<TARGET_FILE_DIR:${PROJECT_NAME}>
     COMMAND_EXPAND_LISTS
 )
+
+option(COPY_TO_DISTRIBUTION "Copy application, libs, and data to clean distribution output dir" OFF)
+
+if (COPY_TO_DISTRIBUTION)
+    set(DISTRIBUTION_DIR ${CMAKE_SOURCE_DIR}/dist)
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_RUNTIME_DLLS:${PROJECT_NAME}> ${DISTRIBUTION_DIR}
+        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${PROJECT_NAME}> ${DISTRIBUTION_DIR}
+        COMMAND_EXPAND_LISTS
+    )
+
+    add_custom_target(copy_assets_to_dist
+        COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/data ${DISTRIBUTION_DIR}/data
+    )
+
+    add_dependencies(${PROJECT_NAME} copy_assets_to_dist)
+endif()
+
+# install(TARGETS ${PROJECT_NAME}
+#     RUNTIME DESTINATION .
+#     LIBRARY DESTINATION .
+#     ARCHIVE DESTINATION .
+# )
+#
+# install(DIRECTORY ${CMAKE_SOURCE_DIR}/data/ DESTINATION ${CMAKE_INSTALL_PREFIX}/data)

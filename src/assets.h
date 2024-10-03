@@ -11,7 +11,13 @@ enum ImageID {
     don_circle,
     inner_drum,
     outer_drum,
-    count
+    bg,
+    back_frame,
+    crosshair_rim,
+    crosshair_rim_outer,
+    crosshair_fill,
+
+    count, // dont touch this
 };
 }
 
@@ -19,7 +25,12 @@ namespace SoundID {
 enum SoundID {
     don,
     kat,
-    count
+
+    menu_select,
+    menu_confirm,
+    menu_back,
+
+    count, // leave at end
 };
 }
 

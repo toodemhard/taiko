@@ -9,8 +9,8 @@ namespace constants {
     constexpr const char* map_file_extension = ".tko";
     constexpr const char* osu_file_extension = ".osu";
     constexpr const char* mapset_filename = "mapset";
-    constexpr int window_width = 1920;
-    constexpr int window_height = 1080;
+    inline int window_width = 1920;
+    inline int window_height = 1080;
 
     using namespace std::chrono_literals;
 

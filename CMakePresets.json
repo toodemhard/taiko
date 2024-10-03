@@ -46,6 +46,17 @@
         "CMAKE_CXX_FLAGS": "-DDEV",
         "CMAKE_C_FLAGS": "-DDEV"
       }
+    },
+    {
+      "name": "distribution",
+      "displayName": "distribution",
+      "description": "",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_INSTALL_PREFIX": "{$sourceDIr}/dist",
+        "COPY_TO_DISTRIBUTION": "ON"
+      }
     }
   ]
 }

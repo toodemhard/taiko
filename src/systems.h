@@ -8,7 +8,7 @@
 
 struct Systems {
     SDL_Renderer* renderer{};
-    Input& input;
+    Input::Input& input;
     Audio& audio;
     AssetLoader& assets;
     EventQueue& event_queue;

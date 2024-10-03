@@ -19,6 +19,7 @@ namespace Event {
         std::string map_filename;
     };
     struct Return {};
+    struct GameReset{};
 }
 
 using EventUnion = std::variant<
@@ -27,7 +28,8 @@ using EventUnion = std::variant<
     Event::TestMap,
     Event::QuitTest,
     Event::PlayMap,
-    Event::Return
+    Event::Return,
+    Event::GameReset
 >;
 
 class EventQueue {
@@ -46,5 +48,6 @@ namespace EventType {
         QuitTest,
         PlayMap,
         Return,
+        GameReset,
     };
 }

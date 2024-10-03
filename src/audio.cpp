@@ -28,8 +28,15 @@ int Audio::load_music(const char* file_path) {
     return 0;
 }
 
+void Audio::fade_in(int loops, int ms) {
+    Mix_FadeInMusic(m_music, loops, ms);
+    m_loops = loops;
+    last_time = std::chrono::high_resolution_clock::now();
+}
+
 void Audio::play(int loops) {
     Mix_PlayMusic(m_music, loops);
+    m_loops = loops;
     last_time = std::chrono::high_resolution_clock::now();
 }
 
@@ -44,6 +51,10 @@ void Audio::resume() {
 }
 
 void Audio::pause() {
+    if (!Mix_PlayingMusic()) {
+        return;
+    }
+
     Mix_PauseMusic();
     elapsed_at_last_time += std::chrono::duration<double>(std::chrono::high_resolution_clock::now() - last_time).count();
 }
@@ -58,10 +69,16 @@ double Audio::get_position() {
         current_elapsed = elapsed_at_last_time + std::chrono::duration<double>(std::chrono::high_resolution_clock::now() - last_time).count();
         auto duration = Mix_MusicDuration(m_music);
         if (current_elapsed > duration) {
-            current_elapsed = std::fmod(current_elapsed, duration);
+            if (m_loops > 0) {
+                current_elapsed = std::fmod(current_elapsed, duration);
 
-            last_time = std::chrono::high_resolution_clock::now();
-            elapsed_at_last_time = current_elapsed;
+                last_time = std::chrono::high_resolution_clock::now();
+                elapsed_at_last_time = current_elapsed;
+
+                m_loops--;
+            } else {
+                return duration;
+            }
         }
     }
 
@@ -79,22 +96,4 @@ void Audio::set_position(double position) {
 
 bool Audio::paused() {
     return (bool)Mix_PausedMusic();
-}
-
-Player::Player(Input& _input, Audio& _audio) : input{ _input }, audio{ _audio } {
-}
-
-void Player::update(float delta_time) {
-    if (input.key_down(SDL_SCANCODE_SPACE)) {
-        if (audio.paused()) {
-            audio.resume();
-        }
-        else {
-            audio.pause();
-        }
-    }
-
-    if (!audio.paused()) {
-        std::cout << std::format("measured: {}s, lib: {}s\n", audio.get_position(), Mix_GetMusicPosition(audio.m_music));
-    }
 }

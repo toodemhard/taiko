@@ -4,20 +4,21 @@
 #include <tracy/Tracy.hpp>
 
 #include "app.h"
+#include "SDL3/SDL_render.h"
+#include "SDL3/SDL_video.h"
 #include "SDL3_mixer/SDL_mixer.h"
+#include "audio.h"
 #include "constants.h"
+#include "events.h"
 #include "font.h"
 
 #include "editor.h"
 #include "game.h"
+#include "input.h"
 #include "main_menu.h"
 
-#include "map.h"
 #include "systems.h"
-
 #include "assets.h"
-#include "serialize.h"
-
 #include "ui_test.h"
 
 using namespace constants;
@@ -40,38 +41,44 @@ enum class Context {
 int run() {
     create_dirs();
 
-    // try {
-    //     load_osz(std::filesystem::path("1815703 Hiiragi Magnetite - Marshall Maximizer feat. KAFU.osz"));
-    // } catch (std::runtime_error& e) {
-    //     std::cout << e.what();
-    // }
-
-
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) < 0) {
         SDL_Log("SDL_Init failed (%s)", SDL_GetError());
         return 1;
     }
 
+    auto display = SDL_GetPrimaryDisplay();
+    auto display_info = SDL_GetDesktopDisplayMode(display);
+
+    constants::window_width = display_info->w;
+    constants::window_height = display_info->h;
+
     SDL_Window* window;
     SDL_Renderer* renderer;
 
-    SDL_CreateWindowAndRenderer("taiko", window_width, window_height, 0, &window, &renderer);
-    SDL_SetWindowFullscreen(window, true);
+    SDL_CreateWindowAndRenderer("taiko", window_width, window_height,
+    SDL_WINDOW_INPUT_FOCUS | SDL_WINDOW_FULLSCREEN,
+    &window, &renderer);
 
+    SDL_GetRenderDriver(0);
 
-    Input input{};
+    Input::Input input{};
+    input.init_keybinds(Input::default_keybindings);
     Audio audio{};
 
     Mix_AllocateChannels(32);
 
-    Mix_MasterVolume(MIX_MAX_VOLUME * 0.3);
-    Mix_VolumeMusic(MIX_MAX_VOLUME * 0.2);
+    Mix_MasterVolume(effect_volume);
+    Mix_VolumeMusic(MIX_MAX_VOLUME * 0.2f);
 
-    init_font(renderer);
+    Font2::init_fonts(renderer);
 
     std::vector<SoundLoadInfo> sound_list = {
         {"don.wav", SoundID::don},
         {"kat.wav", SoundID::kat},
+
+        {"menu_select.wav", SoundID::menu_select},
+        {"menu_confirm.wav", SoundID::menu_confirm},
+        {"menu_back.wav", SoundID::menu_back},
     };
 
     std::vector<ImageLoadInfo> image_list = {
@@ -81,34 +88,45 @@ int run() {
         {"circle-select.png", ImageID::select_circle},
         {"circle.png", ImageID::kat_circle, RGBA{60, 219, 226, 255}},
         {"circle.png", ImageID::don_circle, RGBA{252, 78, 60, 255}},
-        {"drum-inner.png", ImageID::inner_drum},
-        {"drum-outer.png", ImageID::outer_drum},
+        {"drum_inner.png", ImageID::inner_drum},
+        {"drum_outer.png", ImageID::outer_drum},
+        {"circle.png", ImageID::crosshair_fill, RGBA{59, 59, 59, 255}},
+        {"approach_circle.png", ImageID::crosshair_rim, RGBA{110, 110, 110, 255}},
+        {"approach_circle.png", ImageID::crosshair_rim_outer, RGBA{59, 59, 59, 255}},
+
+        {"bg.png", ImageID::bg},
+        {"bar-left.png", ImageID::back_frame},
     };
 
     AssetLoader assets{};
     assets.init(renderer, image_list, sound_list);
 
+    Mix_VolumeChunk(assets.get_sound(SoundID::kat), MIX_MAX_VOLUME * 0.7);
+    Mix_VolumeChunk(assets.get_sound(SoundID::don), MIX_MAX_VOLUME * 0.7);
+
     EventQueue event_queue{};
 
     Systems systems{renderer, input, audio, assets, event_queue};
 
-    std::vector<Context> context_stack{Context::Menu};
 
     std::unique_ptr<Editor> editor{};
-    std::unique_ptr<Game> game{};
+    std::unique_ptr<game::Game> game{};
     std::unique_ptr<MainMenu> menu{
         std::make_unique<MainMenu>(renderer, input, audio, assets, event_queue)
     };
 
-    UI_Test ui_test{input};
+    UI_Test ui_test{renderer, input};
 
-    SDL_StartTextInput(window);
+    // SDL_StartTextInput(window);
 
-    UI frame_time_ui{constants::window_width, constants::window_height};
+    UI frame_time_ui;
 
 
     auto last_frame_start = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> last_frame_duration{};
+
+    std::vector<Context> context_stack{Context::Menu};
+    menu->awake();
 
 
     while (1) {
@@ -147,6 +165,7 @@ int run() {
 
                 if (event.type == SDL_EVENT_KEY_DOWN) {
                     input.keyboard_repeat[event.key.scancode] = true;
+                    input.m_key_this_frame = event.key.scancode;
                 }
 
                 if (event.type == SDL_EVENT_TEXT_INPUT) {
@@ -159,12 +178,15 @@ int run() {
             break;
         }
 
+        std::filesystem::path mapset_directory;
+        std::string map_filename;
+
+
         EventUnion event_union;
         while (event_queue.pop_event(&event_union)) {
             switch (event_union.index()) {
             case EventType::TestMap:
-                game =
-                    std::make_unique<Game>(systems, game::InitConfig{false, true}, std::move(editor->copy_map()));
+                // game = std::make_unique<game::Game>(systems, game::InitConfig{false, true}, std::move(editor->copy_map()));
                 context_stack.push_back(Context::Game);
                 break;
             case EventType::QuitTest:
@@ -188,13 +210,13 @@ int run() {
             case EventType::PlayMap: {
                 auto& event = std::get<Event::PlayMap>(event_union);
                 context_stack.push_back(Context::Game);
-                Map map;
-                load_binary(map, event.mapset_directory / event.map_filename);
-                auto music_file = find_music_file(event.mapset_directory);
-                if (music_file.has_value()) {
-                    audio.load_music(music_file.value().string().data());
-                }
-                game = std::make_unique<Game>(systems, game::InitConfig{}, map);
+                game = std::make_unique<game::Game>(systems, game::InitConfig{event.mapset_directory, event.map_filename});
+            } break;
+            case EventType::GameReset: {
+                auto init_config = game->config;
+                game = std::make_unique<game::Game>(systems, init_config);
+                
+
             } break;
             case EventType::Return:
                 switch (context_stack.back()) {
@@ -211,9 +233,6 @@ int run() {
                 context_stack.pop_back();
                 break;
             }
-        }
-
-        if (input.key_down(SDL_SCANCODE_R)) {
         }
 
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
@@ -237,32 +256,21 @@ int run() {
         auto frame_time_string = std::format("{:.3f} ms", std::chrono::duration<double,std::milli>(last_frame_duration).count());
 
         auto st = Style{};
-        st.text_color = color::white;
         st.position = Position::Anchor{{1, 1}};
-        // st.padding = Padding{10,10,10,10};
-        frame_time_ui.begin_group(st);
+        st.padding = Padding{10,10,10,10};
+
+        frame_time_ui.input(input);
+
+        frame_time_ui.begin_frame(constants::window_width, constants::window_height);
         frame_time_ui.text(frame_time_string.data(), st);
-        frame_time_ui.end_group();
         frame_time_ui.end_frame();
 
         frame_time_ui.draw(renderer);
-
-        // if (input.key_down(SDL_SCANCODE_F)) {
-        //     std::cout << std::format("{}\n", frame_time_string);
-        // }
 
         {
             SDL_RenderPresent(renderer);
             ZoneNamedN(v, "Render Present", true);
         }
-
-
-        // case Context::Editor:
-        //   editor->update(delta_time);
-        //   break;
-        // case Context::Game:
-        //   game->update(delta_time);
-        //   break;
 
         last_frame_duration = std::chrono::high_resolution_clock::now() - frame_start;
 

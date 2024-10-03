@@ -6,16 +6,16 @@
 
 class UI_Test {
   public:
-    UI_Test(Input& input);
+    UI_Test(SDL_Renderer* renderer, Input::Input& input);
     void update(double delta_time);
-    void render(SDL_Renderer* renderer);
 
   private:
-    Input& m_input;
+    SDL_Renderer* m_renderer;
+    Input::Input& m_input;
     
     TextFieldState m_text_field{};
 
-    UI m_ui{constants::window_width, constants::window_height};
+    UI m_ui;
 
     int m_selected{};
     float m_current_pos{};
@@ -31,4 +31,7 @@ class UI_Test {
     std::vector<const char*> m_resolutions{"1920x1080", "1024x768"};
     DropDown m_resolution_dropdown{};
     int m_selected_resolution_index{};
+
+    Slider m_slider{};
+    float kys{};
 };
