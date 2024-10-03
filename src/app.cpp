@@ -17,12 +17,8 @@
 #include "input.h"
 #include "main_menu.h"
 
-#include "map.h"
 #include "systems.h"
-
 #include "assets.h"
-#include "serialize.h"
-
 #include "ui_test.h"
 
 using namespace constants;
@@ -74,7 +70,7 @@ int run() {
     Mix_MasterVolume(effect_volume);
     Mix_VolumeMusic(MIX_MAX_VOLUME * 0.2f);
 
-    init_font(renderer);
+    Font2::init_fonts(renderer);
 
     std::vector<SoundLoadInfo> sound_list = {
         {"don.wav", SoundID::don},
@@ -239,9 +235,6 @@ int run() {
             }
         }
 
-        // if (input.key_down(SDL_SCANCODE_R)) {
-        // }
-        //
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
         SDL_RenderClear(renderer);
 
@@ -273,10 +266,6 @@ int run() {
         frame_time_ui.end_frame();
 
         frame_time_ui.draw(renderer);
-
-        // if (input.key_down(SDL_SCANCODE_F)) {
-        //     std::cout << std::format("{}\n", frame_time_string);
-        // }
 
         {
             SDL_RenderPresent(renderer);
