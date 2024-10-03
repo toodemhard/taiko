@@ -223,7 +223,7 @@ Futsuu = Normal
 Muzukashii = Hard
 Oni = Insane
 Inner Oni = harder than Oni
-Non standard name = hardest diff)"
+Anything else = hardest diff)"
             , {.font_size = 32, .text_color=color::grey});
 
             m_ui.end_row();
@@ -505,14 +505,28 @@ Escape)",
 
 
         {
-            const char* text = audio.paused() ? "Play" : "Pause";
-            m_ui.button(text, {}, [&](){
+            Style st{};
+            st.width = Scale::Fixed{60};
+            // st.border_color = color::red;
+            const char* text = audio.paused() ? "󰐊" : "󰏤";
+
+            m_ui.begin_row_button(st, [&](){
                 if (audio.paused()) {
                     audio.resume();
                 } else {
                     audio.pause();
                 }
-            });
+            }); {
+
+                st = {};
+                st.font_size = 64;
+                st.position = Position::Relative{0, -14};
+                st.width = Scale::FitParent{};
+                st.text_align = TextAlign::Center;
+                // st.border_color = RGBA{0,255,0,255};
+                m_ui.text(text, st);
+
+            } m_ui.end_row();
         }
 
 
