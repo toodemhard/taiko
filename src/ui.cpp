@@ -19,12 +19,14 @@ template <class... Ts> struct overloaded : Ts... {
 };
 
 const char* StringCache::add(std::string&& string) {
-    strings.push_back(std::move(string));
-    return strings[strings.size() - 1].data();
+    strings[back] = std::move(string);
+    back++;
+    return strings[back - 1].data();
+    // return strings[strings.size() - 1].data();
 }
 
 void StringCache::clear() {
-    strings.clear();
+    back = 0;
 }
 
 RectID UI::begin_row(const Style& style) {
@@ -80,7 +82,7 @@ void UI::text_headless(const char* text, const Style& style) {
         style.text_color
     );
 
-    auto scale = text_dimensions(text, style.font_size);
+    auto scale = Font2::text_dimensions(text, style.font_size);
 
     // auto max_width = [&]() {
     //     if (auto* fixed_width = std::get_if<Scale::Fixed>(&style.width)) {
@@ -531,7 +533,7 @@ void UI::end_frame() {
                     },
                     [](Position::Absolute absolute) { return absolute.position; },
                     [&](Position::Relative relative) {
-                        auto pos = row_stack.back().next_position;
+                        auto pos = row_stack.back().next_position + relative.offset_position;
 
                         switch (parent_row.style.align_items) {
                         case Alignment::Start:
@@ -585,7 +587,7 @@ void UI::end_frame() {
                 text.position = row_stack.back().next_position;
             break;
             case TextAlign::Center:
-                text.position = row_stack.back().next_position + Vec2{(parent_rect.scale.x - x_padding - text_dimensions(text.text, text.font_size).x) / 2.0f, 0.0f};
+                text.position = row_stack.back().next_position + Vec2{(parent_rect.scale.x - x_padding - Font2::text_dimensions(text.text, text.font_size).x) / 2.0f, 0.0f};
             break;
             }
     
@@ -810,7 +812,7 @@ void UI::draw(SDL_Renderer* renderer) {
         break;
         case DrawCommand::text: {
             auto& text = m_texts[text_index];
-            draw_text_cutoff(renderer, text.text, text.font_size, text.position, text.text_color, text.max_width);
+            Font2::draw_text(renderer, text.text, text.font_size, text.position, text.text_color, text.max_width);
 
             text_index++;
 

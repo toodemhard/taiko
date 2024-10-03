@@ -23,7 +23,7 @@ constexpr RGBA bg_highlight{90, 90, 90, 200};
 constexpr RGBA none{0, 0, 0, 0};
 } // namespace color
 
-constexpr int string_array_size{10};
+constexpr int string_array_capacity{10};
 
 class StringCache {
   public:
@@ -31,7 +31,8 @@ class StringCache {
     void clear();
 
   private:
-    std::vector<std::string> strings;
+    std::array<std::string, string_array_capacity> strings;
+    int back = 0;
 };
 
 enum class StackDirection {
