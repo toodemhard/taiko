@@ -30,6 +30,8 @@ public:
     Mix_Music* m_music = nullptr;
     double elapsed_at_last_time = 0;
 
+    int m_loops{};
+
 private:
     std::chrono::time_point<std::chrono::high_resolution_clock> last_time;
 };

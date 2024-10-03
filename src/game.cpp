@@ -191,18 +191,12 @@ void Game::update(std::chrono::duration<double> delta_time) {
     ui.input(input);
     ui.begin_frame(constants::window_width, constants::window_height);
 
-    if (input.key_down(SDL_SCANCODE_L)) {
-        m_view = View::end_screen;
-        SDL_ShowCursor();
-    }
-
     if (input.key_down(SDL_SCANCODE_ESCAPE)) {
         SDL_ShowCursor();
         if (m_test_mode) {
             event_queue.push_event(Event::QuitTest{});
         }
     }
-
 
     if (m_view == View::main) {
         if (input.key_down(SDL_SCANCODE_ESCAPE)) {
@@ -211,9 +205,8 @@ void Game::update(std::chrono::duration<double> delta_time) {
             m_view = View::paused;
         }
 
-
         double last_note_time = (m_map.times.size() == 0) ? 0 : m_map.times.back();
-        if (elapsed >= last_note_time + end_screen_delay.count()) {
+        if (elapsed >= last_note_time + end_screen_delay.count() || elapsed >= Mix_MusicDuration(audio.m_music)) {
             if (m_test_mode) {
                 event_queue.push_event(Event::QuitTest{});               
             } else {
@@ -484,6 +477,7 @@ void Game::update(std::chrono::duration<double> delta_time) {
         style.position = Position::Anchor{ 1,0 };
         style.stack_direction = StackDirection::Vertical;
         style.align_items = Alignment::End;
+        style.padding = even_padding(10);
 
         ui.begin_row(style);
         ui.text(ui.strings.add(std::format("{}", score)), {.font_size=54 });
@@ -491,7 +485,7 @@ void Game::update(std::chrono::duration<double> delta_time) {
         ui.text(ui.strings.add(std::format("{:.2f}%", accuracy_fraction * 100)), {});
         ui.end_row();
 
-        ui.begin_row(Style{ Position::Anchor{0,1} });
+        ui.begin_row(Style{ Position::Anchor{0,1}, .padding=even_padding(10)});
         ui.text(ui.strings.add(std::format("{}x", combo)), {.font_size=48});
         ui.end_row();
 
@@ -506,6 +500,7 @@ void Game::update(std::chrono::duration<double> delta_time) {
         std::function<void()> lambdas[] = {
             [&]() {
                 m_view = View::main;
+                SDL_HideCursor();
                 audio.resume();
                 Mix_PlayChannel(-1, assets.get_sound(SoundID::menu_confirm), 0);
             },

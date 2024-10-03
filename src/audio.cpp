@@ -30,11 +30,13 @@ int Audio::load_music(const char* file_path) {
 
 void Audio::fade_in(int loops, int ms) {
     Mix_FadeInMusic(m_music, loops, ms);
+    m_loops = loops;
     last_time = std::chrono::high_resolution_clock::now();
 }
 
 void Audio::play(int loops) {
     Mix_PlayMusic(m_music, loops);
+    m_loops = loops;
     last_time = std::chrono::high_resolution_clock::now();
 }
 
@@ -67,10 +69,16 @@ double Audio::get_position() {
         current_elapsed = elapsed_at_last_time + std::chrono::duration<double>(std::chrono::high_resolution_clock::now() - last_time).count();
         auto duration = Mix_MusicDuration(m_music);
         if (current_elapsed > duration) {
-            current_elapsed = std::fmod(current_elapsed, duration);
+            if (m_loops > 0) {
+                current_elapsed = std::fmod(current_elapsed, duration);
 
-            last_time = std::chrono::high_resolution_clock::now();
-            elapsed_at_last_time = current_elapsed;
+                last_time = std::chrono::high_resolution_clock::now();
+                elapsed_at_last_time = current_elapsed;
+
+                m_loops--;
+            } else {
+                return duration;
+            }
         }
     }
 
