@@ -10,6 +10,10 @@ cmake -S . -B build
 cd build
 cmake --build .        # --parallel for number of cpu threads
 ```
+Debug, release, and distribution presets are available in CMakePresets.json.
+
+## Getting maps
+This game supports loading osu!taiko maps so you can download them from [https://osu.ppy.sh/beatmapsets?m=1&s=any](https://osu.ppy.sh/beatmapsets?m=1&s=any).
 
 ## Gallery
 
