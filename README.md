@@ -8,7 +8,7 @@ cd taiko
 mkdir build
 cmake -S . -B build
 cd build
-cmake --build .        # --parallel for number of cpu threads
+cmake --build .
 ```
 Debug, release, and distribution presets are available in CMakePresets.json.
 
