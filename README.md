@@ -6,6 +6,7 @@ I haven't added the assets to this repo yet so try releases instead.
 ```
 git clone https://github.com/toodemhard/taiko.git
 cd taiko
+git submodule update --init --recursive
 mkdir build
 cmake -S . -B build
 cmake --build build
