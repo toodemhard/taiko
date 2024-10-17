@@ -7,8 +7,7 @@ git clone https://github.com/toodemhard/taiko.git
 cd taiko
 mkdir build
 cmake -S . -B build
-cd build
-cmake --build .
+cmake --build build
 ```
 Debug, release, and distribution presets are available in CMakePresets.json.
 
