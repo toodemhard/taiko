@@ -7,12 +7,14 @@
 #include <tracy/Tracy.hpp>
 
 #include "SDL3/SDL_mouse.h"
+#include "allocator.h"
 #include "font.h"
 #include "ui.h"
 #include <format>
 #include <variant>
 
 #include "dev_macros.h"
+#include "input.h"
 
 template <class... Ts> struct overloaded : Ts... {
     using Ts::operator()...;
@@ -22,11 +24,33 @@ const char* StringCache::add(std::string&& string) {
     strings[back] = std::move(string);
     back++;
     return strings[back - 1].data();
-    // return strings[strings.size() - 1].data();
 }
 
 void StringCache::clear() {
     back = 0;
+}
+
+UI::UI(monotonic_allocator& temp_allocator) :
+    m_temp_allocator(temp_allocator),
+    m_rects(m_temp_allocator),
+    m_draw_rects(m_temp_allocator),
+    m_click_rects(m_temp_allocator),
+    m_hover_rects(m_temp_allocator),
+    m_slider_input_rects(m_temp_allocator),
+    m_draw_order(m_temp_allocator),
+    m_rows(m_temp_allocator),
+    m_texts(m_temp_allocator),
+    m_text_field_inputs(m_temp_allocator),
+    m_on_click_callbacks(m_temp_allocator),
+    // m_slider_user_callbacks(m_temp_allocator),
+    // m_slider_on_held_callbacks(m_temp_allocator),
+    // m_slider_on_release_callbacks(m_temp_allocator),
+    // m_dropdown_on_select_callbacks(m_temp_allocator), 
+    m_options(m_temp_allocator),
+    m_dropdown_clickoff_callbacks(m_temp_allocator),
+    m_row_stack(m_temp_allocator),
+    m_command_tree(m_temp_allocator)
+{
 }
 
 RectID UI::begin_row(const Style& style) {
@@ -324,105 +348,15 @@ bool rect_point_intersect(Vec2 point, Vec2 position, Vec2 scale) {
     return false;
 }
 
-void UI::input(Input::Input& input) {
-    ZoneScoped;
-
-    m_input_called = true;
-
-    if (input.mouse_up(SDL_BUTTON_LMASK)) {
-        for (auto& callback : m_slider_on_release_callbacks) {
-            callback();
-        }
-    }
-
-    m_slider_on_release_callbacks.clear();
-
-    for (auto& e : m_click_rects) {
-        auto rect = m_rects[e.rect_index];
-        if (input.mouse_down(SDL_BUTTON_LEFT) && rect_point_intersect(input.mouse_pos, rect.position, rect.scale)) {
-            m_on_click_callbacks[e.on_click_index]();
-        }
-    }
-    m_click_rects.clear();
-    m_on_click_callbacks.clear();
-    m_dropdown_on_select_callbacks.clear();
-
-    for (auto& e : m_hover_rects) {
-        auto rect = m_rects[e.rect_index];
-        if (rect_point_intersect(input.mouse_pos, rect.position, rect.scale)) {
-            e.anim_state.target_hover = true;
-        }
-    }
-    m_hover_rects.clear();
-
-    for (auto& e : m_slider_input_rects) {
-        auto& rect = m_rects[e.rect_index];
-        auto offset_position = input.mouse_pos - rect.position;
-        auto new_fraction = std::min(std::max(0.0f, offset_position.x / rect.scale.x), 1.0f);
-        m_slider_on_held_callbacks[e.on_held_index](new_fraction);
-    }
-    m_slider_input_rects.clear();
-    m_slider_on_held_callbacks.clear();
-
-    for (auto& callback : m_slider_user_callbacks) {
-        callback();
-    }
-    m_slider_user_callbacks.clear();
-
-    for (auto& e : m_text_field_inputs) {
-        if (e.state->focused) {
-            auto& text = e.state->text;
-            if (input.key_down_repeat(SDL_SCANCODE_BACKSPACE) && text.length() > 0) {
-                if (input.modifier(SDL_KMOD_LCTRL)) {
-                    if (text.back() == ' ') {
-                        int i = text.length() - 2;
-                        while (i >= 0 && text.at(i) == ' ') {
-                            i--;
-                        }
-
-                        text.erase(text.begin() + (i + 1), text.end());
-                    } else {
-                        int i = text.length() - 2;
-                        while (i >= 0 && text.at(i) != ' ') {
-                            i--;
-                        }
-
-                        text.erase(text.begin() + (i + 1), text.end());
-                    }
-
-                } else {
-                    text.pop_back();
-                }
-            }
-
-            if (input.input_text.has_value()) {
-                e.state->text += input.input_text.value();
-            }
-        }
-
-        if (input.mouse_down(SDL_BUTTON_LEFT)) {
-            auto& rect = m_rects[e.rect_index];
-            e.state->focused = rect_point_intersect(input.mouse_pos, rect.position, rect.scale);
-        }
-    }
-    m_text_field_inputs.clear();
-    m_rects.clear();
-}
-
 void UI::begin_frame(int width, int height) {
     ZoneScoped;
-
-    if (!m_input_called) {
-        DEV_PANIC("UI::input() not called");
-    }
-    m_input_called = false;
 
     this->begin_row({.width=Scale::Fixed{(float)width}, .height=Scale::Fixed{(float)height}});
 
     m_begin_frame_called = true;
 }
 
-void UI::end_frame() {
+void UI::end_frame(Input::Input& input) {
     ZoneScoped;
     
     if (!m_begin_frame_called) {
@@ -485,7 +419,7 @@ void UI::end_frame() {
     int current_row_index = 0;
     int current_text_index = 0;
 
-    std::vector<RowStackFrame> row_stack;
+    temp::vector<RowStackFrame> row_stack(m_temp_allocator);
     for (auto command : m_command_tree) {
         switch (command) {
         case Command::begin_row: {
@@ -604,7 +538,77 @@ void UI::end_frame() {
         }
     }
 
-    m_command_tree.clear();
+
+
+    if (input.mouse_up(SDL_BUTTON_LMASK)) {
+        for (auto& callback : m_slider_on_release_callbacks) {
+            callback();
+        }
+    }
+
+
+    for (auto& e : m_click_rects) {
+        auto rect = m_rects[e.rect_index];
+        if (input.mouse_down(SDL_BUTTON_LEFT) && rect_point_intersect(input.mouse_pos, rect.position, rect.scale)) {
+            m_on_click_callbacks[e.on_click_index]();
+        }
+    }
+
+    for (auto& e : m_hover_rects) {
+        auto rect = m_rects[e.rect_index];
+        if (rect_point_intersect(input.mouse_pos, rect.position, rect.scale)) {
+            e.anim_state.target_hover = true;
+        }
+    }
+
+    for (auto& e : m_slider_input_rects) {
+        auto& rect = m_rects[e.rect_index];
+        auto offset_position = input.mouse_pos - rect.position;
+        auto new_fraction = std::min(std::max(0.0f, offset_position.x / rect.scale.x), 1.0f);
+        m_slider_on_held_callbacks[e.on_held_index](new_fraction);
+    }
+
+    for (auto& callback : m_slider_user_callbacks) {
+        callback();
+    }
+
+    for (auto& e : m_text_field_inputs) {
+        if (e.state->focused) {
+            auto& text = e.state->text;
+            if (input.key_down_repeat(SDL_SCANCODE_BACKSPACE) && text.length() > 0) {
+                if (input.modifier(SDL_KMOD_LCTRL)) {
+                    if (text.back() == ' ') {
+                        int i = text.length() - 2;
+                        while (i >= 0 && text.at(i) == ' ') {
+                            i--;
+                        }
+
+                        text.erase(text.begin() + (i + 1), text.end());
+                    } else {
+                        int i = text.length() - 2;
+                        while (i >= 0 && text.at(i) != ' ') {
+                            i--;
+                        }
+
+                        text.erase(text.begin() + (i + 1), text.end());
+                    }
+
+                } else {
+                    text.pop_back();
+                }
+            }
+
+            if (input.input_text.has_value()) {
+                e.state->text += input.input_text.value();
+            }
+        }
+
+        if (input.mouse_down(SDL_BUTTON_LEFT)) {
+            auto& rect = m_rects[e.rect_index];
+            e.state->focused = rect_point_intersect(input.mouse_pos, rect.position, rect.scale);
+        }
+    }
+
 }
 
 void UI::text_field(TextFieldState* state, Style style) {
@@ -683,16 +687,6 @@ void UI::slider(Slider& state, SliderStyle style, float fraction, SliderCallback
     if (state.held) {
         auto rect = m_rects[rect_id];
     }
-}
-
-void UI::drop_down_menu(
-    int selected_opt_index,
-    std::vector<const char*>&& options,
-    DropDown& state,
-    std::function<void(int)> on_input
-) {
-    m_options = std::move(options);
-    drop_down_menu(selected_opt_index, m_options, state, on_input);
 }
 
 void UI::drop_down_menu(
@@ -806,7 +800,6 @@ void UI::draw(SDL_Renderer* renderer) {
                 draw_wire_box(renderer, {rect.position.x, rect.position.y, rect.scale.x, rect.scale.y});
             }
 
-
             rect_index++;
         }
         break;
@@ -821,16 +814,6 @@ void UI::draw(SDL_Renderer* renderer) {
         }
 
     }
-
-
-    m_draw_order.clear();
-
-    m_draw_rects.clear();
-
-    m_rows.clear();
-    m_texts.clear();
-
-    strings.clear();
 
     clicked = false;
 }

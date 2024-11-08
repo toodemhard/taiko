@@ -20,13 +20,14 @@ using namespace constants;
 std::mutex map_reloading_mutex;
 
 MainMenu::MainMenu(
+    MemoryAllocators& memory,
     SDL_Renderer* _renderer,
     Input::Input& _input,
     Audio& _audio,
     AssetLoader& _assets,
     EventQueue& _event_queue
 )
-    : renderer{_renderer}, input{_input}, audio{_audio}, assets{_assets}, event_queue{_event_queue} {
+    : memory(memory), renderer{_renderer}, input{_input}, audio{_audio}, assets{_assets}, event_queue{_event_queue} {
 }
 
 void MainMenu::play_selected_music() {
@@ -54,7 +55,7 @@ void MainMenu::reload_maps() {
         m_mapsets.push_back({});
         int mapset_index = m_mapsets.size() - 1;
 
-        auto maps_buffer = BufferHandle{(int)m_mapmetas.size()};
+        auto maps_buffer = Slice{(int)m_mapmetas.size()};
 
         load_binary(m_mapsets.back(), mapset.path() / mapset_filename);
 
@@ -86,6 +87,8 @@ void MainMenu::awake() {
 }
 
 void MainMenu::update(double delta_time) {
+    ZoneScoped;
+
     if (input.key_down(SDL_SCANCODE_F5)) {
         reload_maps();
     }
@@ -108,9 +111,9 @@ void MainMenu::update(double delta_time) {
     //     std::cerr << "akjhfkalsdhf\n";
     // }
 
-    m_ui.input(input);
+    UI ui(memory.ui_allocator);
 
-    m_ui.begin_frame(constants::window_width, constants::window_height);
+    ui.begin_frame(constants::window_width, constants::window_height);
 
 
     auto row_st = Style{};
@@ -157,7 +160,7 @@ void MainMenu::update(double delta_time) {
         style.padding = even_padding(20);
         style.width = Scale::Fixed{(float)constants::window_width};
 
-        m_ui.begin_row(style);
+        ui.begin_row(style);
 
         for (int i = 0; i < option.size(); i++) {
             auto& info = option[i];
@@ -165,13 +168,13 @@ void MainMenu::update(double delta_time) {
             if (selected == i) {
                 style = active_style;
             }
-            m_ui.button(info.text, style, std::move(info.on_click));
+            ui.button(info.text, style, std::move(info.on_click));
         }
 
     };
 
     auto end_banner = [&]() {
-        m_ui.end_row();
+        ui.end_row();
     };
 
     SDL_RenderTexture(renderer, assets.get_image(ImageID::bg).texture, NULL, NULL);
@@ -207,7 +210,7 @@ void MainMenu::update(double delta_time) {
             prst.padding.left = 40;
             prst.padding.bottom = 40;
 
-            m_ui.begin_row(prst);
+            ui.begin_row(prst);
 
             Style rst{};
             // rst.width = Scale::Fixed{300};
@@ -215,9 +218,9 @@ void MainMenu::update(double delta_time) {
             rst.background_color = color::bg;
             rst.padding = even_padding(20);
 
-            m_ui.begin_row(rst);
-            m_ui.text("Diffifculty Guide", {.padding.bottom=10});
-            m_ui.text(
+            ui.begin_row(rst);
+            ui.text("Diffifculty Guide", {.padding.bottom=10});
+            ui.text(
             R"(Kantan = Easy
 Futsuu = Normal
 Muzukashii = Hard
@@ -226,8 +229,8 @@ Inner Oni = harder than Oni
 Anything else = hardest diff)"
             , {.font_size = 32, .text_color=color::grey});
 
-            m_ui.end_row();
-            m_ui.end_row();
+            ui.end_row();
+            ui.end_row();
 
         }
 
@@ -235,7 +238,7 @@ Anything else = hardest diff)"
         row_st.stack_direction = StackDirection::Vertical;
         row_st.position = Position::Anchor{0.5, 0.5};
         row_st.gap = 25;
-        m_ui.begin_row(row_st);
+        ui.begin_row(row_st);
 
         for (int i = 0; i < map_buffer.count; i++) {
             auto diff_st = Style{};
@@ -246,7 +249,7 @@ Anything else = hardest diff)"
             if (i == m_selected_diff_index) {
                 diff_st.background_color = color::white;
                 diff_st.text_color = color::black;
-                m_ui.button(
+                ui.button(
                     m_mapmetas[map_buffer.index + i].difficulty_name.data(),
                     diff_st,
                     [&, i, mapset_index, map_buffer]() {
@@ -258,7 +261,7 @@ Anything else = hardest diff)"
                 );
 
             } else {
-                m_ui.button_anim(
+                ui.button_anim(
                     m_mapmetas[map_buffer.index + i].difficulty_name.data(),
                     &m_diff_buttons[i],
                     diff_st,
@@ -272,7 +275,7 @@ Anything else = hardest diff)"
 
         }
 
-        m_ui.end_row();
+        ui.end_row();
 
     } else if(m_view == View::Main) {
         SliderStyle slider_st{};
@@ -301,7 +304,7 @@ Anything else = hardest diff)"
         Style r_st = {};
         r_st.position = Position::Anchor{1, 0.5};
         r_st.padding.right = 30;
-        m_ui.begin_row(r_st); {
+        ui.begin_row(r_st); {
             Style st{};
             st.background_color = color::bg;
             st.padding = even_padding(20);
@@ -309,30 +312,30 @@ Anything else = hardest diff)"
             AnimStyle anim_st{};
             anim_st.alt_background_color = color::bg_highlight;
 
-            m_ui.button_anim("+ Load .osz", &m_load_button, st, anim_st, std::move(cb));
-        } m_ui.end_row();
+            ui.button_anim("+ Load .osz", &m_load_button, st, anim_st, std::move(cb));
+        } ui.end_row();
 
         r_st = {};
         r_st.position = Position::Anchor{0, 1};
         r_st.padding.left = 40;
         r_st.padding.bottom = 40;
-        m_ui.begin_row(r_st); {
+        ui.begin_row(r_st); {
 
             Style st{};
             st.stack_direction = StackDirection::Vertical;
             st.background_color = color::bg;
             st.padding = even_padding(20);
-            m_ui.begin_row(st);
+            ui.begin_row(st);
 
-            m_ui.text("Menu Controls", {.padding.bottom=10});
+            ui.text("Menu Controls", {.padding.bottom=10});
 
-            m_ui.text(R"(Left/Right
+            ui.text(R"(Left/Right
 Return
 Escape)",
             {.font_size=32, .text_color=color::grey});
 
-            m_ui.end_row();
-        } m_ui.end_row();
+            ui.end_row();
+        } ui.end_row();
 
 
         auto enter_mapset = [&]() {
@@ -376,9 +379,9 @@ Escape)",
 
             auto st = Style{};
             st.position = Position::Anchor{1, 0.5};
-            m_ui.begin_row(st);
+            ui.begin_row(st);
 
-            m_ui.end_row();
+            ui.end_row();
 
             
             // enter_mapset = [&]() {
@@ -464,7 +467,7 @@ Escape)",
                 item_st.background_color = color::white;
                 item_st.text_color = RGBA{31, 31, 31, 200};
 
-                m_ui.begin_row_button(item_st, [&, i]() {
+                ui.begin_row_button(item_st, [&, i]() {
                     if (m_entry_mode == EntryMode::Play) {
                         m_choosing_mapset_index = m_selected_mapset_index;
                         m_diff_buttons = std::vector<AnimState>(m_map_buffers[m_selected_mapset_index].count);
@@ -473,21 +476,21 @@ Escape)",
                         event_queue.push_event(Event::EditMap{m_mapset_paths[m_selected_mapset_index], {}});
                     }
                 });
-                m_ui.text(mapset.title.data(), idk);
-                m_ui.text(mapset.artist.data(), idk2);
-                m_ui.end_row();
+                ui.text(mapset.title.data(), idk);
+                ui.text(mapset.artist.data(), idk2);
+                ui.end_row();
             } else {
                 AnimStyle anim_st = {};
                 anim_st.alt_background_color = color::bg_highlight;
 
-                m_ui.begin_row_button_anim(&m_mapset_buttons[i], item_st, anim_st, [&, i]() {
+                ui.begin_row_button_anim(&m_mapset_buttons[i], item_st, anim_st, [&, i]() {
                     m_selected_mapset_index = i; 
                     Mix_PlayChannel(-1, assets.get_sound(SoundID::menu_select), 0);
                     this->play_selected_music();
                 });
-                m_ui.text(mapset.title.data(), idk);
-                m_ui.text(mapset.artist.data(), idk2);
-                m_ui.end_row();
+                ui.text(mapset.title.data(), idk);
+                ui.text(mapset.artist.data(), idk2);
+                ui.end_row();
 
             }
         }
@@ -501,7 +504,7 @@ Escape)",
         // row_st.height = Scale::Fixed{200};
         row_st.align_items = Alignment::Center;
         // row_st.stack_direction = StackDirection::Vertical;
-        m_ui.begin_row(row_st);
+        ui.begin_row(row_st);
 
 
         {
@@ -510,7 +513,7 @@ Escape)",
             // st.border_color = color::red;
             const char* text = audio.paused() ? "󰐊" : "󰏤";
 
-            m_ui.begin_row_button(st, [&](){
+            ui.begin_row_button(st, [&](){
                 if (audio.paused()) {
                     audio.resume();
                 } else {
@@ -524,9 +527,9 @@ Escape)",
                 st.width = Scale::FitParent{};
                 st.text_align = TextAlign::Center;
                 // st.border_color = RGBA{0,255,0,255};
-                m_ui.text(text, st);
+                ui.text(text, st);
 
-            } m_ui.end_row();
+            } ui.end_row();
         }
 
 
@@ -538,7 +541,7 @@ Escape)",
         slider_st.fg_color = color::white;
         slider_st.bg_color = RGBA{80, 80, 80, 255};
 
-        m_ui.slider(
+        ui.slider(
             m_music_playback_slider,
             slider_st,
             audio.get_position() / duration,
@@ -564,10 +567,10 @@ Escape)",
             auto current = split_time(audio.get_position());
             auto total = split_time(Mix_MusicDuration(audio.m_music));
 
-            auto text = m_ui.strings.add(std::format("{:02}:{:02}/{:02}:{:02}", current.mins, current.secs, total.mins, total.secs));
-            m_ui.text(text, {.padding.left=8, .font_size=28}); }
+            auto text = ui.strings.add(std::format("{:02}:{:02}/{:02}:{:02}", current.mins, current.secs, total.mins, total.secs));
+            ui.text(text, {.padding.left=8, .font_size=28}); }
 
-        m_ui.end_row();
+        ui.end_row();
 
         end_banner();
 
@@ -591,8 +594,8 @@ Escape)",
             st.height = Scale::FitParent{};
             st.background_color = RGBA{40, 40, 40, 160};
 
-            m_ui.begin_row(st);
-            m_ui.end_row();
+            ui.begin_row(st);
+            ui.end_row();
         }
 
         begin_banner();
@@ -604,7 +607,7 @@ Escape)",
         r_st.position = Position::Absolute{200, 200};
         r_st.stack_direction = StackDirection::Vertical;
         r_st.gap = 50;
-        m_ui.begin_row(r_st);
+        ui.begin_row(r_st);
 
         // auto r_st = Style{}
         // r_st.position = Position::Anchor{0.5, 0};
@@ -615,9 +618,9 @@ Escape)",
         Style header{};
         header.font_size = 44;
         header.padding.bottom = 20;
-        m_ui.begin_row({.stack_direction=StackDirection::Vertical});
+        ui.begin_row({.stack_direction=StackDirection::Vertical});
         {
-            m_ui.text("Audio", header);
+            ui.text("Audio", header);
 
             SliderStyle slider_st{};
             slider_st.width = 300;
@@ -626,47 +629,47 @@ Escape)",
             slider_st.bg_color = color::bg;
 
             float volume_fraction = (Mix_GetMusicVolume(audio.m_music) / (float)MIX_MAX_VOLUME);
-            m_ui.begin_row({.stack_direction=StackDirection::Vertical, .gap=20});
+            ui.begin_row({.stack_direction=StackDirection::Vertical, .gap=20});
 
             Style line{};
             line.width = Scale::Fixed{800};
             line.justify_items = JustifyItems::apart;
             line.align_items = Alignment::Center;
 
-            m_ui.begin_row(line);
-            m_ui.text("Music", {});
+            ui.begin_row(line);
+            ui.text("Music", {});
 
-            m_ui.begin_row({.gap=10});
-            m_ui.slider( m_music_slider, slider_st, volume_fraction, {[](float fraction) {
+            ui.begin_row({.gap=10});
+            ui.slider( m_music_slider, slider_st, volume_fraction, {[](float fraction) {
                     Mix_VolumeMusic(MIX_MAX_VOLUME * fraction);
             }});
-            m_ui.text(m_ui.strings.add(std::format("{:.0f}%", volume_fraction * 100)), {});
-            m_ui.end_row();
-            m_ui.end_row();
+            ui.text(ui.strings.add(std::format("{:.0f}%", volume_fraction * 100)), {});
+            ui.end_row();
+            ui.end_row();
 
-            m_ui.begin_row(line);
-            m_ui.text("Effect", {.padding.bottom=10});
+            ui.begin_row(line);
+            ui.text("Effect", {.padding.bottom=10});
 
-            m_ui.begin_row({.gap=10});
+            ui.begin_row({.gap=10});
             float effect_fraction = (effect_volume / (float)MIX_MAX_VOLUME);
-            m_ui.slider(m_master_slider, slider_st, effect_fraction, SliderCallbacks{[&](float fraction) {
+            ui.slider(m_master_slider, slider_st, effect_fraction, SliderCallbacks{[&](float fraction) {
                 effect_volume = MIX_MAX_VOLUME * fraction;
                 Mix_MasterVolume(effect_volume);
             }});
-            m_ui.text(m_ui.strings.add(std::format("{:.0f}%", effect_fraction * 100)), {});
-            m_ui.end_row();
-            m_ui.end_row();
+            ui.text(ui.strings.add(std::format("{:.0f}%", effect_fraction * 100)), {});
+            ui.end_row();
+            ui.end_row();
 
-            m_ui.end_row();
+            ui.end_row();
         }
-        m_ui.end_row();
+        ui.end_row();
 
-        m_ui.begin_row({.stack_direction=StackDirection::Vertical}); {
-            m_ui.text("Keybinds", header);
-            m_ui.begin_row({.stack_direction=StackDirection::Vertical, .align_items=Alignment::Center, .gap=10});
+        ui.begin_row({.stack_direction=StackDirection::Vertical}); {
+            ui.text("Keybinds", header);
+            ui.begin_row({.stack_direction=StackDirection::Vertical, .align_items=Alignment::Center, .gap=10});
             for (int action_id = 0; action_id < Input::ActionID::count; action_id++) {
-                m_ui.begin_row({.width=Scale::Fixed{800}, .justify_items=JustifyItems::apart});
-                m_ui.text(Input::action_names[action_id], {});
+                ui.begin_row({.width=Scale::Fixed{800}, .justify_items=JustifyItems::apart});
+                ui.text(Input::action_names[action_id], {});
 
                 Style st{};
                 st.width = Scale::Fixed{400};
@@ -679,24 +682,24 @@ Escape)",
                 if (m_remapping_action.has_value() && m_remapping_action.value() == action_id) {
                     st.background_color = color::white;
                     st.text_color = color::black;
-                    m_ui.text("enter a key", st);
+                    ui.text("enter a key", st);
                 } else {
-                    m_ui.button_anim(SDL_GetScancodeName(input.keybindings[action_id]), &m_remap_buttons[action_id], st, alt_st, [&, action_id]() {
+                    ui.button_anim(SDL_GetScancodeName(input.keybindings[action_id]), &m_remap_buttons[action_id], st, alt_st, [&, action_id]() {
                         m_remapping_action = (Input::ActionID)action_id;
                     });
                 }
-                m_ui.end_row();
+                ui.end_row();
             }
-            m_ui.end_row();
+            ui.end_row();
         }
 
-        m_ui.end_row();
+        ui.end_row();
 
-        m_ui.end_row();
+        ui.end_row();
 
     }
 
-    m_ui.end_frame();
+    ui.end_frame(input);
 
-    m_ui.draw(renderer);
+    ui.draw(renderer);
 }

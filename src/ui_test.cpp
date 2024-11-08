@@ -9,16 +9,20 @@
 #include "ui.h"
 
 
-UI_Test::UI_Test(SDL_Renderer* renderer, Input::Input& input) :
-    m_renderer{ renderer }, m_input{ input } {}
+UI_Test::UI_Test(MemoryAllocators& memory, SDL_Renderer* renderer, Input::Input& input) :
+    m_memory(memory), m_renderer{ renderer }, m_input{ input } {}
 
 void UI_Test::update(double delta_time) {
-    Font2::draw_text(m_renderer, "Hujuni", 36, {500, 500}, color::white, 1000000);
-    // m_ui.input(m_input);
-    // m_ui.begin_frame(constants::window_width, constants::window_height);
-    //
-    //
-    // m_ui.end_frame();
-    //
-    // m_ui.draw(m_renderer);
+    // Font2::draw_text(m_renderer, "Hujuni", 36, {500, 500}, color::white, 1000000);
+
+    UI ui(m_memory.ui_allocator);
+
+    ui.begin_frame(constants::window_width, constants::window_height);
+
+    ui.text("asdf", {});
+
+
+    ui.end_frame(m_input);
+
+    ui.draw(m_renderer);
 }

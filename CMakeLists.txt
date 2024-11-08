@@ -16,32 +16,17 @@ option(TRACY_ENABLE OFF)
 # endif ()
 
 add_subdirectory(lib/tracy EXCLUDE_FROM_ALL)
-add_subdirectory(lib/elzip)
 add_subdirectory(lib/sdl3 EXCLUDE_FROM_ALL)
+add_subdirectory(lib/EASTL EXCLUDE_FROM_ALL)
 
-option(SDL3IMAGE_AVIF "Support loading AVIF images" OFF)
-option(SDL3IMAGE_BMP "Support loading BMP images" OFF)
-option(SDL3IMAGE_GIF "Support loading GIF images" OFF)
-option(SDL3IMAGE_JPG "Support loading JPEG images" ON)
-option(SDL3IMAGE_JXL "Support loading JXL images" OFF)
-option(SDL3IMAGE_LBM "Support loading LBM images" OFF)
-option(SDL3IMAGE_PCX "Support loading PCX images" OFF)
-option(SDL3IMAGE_PNG "Support loading PNG images" ON)
-option(SDL3IMAGE_PNM "Support loading PNM images" OFF)
-option(SDL3IMAGE_QOI "Support loading QOI images" OFF)
-option(SDL3IMAGE_SVG "Support loading SVG images" OFF)
-option(SDL3IMAGE_TGA "Support loading TGA images" OFF)
-option(SDL3IMAGE_TIF "Support loading TIFF images" OFF)
-option(SDL3IMAGE_WEBP "Support loading WEBP images" OFF)
-option(SDL3IMAGE_XCF "Support loading XCF images" OFF)
-option(SDL3IMAGE_XPM "Support loading XPM images" OFF)
-option(SDL3IMAGE_XV "Support loading XV images" OFF)
-
+option(BUILD_SHARED_LIBS OFF)
+add_subdirectory(lib/elzip)
 add_subdirectory(lib/sdl-image EXCLUDE_FROM_ALL)
 
 option(SDL3MIXER_OPUS "Enable Opus music" OFF)
 
 add_subdirectory(lib/sdl-mixer EXCLUDE_FROM_ALL)
+# add_subdirectory(lib/memory EXCLUDE_FROM_ALL)
 
 set(SOURCE_DIRECTORY src)
 file(GLOB_RECURSE SOURCE_FILES CONFIGURE_DEPENDS ${SOURCE_DIRECTORY}/*.cpp)
@@ -80,6 +65,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 )
 
 target_link_libraries(${PROJECT_NAME} PUBLIC 
+    Tracy::TracyClient
 )
 
 target_link_libraries(${PROJECT_NAME} PRIVATE 
@@ -87,7 +73,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     SDL3::SDL3
     SDL3_image::SDL3_image
     SDL3_mixer::SDL3_mixer
-    Tracy::TracyClient
+    EASTL
 )
 
 

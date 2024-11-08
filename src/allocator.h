@@ -4,7 +4,48 @@
 #include <cstddef>
 #include <cstdint>
 #include <format>
+#include <tracy/Tracy.hpp>
 #include <vector>
+
+constexpr std::size_t operator""_KiB(unsigned long long int x) {
+    return 1024ULL * x;
+}
+
+constexpr std::size_t operator""_MiB(unsigned long long int x) {
+    return 1024_KiB * x;
+}
+
+constexpr std::size_t operator""_GiB(unsigned long long int x) {
+    return 1024_MiB * x;
+}
+
+constexpr std::size_t operator""_TiB(unsigned long long int x) {
+    return 1024_GiB * x;
+}
+
+constexpr std::size_t operator""_PiB(unsigned long long int x) {
+    return 1024_TiB * x;
+}
+
+struct BufferHandle {
+    void* data;
+    std::size_t size;
+};
+
+struct BufferOwned {
+    void* data;
+    std::size_t size;
+
+    BufferOwned(size_t size) : data(malloc(size)), size(size) {}
+
+    ~BufferOwned() {
+        free(data);
+    }
+
+    BufferHandle handle() {
+        return {data, size};
+    }
+};
 
 
 //STD
@@ -43,19 +84,35 @@ struct monotonic_allocator {
     uint32_t m_current{};
     uint32_t m_capacity{};
 
-    monotonic_allocator(void* start, size_t size) : m_start(start), m_capacity(size) {}
+    void init(void* start, size_t size) {
+        m_start = start;
+        m_capacity = size;
+    }
+
+    void init(const BufferHandle& buffer) {
+        m_start = buffer.data;
+        m_capacity = buffer.size;
+    }
+
+    // ~monotonic_allocator() {
+    //     TracyFreeN(m_start, "bump");
+    // }
 
     void* allocate(size_t size, size_t alignment) {
+        const auto aligned_size = (size + alignment - 1) & ~(alignment - 1);
         const auto aligned_current = (m_current + alignment - 1) & ~(alignment - 1);
 
-        if (aligned_current + size > m_capacity) {
+        m_current = aligned_current + aligned_size;
+        if (m_current > m_capacity) {
             DEV_PANIC(std::format("allocating above capacity, current:{}, capacity:{}", m_current, m_capacity));
         }
 
-        auto ptr = (void*)((std::byte*)m_start + aligned_current);
-        m_current = aligned_current + size;
+        return (void*)((std::byte*)m_start + aligned_current);
+    }
 
-        return ptr;
+    //return size also
+    BufferHandle allocate_buffer(size_t size, size_t alignment) {
+        return BufferHandle{allocate(size, alignment), size};
     }
 
     void deallocate(void* ptr, size_t size) {}
@@ -157,3 +214,4 @@ template <typename T>
 // using vector = std::vector<T, alloc_ref<T, monotonic_allocator>>;
     using vector = std::vector<T, alloc_ref<T, monotonic_allocator>>;
 }
+

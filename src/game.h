@@ -79,6 +79,7 @@ public:
 
     InitConfig config{};
 private:
+    MemoryAllocators& memory;
     SDL_Renderer* renderer{};
     Input::Input& input;
     Audio& audio;
@@ -100,8 +101,6 @@ private:
 
     int score = 0;
     int combo = 0;
-
-    UI ui;
 
     std::vector<InputRecord> input_history;
 

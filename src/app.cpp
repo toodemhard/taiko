@@ -1,12 +1,16 @@
 #include <chrono>
+#include <cstddef>
 #include <filesystem>
+#include <memory>
 #include <ratio>
+#include <string>
 #include <tracy/Tracy.hpp>
 
 #include "app.h"
 #include "SDL3/SDL_render.h"
 #include "SDL3/SDL_video.h"
 #include "SDL3_mixer/SDL_mixer.h"
+#include "allocator.h"
 #include "audio.h"
 #include "constants.h"
 #include "events.h"
@@ -17,9 +21,26 @@
 #include "input.h"
 #include "main_menu.h"
 
+#include "memory.h"
 #include "systems.h"
 #include "assets.h"
+#include "ui.h"
 #include "ui_test.h"
+
+#include <vector>
+
+void* operator new(std::size_t count)
+{
+    auto ptr = malloc(count);
+    TracyAlloc (ptr , count);
+    return ptr;
+}
+
+void operator delete(void* ptr) noexcept
+{
+    TracyFree (ptr);
+    free(ptr);
+}
 
 using namespace constants;
 
@@ -106,20 +127,31 @@ int run() {
 
     EventQueue event_queue{};
 
-    Systems systems{renderer, input, audio, assets, event_queue};
 
+
+    auto everything_buffer = BufferOwned(5_MiB);
+    auto everything_allocator = monotonic_allocator{};
+    everything_allocator.init(everything_buffer.handle());
+
+    MemoryAllocators memory = {.ui_allocator = monotonic_allocator{}};
+    memory.ui_allocator.init(everything_allocator.allocate_buffer(2_MiB, sizeof(std::max_align_t)));
+
+    monotonic_allocator debug_ui_allocator{};
+    debug_ui_allocator.init(everything_allocator.allocate_buffer(1_MiB, sizeof(std::max_align_t)));
+
+
+    Systems systems{renderer, memory, input, audio, assets, event_queue};
 
     std::unique_ptr<Editor> editor{};
     std::unique_ptr<game::Game> game{};
     std::unique_ptr<MainMenu> menu{
-        std::make_unique<MainMenu>(renderer, input, audio, assets, event_queue)
+        std::make_unique<MainMenu>(memory, renderer, input, audio, assets, event_queue)
     };
 
-    UI_Test ui_test{renderer, input};
+    UI_Test ui_test{memory, renderer, input};
 
     // SDL_StartTextInput(window);
-
-    UI frame_time_ui;
+    
 
 
     auto last_frame_start = std::chrono::high_resolution_clock::now();
@@ -198,13 +230,13 @@ int run() {
                 break;
             case EventType::EditNewMap:
                 context_stack.push_back(Context::Editor);
-                editor = std::make_unique<Editor>(renderer, input, audio, assets, event_queue);
+                editor = std::make_unique<Editor>(memory, renderer, input, audio, assets, event_queue);
                 editor->creating_map = true;
                 break;
             case EventType::EditMap: {
                 auto& event = std::get<Event::EditMap>(event_union);
                 context_stack.push_back(Context::Editor);
-                editor = std::make_unique<Editor>(renderer, input, audio, assets, event_queue);
+                editor = std::make_unique<Editor>(memory, renderer, input, audio, assets, event_queue);
                 editor->load_mapset(event.map_directory);
             } break;
             case EventType::PlayMap: {
@@ -253,28 +285,40 @@ int run() {
             break;
         }
 
+        UI debug_ui(debug_ui_allocator);
+
         auto frame_time_string = std::format("{:.3f} ms", std::chrono::duration<double,std::milli>(last_frame_duration).count());
+        auto ui_memory_string = std::format("UI: {:.3f} / {:.3f} MB", (float)memory.ui_allocator.m_current / (float)1_MiB, (float) memory.ui_allocator.m_capacity / (float)1_MiB );
 
         auto st = Style{};
         st.position = Position::Anchor{{1, 1}};
         st.padding = Padding{10,10,10,10};
+        st.stack_direction = StackDirection::Vertical;
+        st.align_items = Alignment::End;
 
-        frame_time_ui.input(input);
+        debug_ui.begin_frame(constants::window_width, constants::window_height);
 
-        frame_time_ui.begin_frame(constants::window_width, constants::window_height);
-        frame_time_ui.text(frame_time_string.data(), st);
-        frame_time_ui.end_frame();
+        debug_ui.begin_row(st);
 
-        frame_time_ui.draw(renderer);
+        debug_ui.text(ui_memory_string.data(), {});
+        debug_ui.text(frame_time_string.data(), {});
+        debug_ui.end_row();
+
+        debug_ui.end_frame(input);
+
+        debug_ui.draw(renderer);
 
         {
+            ZoneNamedN(v, "SDL_RenderPresent", true);
             SDL_RenderPresent(renderer);
-            ZoneNamedN(v, "Render Present", true);
         }
 
         last_frame_duration = std::chrono::high_resolution_clock::now() - frame_start;
 
         input.end_frame();
+
+        debug_ui_allocator.clear();
+        memory.ui_allocator.clear();
 
         FrameMark;
     }

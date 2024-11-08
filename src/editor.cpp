@@ -152,8 +152,8 @@ std::optional<int> note_point_intersection(const Map& map, const Vec2& point, co
     return min;
 }
 
-Editor::Editor(SDL_Renderer* _renderer, Input::Input& _input, Audio& _audio, AssetLoader& _assets, EventQueue& _event_queue)
-    : renderer{ _renderer }, input{ _input }, audio{ _audio }, assets{ _assets }, event_queue{ _event_queue } {}
+Editor::Editor(MemoryAllocators& memory, SDL_Renderer* _renderer, Input::Input& _input, Audio& _audio, AssetLoader& _assets, EventQueue& _event_queue)
+    : memory(memory), ui(memory.ui_allocator), renderer{ _renderer }, input{ _input }, audio{ _audio }, assets{ _assets }, event_queue{ _event_queue } {}
 
 Editor::~Editor() {
 }
@@ -236,7 +236,8 @@ int Editor::load_song(const char* file_path) {
 void Editor::update(std::chrono::duration<double> delta_time) {
     ZoneScoped;
 
-    ui.input(input);
+    UI ui(memory.ui_allocator);
+
     ui.begin_frame(constants::window_width, constants::window_height);
 
     Style style{};
@@ -485,7 +486,7 @@ void Editor::update(std::chrono::duration<double> delta_time) {
     }
     }
 
-    ui.end_frame();
+    ui.end_frame(input);
 
     ui.draw(renderer);
 }

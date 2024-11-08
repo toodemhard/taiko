@@ -1,21 +1,21 @@
 #pragma once
 #include "constants.h"
 #include "input.h"
+#include "memory.h"
 #include "ui.h"
 #include <SDL3/SDL.h>
 
 class UI_Test {
   public:
-    UI_Test(SDL_Renderer* renderer, Input::Input& input);
+    UI_Test(MemoryAllocators& memory, SDL_Renderer* renderer, Input::Input& input);
     void update(double delta_time);
 
   private:
     SDL_Renderer* m_renderer;
+    MemoryAllocators& m_memory;
     Input::Input& m_input;
     
     TextFieldState m_text_field{};
-
-    UI m_ui;
 
     int m_selected{};
     float m_current_pos{};
