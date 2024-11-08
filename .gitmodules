@@ -19,3 +19,9 @@
 [submodule "lib/elzip"]
 	path = lib/elzip
 	url = https://github.com/toodemhard/11Zip.git
+[submodule "lib/memory"]
+	path = lib/memory
+	url = https://github.com/foonathan/memory.git
+[submodule "lib/EASTL"]
+	path = lib/EASTL
+	url = https://github.com/electronicarts/EASTL.git
