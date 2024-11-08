@@ -6,6 +6,7 @@
 #include "editor.h"
 #include "constants.h"
 #include "map.h"
+#include "memory.h"
 #include "serialize.h"
 #include "color.h"
 #include "game.h"
@@ -236,7 +237,10 @@ int Editor::load_song(const char* file_path) {
 void Editor::update(std::chrono::duration<double> delta_time) {
     ZoneScoped;
 
-    UI ui(memory.ui_allocator);
+    // ui.~UI();
+    // new (&ui) UI(memory.ui_allocator);
+    //
+    reinitialize(&ui, memory.ui_allocator);
 
     ui.begin_frame(constants::window_width, constants::window_height);
 
