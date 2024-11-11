@@ -16,14 +16,14 @@ enum class View {
     Settings,
 };
 
-struct BufferHandle {
+struct Slice {
     int index;
     int count;
 };
 
 class MainMenu {
   public:
-    MainMenu(SDL_Renderer* _renderer, Input::Input& _input, Audio& _audio, AssetLoader& _assets, EventQueue& _event_queue);
+    MainMenu(MemoryAllocators& memory, SDL_Renderer* _renderer, Input::Input& _input, Audio& _audio, AssetLoader& _assets, EventQueue& _event_queue);
 
     void awake();
     void update(double delta_time);
@@ -32,12 +32,11 @@ class MainMenu {
 
   private:
     SDL_Renderer* renderer;
+    MemoryAllocators& memory;
     Input::Input& input;
     Audio& audio;
     AssetLoader& assets;
     EventQueue& event_queue;
-
-    UI m_ui;
 
     EntryMode m_entry_mode = EntryMode::Play;
     View m_view = View::Main;
@@ -67,7 +66,7 @@ class MainMenu {
 
     // mapsets
     std::vector<MapSetInfo> m_mapsets;
-    std::vector<BufferHandle> m_map_buffers;
+    std::vector<Slice> m_map_buffers;
     std::vector<std::filesystem::path> m_mapset_paths;
 
     std::vector<AnimState> m_mapset_buttons{};

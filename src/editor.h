@@ -2,6 +2,7 @@
 
 // #include "systems.h"
 #include "map.h"
+#include "memory.h"
 #include "ui.h"
 #include "constants.h"
 #include "game.h"
@@ -19,7 +20,7 @@ enum class EditorView {
 
 class Editor {
 public:
-    Editor(SDL_Renderer* _renderer, Input::Input& _input, Audio& _audio, AssetLoader& _assets, EventQueue& _event_queue);
+    Editor(MemoryAllocators& memory, SDL_Renderer* _renderer, Input::Input& _input, Audio& _audio, AssetLoader& _assets, EventQueue& _event_queue);
     ~Editor();
     void update(std::chrono::duration<double> delta_time);
     void load_mapset(std::filesystem::path& map_path);
@@ -37,10 +38,13 @@ public:
 
 private:
     SDL_Renderer* renderer{};
+    MemoryAllocators& memory;
     Input::Input& input;
     Audio& audio;
     AssetLoader& assets;
     EventQueue& event_queue;
+
+    UI ui;
 
     Cam cam = {{0,0}, {2,1.5f}};
 
@@ -65,8 +69,6 @@ private:
     bool paused = true;
 
     int current_note = -1;
-
-    UI ui;
 
     TextFieldState title{};
     TextFieldState artist{};

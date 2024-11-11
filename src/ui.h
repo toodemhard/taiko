@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <memory_resource>
 #include <optional>
 #include <string>
 #include <variant>
@@ -10,6 +11,8 @@
 #include "color.h"
 #include "input.h"
 #include "vec.h"
+#include "allocator.h"
+#include "memory.h"
 
 #include <SDL3/SDL.h>
 
@@ -271,6 +274,10 @@ enum DrawCommand {
 
 class UI {
   public:
+    UI(monotonic_allocator& temp_allocator);
+
+    UI(UI& other) = default;
+
     void text_field(TextFieldState* state, Style style);
     RectID button(const char* text, Style style, OnClick&& on_click);
     RectID button_anim(const char* text, AnimState* anim_state, const Style& style, const AnimStyle& anim_style, OnClick&& on_click);
@@ -297,10 +304,8 @@ class UI {
     RectID begin_row_button(const Style& style, OnClick&& on_click);
     RectID begin_row_button_anim(AnimState* anim_state, Style style, const AnimStyle& anim_style, OnClick&& on_click);
 
-    void input(Input::Input& input);
-
     void begin_frame(int width, int height);
-    void end_frame();
+    void end_frame(Input::Input& input);
 
     void draw(SDL_Renderer* renderer);
 
@@ -309,27 +314,27 @@ class UI {
     StringCache strings{};
 
   private:
-    Input::Input* m_input;
+    monotonic_allocator& m_temp_allocator;
 
     int m_screen_width = 0;
     int m_screen_height = 0;
 
-    std::vector<Rect> m_rects;
+    temp::vector<Rect> m_rects;
 
-    std::vector<DrawRect> m_draw_rects;
+    temp::vector<DrawRect> m_draw_rects;
 
-    std::vector<ClickRect> m_click_rects;
-    std::vector<HoverRect> m_hover_rects;
-    std::vector<SliderHeldRect> m_slider_input_rects;
+    temp::vector<ClickRect> m_click_rects;
+    temp::vector<HoverRect> m_hover_rects;
+    temp::vector<SliderHeldRect> m_slider_input_rects;
 
-    std::vector<DrawCommand> m_draw_order;
+    temp::vector<DrawCommand> m_draw_order;
 
-    std::vector<Row> m_rows;
-    std::vector<Text> m_texts;
+    temp::vector<Row> m_rows;
+    temp::vector<Text> m_texts;
 
-    std::vector<TextFieldInputRect> m_text_field_inputs;
+    temp::vector<TextFieldInputRect> m_text_field_inputs;
 
-    std::vector<OnClick> m_on_click_callbacks;
+    temp::vector<OnClick> m_on_click_callbacks;
 
 
     //slider callbacks
@@ -340,18 +345,17 @@ class UI {
     //dropdown callbacks
     std::vector<std::function<void(int)>> m_dropdown_on_select_callbacks; 
 
-    std::vector<const char*> m_options;
+    temp::vector<const char*> m_options;
+    temp::vector<DropDown*> m_dropdown_clickoff_callbacks;
     std::optional<DropDownOverlay> m_post_overlay;
-    std::vector<DropDown*> m_dropdown_clickoff_callbacks;
 
-    std::vector<int> m_row_stack;
-    std::vector<Command> m_command_tree;
+    temp::vector<int> m_row_stack;
+    temp::vector<Command> m_command_tree;
 
 
     void text_headless(const char* text, const Style& style);
     void add_parent_scale(Row& row, Vec2 scale);
 
-    bool m_input_called{};
     bool m_begin_frame_called{};
     bool m_end_frame_called{};
 };

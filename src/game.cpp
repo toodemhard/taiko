@@ -13,6 +13,7 @@
 #include "ui.h"
 #include "vec.h"
 #include <cstdint>
+#include <tracy/Tracy.hpp>
 
 using namespace std::chrono_literals;
 
@@ -132,6 +133,7 @@ void draw_note(SDL_Renderer* renderer, AssetLoader& assets, const NoteFlags& not
 }
 
 Game::Game(Systems systems, game::InitConfig config) :
+    memory(systems.allocators),
     renderer{ systems.renderer },
     input{ systems.input }, 
     audio{ systems.audio },
@@ -165,6 +167,7 @@ void Game::start() {
 
 
 void Game::update(std::chrono::duration<double> delta_time) {
+    ZoneScoped;
     if (!initialized) {
         this->start();
         initialized = true;
@@ -188,7 +191,8 @@ void Game::update(std::chrono::duration<double> delta_time) {
         elapsed = audio.get_position();
     }
 
-    ui.input(input);
+    UI ui(memory.ui_allocator);
+
     ui.begin_frame(constants::window_width, constants::window_height);
 
     if (input.key_down(SDL_SCANCODE_ESCAPE)) {
@@ -592,7 +596,7 @@ void Game::update(std::chrono::duration<double> delta_time) {
         ui.end_row();
     }
 
-    ui.end_frame();
+    ui.end_frame(input);
 
     ui.draw(renderer);
 }

@@ -42,9 +42,11 @@
       "description": "",
       "inherits": "x64-debug",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
-        "CMAKE_CXX_FLAGS": "-DDEV",
-        "CMAKE_C_FLAGS": "-DDEV"
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_CXX_FLAGS": "-DDEV -D__FUNCTION__=__PRETTY_FUNCTION__",
+        "CMAKE_C_FLAGS": "-DDEV",
+        "TRACY_ENABLE": "ON",
+        "TRACY_ON_DEMAND": "ON"
       }
     },
     {
