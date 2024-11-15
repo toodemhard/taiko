@@ -3,7 +3,7 @@
 #include "allocator.h"
 
 struct MemoryAllocators {
-    monotonic_allocator ui_allocator;
+    linear_allocator ui_allocator;
 };
 
 template<typename T, typename... Args>

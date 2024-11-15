@@ -400,8 +400,6 @@ void Game::update(std::chrono::duration<double> delta_time) {
 
         cam.position.x += cam_offset;
 
-        this->draw_map();
-
         {
             auto rect = SDL_FRect{0, (constants::window_height - back_frame.height) / 2.0f, thing_x, (float)back_frame.height};
             SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
@@ -425,6 +423,8 @@ void Game::update(std::chrono::duration<double> delta_time) {
 
             draw_note(renderer, assets, in_flight_notes.flags[i], pos);
         }
+
+        this->draw_map();
 
 
         constexpr auto miss_effect_duration = 0.4f;

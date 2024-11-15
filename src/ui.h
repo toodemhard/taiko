@@ -17,13 +17,17 @@
 #include <SDL3/SDL.h>
 
 namespace color {
+
 constexpr RGBA white{255, 255, 255, 255};
 constexpr RGBA black{0, 0, 0, 255};
 constexpr RGBA red{255, 0, 0, 255};
+constexpr RGBA yellow{255, 187, 0, 255};
 constexpr RGBA grey{200, 200, 200, 255};
-constexpr RGBA bg{31, 31, 31, 200};
+constexpr RGBA bg{30, 32, 34, 200};
+constexpr RGBA bg_darker{25, 25, 25, 230};
 constexpr RGBA bg_highlight{90, 90, 90, 200};
 constexpr RGBA none{0, 0, 0, 0};
+
 } // namespace color
 
 constexpr int string_array_capacity{10};
@@ -274,7 +278,7 @@ enum DrawCommand {
 
 class UI {
   public:
-    UI(monotonic_allocator& temp_allocator);
+    UI(linear_allocator& temp_allocator);
 
     UI(UI& other) = default;
 
@@ -314,7 +318,7 @@ class UI {
     StringCache strings{};
 
   private:
-    monotonic_allocator& m_temp_allocator;
+    linear_allocator& m_temp_allocator;
 
     int m_screen_width = 0;
     int m_screen_height = 0;

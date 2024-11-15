@@ -30,7 +30,7 @@ void StringCache::clear() {
     back = 0;
 }
 
-UI::UI(monotonic_allocator& temp_allocator) :
+UI::UI(linear_allocator& temp_allocator) :
     m_temp_allocator(temp_allocator),
     m_rects(m_temp_allocator),
     m_draw_rects(m_temp_allocator),
