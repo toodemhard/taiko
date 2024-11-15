@@ -13,7 +13,8 @@
         "CMAKE_CXX_COMPILER": "clang++",
         "CMAKE_CXX_FLAGS": "-Wno-error",
         "CMAKE_C_COMPILER_WORKS": "YES",
-        "CMAKE_CXX_COMPILER_WORKS": "YES"
+        "CMAKE_CXX_COMPILER_WORKS": "YES",
+        "SDL3_DIR": "${sourceDir}/lib/sdl3/build"
       },
       "condition": {
         "type": "equals",
@@ -22,14 +23,9 @@
       }
     },
     {
-      "name": "x64-debug",
-      "displayName": "x64 Debug",
-      "description": "",
+      "name": "debug",
+      "displayName": "debug",
       "inherits": "base",
-      "architecture": {
-        "value": "x64",
-        "strategy": "external"
-      },
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_CXX_FLAGS": "-g -DDEV",
@@ -37,10 +33,9 @@
       }
     },
     {
-      "name": "x64-release",
-      "displayName": "x64 Release",
-      "description": "",
-      "inherits": "x64-debug",
+      "name": "release",
+      "displayName": "release",
+      "inherits": "base",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "RelWithDebInfo",
         "CMAKE_CXX_FLAGS": "-DDEV -D__FUNCTION__=__PRETTY_FUNCTION__",
@@ -52,10 +47,11 @@
     {
       "name": "distribution",
       "displayName": "distribution",
-      "description": "",
       "inherits": "base",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_CXX_FLAGS": "-O2",
+        "CMAKE_C_FLAGS": "-O2",
         "CMAKE_INSTALL_PREFIX": "{$sourceDIr}/dist",
         "COPY_TO_DISTRIBUTION": "ON"
       }

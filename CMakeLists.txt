@@ -8,6 +8,14 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 include(FetchContent)
 
 option(TRACY_ENABLE OFF)
+
+find_package(SDL3 REQUIRED)
+
+if(SDL3_FOUND)
+    message(STATUS "Found SDL3 at: ${SDL3_DIR}")
+else()
+    add_subdirectory(lib/sdl3 EXCLUDE_FROM_ALL)
+endif()
 #
 # if (CMAKE_BUILD_TYPE STREQUAL "Release")
 #     option(TRACY_ENABLE "" ON)
@@ -16,7 +24,6 @@ option(TRACY_ENABLE OFF)
 # endif ()
 
 add_subdirectory(lib/tracy EXCLUDE_FROM_ALL)
-add_subdirectory(lib/sdl3 EXCLUDE_FROM_ALL)
 add_subdirectory(lib/EASTL EXCLUDE_FROM_ALL)
 
 option(BUILD_SHARED_LIBS OFF)
