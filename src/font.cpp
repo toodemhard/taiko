@@ -74,13 +74,13 @@ void generate_text_font_atlas(SDL_Renderer* renderer) {
     constexpr int image_size = config.width * config.height * 4;
     auto image = std::vector<unsigned char>(image_size);
     for (int i = 0; i < bitmap_length; i++) {
-        image[i * 4] = bitmap[i];
-        image[i * 4 + 1] = bitmap[i];
-        image[i * 4 + 2] = bitmap[i];
+        image[i * 4] = 255;
+        image[i * 4 + 1] = 255;
+        image[i * 4 + 2] = 255;
         image[i * 4 + 3] = bitmap[i];
     }
 
-    auto surface = SDL_CreateSurfaceFrom(config.width, config.height, SDL_PIXELFORMAT_RGBA8888, image.data(), config.width * 4);
+    auto surface = SDL_CreateSurfaceFrom(config.width, config.height, SDL_PIXELFORMAT_ABGR8888, image.data(), config.width * 4);
     text_font_atlas.texture = SDL_CreateTextureFromSurface(renderer, surface);
 }
 
@@ -118,13 +118,15 @@ void generate_icon_font_atlas(SDL_Renderer* renderer) {
     constexpr int image_size = config.width * config.height * 4;
     auto image = std::vector<unsigned char>(image_size);
     for (int i = 0; i < bitmap_length; i++) {
-        image[i * 4] = bitmap[i];
-        image[i * 4 + 1] = bitmap[i];
-        image[i * 4 + 2] = bitmap[i];
+        image[i * 4] = 255;
+        image[i * 4 + 1] = 255;
+        image[i * 4 + 2] = 255;
         image[i * 4 + 3] = bitmap[i];
     }
 
-    auto surface = SDL_CreateSurfaceFrom(config.width, config.height, SDL_PIXELFORMAT_RGBA8888, image.data(), config.width * 4);
+
+
+    auto surface = SDL_CreateSurfaceFrom(config.width, config.height, SDL_PIXELFORMAT_ABGR8888, image.data(), config.width * 4);
     icon_font_atlas.texture = SDL_CreateTextureFromSurface(renderer, surface);
 }
 
@@ -213,9 +215,9 @@ void draw_text(SDL_Renderer* renderer, const char* text, float font_size, Vec2 p
         return;
     }
 
-    SDL_SetTextureColorMod(text_font_atlas.texture, color.r, color.b, color.g);
+    SDL_SetTextureColorMod(text_font_atlas.texture, color.r, color.g, color.b);
     SDL_SetTextureAlphaMod(text_font_atlas.texture, color.a);
-    SDL_SetTextureColorMod(icon_font_atlas.texture, color.r, color.b, color.g);
+    SDL_SetTextureColorMod(icon_font_atlas.texture, color.r, color.g, color.b);
     SDL_SetTextureAlphaMod(icon_font_atlas.texture, color.a);
 
     float size_ratio = font_size / text_font_atlas_config.baked_font_size;
