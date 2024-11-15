@@ -156,7 +156,7 @@ void MainMenu::update(double delta_time) {
 
         Style style{};
         style.gap = 20;
-        style.background_color = RGBA{30, 30, 30, 255};
+        style.background_color = RGBA{25, 25, 25, 255};
         style.padding = even_padding(20);
         style.width = Scale::Fixed{(float)constants::window_width};
 
@@ -244,7 +244,7 @@ Anything else = hardest diff)"
             auto diff_st = Style{};
             diff_st.padding = even_padding(25);
             diff_st.width = Scale::Fixed{500};
-            diff_st.background_color = RGBA{31, 31, 31, 200};
+            diff_st.background_color = color::bg;
 
             if (i == m_selected_diff_index) {
                 diff_st.background_color = color::white;
@@ -445,7 +445,7 @@ Escape)",
             item_st.width = Scale::Fixed{map_item_width};
             item_st.height = Scale::Fixed{map_item_height};
             item_st.padding = even_padding(25);
-            item_st.background_color = RGBA{31, 31, 31, 200};
+            item_st.background_color = color::bg;
 
 
             auto index_offset = m_scroll_pos - i;
@@ -592,7 +592,9 @@ Escape)",
             st.position = Position::Absolute{0,0};
             st.width = Scale::FitParent{};
             st.height = Scale::FitParent{};
-            st.background_color = RGBA{40, 40, 40, 160};
+            auto bg = color::bg;
+            bg.a = 130;
+            st.background_color = bg;
 
             ui.begin_row(st);
             ui.end_row();
@@ -626,7 +628,7 @@ Escape)",
             slider_st.width = 300;
             slider_st.height = 50;
             slider_st.fg_color = color::red;
-            slider_st.bg_color = color::bg;
+            slider_st.bg_color = color::bg_darker;
 
             float volume_fraction = (Mix_GetMusicVolume(audio.m_music) / (float)MIX_MAX_VOLUME);
             ui.begin_row({.stack_direction=StackDirection::Vertical, .gap=20});
@@ -673,7 +675,7 @@ Escape)",
 
                 Style st{};
                 st.width = Scale::Fixed{400};
-                st.background_color = color::bg;
+                st.background_color = color::bg_darker;
                 st.text_align = TextAlign::Center;
                 st.padding = even_padding(5);
 

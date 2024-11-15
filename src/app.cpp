@@ -300,8 +300,10 @@ int run() {
 
         debug_ui.begin_row(st);
 
-        debug_ui.text(ui_memory_string.data(), {});
-        debug_ui.text(frame_time_string.data(), {});
+        st = {};
+        st.text_color = color::yellow;
+        debug_ui.text(ui_memory_string.data(), st);
+        debug_ui.text(frame_time_string.data(), st);
         debug_ui.end_row();
 
         debug_ui.end_frame(input);

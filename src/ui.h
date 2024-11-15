@@ -17,11 +17,14 @@
 #include <SDL3/SDL.h>
 
 namespace color {
+
 constexpr RGBA white{255, 255, 255, 255};
 constexpr RGBA black{0, 0, 0, 255};
 constexpr RGBA red{255, 0, 0, 255};
+constexpr RGBA yellow{255, 187, 0, 255};
 constexpr RGBA grey{200, 200, 200, 255};
-constexpr RGBA bg{31, 31, 31, 200};
+constexpr RGBA bg{30, 32, 34, 200};
+constexpr RGBA bg_darker{25, 25, 25, 230};
 constexpr RGBA bg_highlight{90, 90, 90, 200};
 constexpr RGBA none{0, 0, 0, 0};
 } // namespace color
