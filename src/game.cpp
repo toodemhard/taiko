@@ -393,6 +393,17 @@ void Game::update(std::chrono::duration<double> delta_time) {
             auto dst_rect = rect_at_center_point(rect_center(crosshair_rect), hit_effect_image.width, hit_effect_image.height);
             SDL_RenderTexture(renderer, hit_effect_image.texture, NULL, &dst_rect);
         }
+
+        auto flight_start_point = rect_center(crosshair_rect);
+        for (int i = 0; i < in_flight_notes.times.size(); i++) {
+            auto flight_elapsed = elapsed - in_flight_notes.times[i];
+
+            auto pos = linear_interp({ flight_start_point.x, flight_start_point.y }, { (float)constants::window_width, 0 }, flight_elapsed / total_flight_time_seconds);
+
+            draw_note(renderer, assets, in_flight_notes.flags[i], pos);
+        }
+
+        this->draw_map();
         
         cam.position.x = elapsed;
         // find world space dist between crosshair and 0 time point
@@ -415,16 +426,6 @@ void Game::update(std::chrono::duration<double> delta_time) {
         Vec2 p2 = cam.world_to_screen({ x, -0.25f });
 
 
-        auto flight_start_point = rect_center(crosshair_rect);
-        for (int i = 0; i < in_flight_notes.times.size(); i++) {
-            auto flight_elapsed = elapsed - in_flight_notes.times[i];
-
-            auto pos = linear_interp({ flight_start_point.x, flight_start_point.y }, { (float)constants::window_width, 0 }, flight_elapsed / total_flight_time_seconds);
-
-            draw_note(renderer, assets, in_flight_notes.flags[i], pos);
-        }
-
-        this->draw_map();
 
 
         constexpr auto miss_effect_duration = 0.4f;
