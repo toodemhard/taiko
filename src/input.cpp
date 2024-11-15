@@ -16,7 +16,7 @@ void Input::begin_frame() {
 void Input::end_frame() {
     ZoneScoped;
 
-    std::memcpy(last_keyboard.data(), current_keyboard, SDL_NUM_SCANCODES);
+    std::memcpy(last_keyboard.data(), current_keyboard, SDL_SCANCODE_COUNT);
 
     m_key_this_frame = {};
 

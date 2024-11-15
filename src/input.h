@@ -56,15 +56,15 @@ class Input {
     Vec2 mouse_pos{};
     float wheel{};
     std::optional<std::string> input_text;
-    std::array<Uint8, SDL_NUM_SCANCODES> keyboard_repeat{};
+    std::array<bool, SDL_SCANCODE_COUNT> keyboard_repeat{};
 
     std::array<SDL_Scancode, ActionID::count> keybindings;
 
     std::optional<SDL_Scancode> m_key_this_frame;
 
   private:
-    std::array<Uint8, SDL_NUM_SCANCODES> last_keyboard{};
-    const Uint8* current_keyboard = SDL_GetKeyboardState(NULL);
+    std::array<bool, SDL_SCANCODE_COUNT> last_keyboard{};
+    const bool* current_keyboard = SDL_GetKeyboardState(NULL);
 
 
     SDL_Keymod mod_state;
