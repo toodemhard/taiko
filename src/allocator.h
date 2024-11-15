@@ -79,7 +79,7 @@ bool operator!=(const alloc_ref<T, Allocator>& a, const alloc_ref<U, Allocator>&
     return a.m_allocator != b.m_allocator;
 }
 
-struct monotonic_allocator {
+struct linear_allocator {
     void* m_start = nullptr;
     uint32_t m_current{};
     uint32_t m_capacity{};
@@ -122,13 +122,20 @@ struct monotonic_allocator {
     }
 };
 
-inline bool operator==(const monotonic_allocator& a, const monotonic_allocator& b) {
+inline bool operator==(const linear_allocator& a, const linear_allocator& b) {
     return a.m_start == b.m_start;
 }
 
-inline bool operator!=(const monotonic_allocator& a, const monotonic_allocator& b) {
+inline bool operator!=(const linear_allocator& a, const linear_allocator& b) {
     return a.m_start != b.m_start;
 }
+
+struct free_list_allocator {
+    void* current;
+
+    
+
+};
 
 //EASTL
 // struct monotonic_allocator {
@@ -212,6 +219,6 @@ inline bool operator!=(const monotonic_allocator& a, const monotonic_allocator& 
 namespace temp {
 template <typename T>
 // using vector = std::vector<T, alloc_ref<T, monotonic_allocator>>;
-    using vector = std::vector<T, alloc_ref<T, monotonic_allocator>>;
+    using vector = std::vector<T, alloc_ref<T, linear_allocator>>;
 }
 

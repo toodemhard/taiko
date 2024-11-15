@@ -11,6 +11,7 @@
 #include "SDL3/SDL_video.h"
 #include "SDL3_mixer/SDL_mixer.h"
 #include "allocator.h"
+#include "asset_loader.h"
 #include "audio.h"
 #include "constants.h"
 #include "events.h"
@@ -130,13 +131,13 @@ int run() {
 
 
     auto everything_buffer = BufferOwned(5_MiB);
-    auto everything_allocator = monotonic_allocator{};
+    auto everything_allocator = linear_allocator{};
     everything_allocator.init(everything_buffer.handle());
 
-    MemoryAllocators memory = {.ui_allocator = monotonic_allocator{}};
+    MemoryAllocators memory = {.ui_allocator = linear_allocator{}};
     memory.ui_allocator.init(everything_allocator.allocate_buffer(2_MiB, sizeof(std::max_align_t)));
 
-    monotonic_allocator debug_ui_allocator{};
+    linear_allocator debug_ui_allocator{};
     debug_ui_allocator.init(everything_allocator.allocate_buffer(1_MiB, sizeof(std::max_align_t)));
 
 
