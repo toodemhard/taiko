@@ -83,6 +83,9 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     EASTL
 )
 
+if (COPY_TO_DISTRIBUTION)
+    target_link_options(${PROJECT_NAME} PRIVATE -Xlinker /SUBSYSTEM:WINDOWS)
+endif()
 
 add_custom_target(copy_assets
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/data ${CMAKE_CURRENT_BINARY_DIR}/data
